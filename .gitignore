@@ -1,0 +1,13 @@
+dist/
+.superpowers/
+.cache/
+*.test
+.DS_Store
+.env
+.env.*
+!.env.example
+.v2c/
+.video_agent/
+_runtime_verification/
+docs/verification/
+docs/superpowers/

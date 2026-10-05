@@ -1,0 +1,21 @@
+version: 2
+project:
+  id: studio
+  name: PDForge Studio
+context:
+  cwd: /path/to/easy_study_pipeline/frontend/pdforge_studio
+services:
+  web:
+    run:
+      command:
+      - pnpm
+      - dev
+    requires:
+    - node: backend/service/api
+      condition: ready
+    ports:
+    - name: http
+      port: 5601
+    ready:
+      tcp: 127.0.0.1:5601
+    open: http://127.0.0.1:5601/

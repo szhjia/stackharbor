@@ -1,0 +1,8 @@
+version: 1
+root: ../../..
+discover: false
+registrations:
+  - backend.yaml
+  - studio.yaml
+  - admin.yaml
+  - study.yaml

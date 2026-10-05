@@ -1,0 +1,8 @@
+version: 1
+project: {id: api, name: Demo API}
+services:
+  server:
+    run: {command: [go, run, .]}
+    env: {DEMO_PORT: "18081", DEMO_NAME: api}
+    ports: [{name: http, port: 18081}]
+    ready: {tcp: "127.0.0.1:18081"}

@@ -1,0 +1,11 @@
+version: 1
+project: {id: studio, name: PDForge Studio}
+services:
+  dev:
+    cwd: ../../../frontend/pdforge_studio
+    run:
+      command: ["pnpm", "dev"]
+    ports: [{name: http, port: 5601}]
+    ready: {tcp: "127.0.0.1:5601"}
+    depends_on: [backend/dev]
+    open: "http://127.0.0.1:5601/"

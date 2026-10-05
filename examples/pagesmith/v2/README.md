@@ -1,0 +1,1 @@
+这些 v2 注册从实际 PageSmith 前台命令核对生成。请将 /path/to/easy_study_pipeline 和 /path/to/registrations 替换为实际路径，并提供 .env。数据库 URL 是 Compose 的本地默认示例，生产凭据应由环境提供。先 validate、plan、doctor；漂移时不要自动 stamp 或删除表。worker/relay/beat 暂无按实例探针，只显示存活。

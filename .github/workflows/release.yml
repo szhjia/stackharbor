@@ -1,0 +1,41 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - name: Validate tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+      - name: Package
+        run: make release VERSION="$RELEASE_VERSION"
+      - name: Verify distribution
+        env:
+          STACKHARBOR_RELEASE_TEST: '1'
+        run: |
+          STACKHARBOR_RELEASE_VERSION="$RELEASE_VERSION" go test ./tests -run '^TestRelease' -count=1
+          cd dist && sha256sum -c SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/stackharbor_"$RELEASE_VERSION"_*.tar.gz dist/SHA256SUMS \
+            --verify-tag --title "StackHarbor $RELEASE_TAG" --notes-file CHANGELOG.md

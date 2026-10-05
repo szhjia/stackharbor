@@ -1,0 +1,11 @@
+version: 1
+project: {id: backend, name: PageSmith backend}
+services:
+  dev:
+    cwd: ../../../backend
+    run:
+      command: ["./run.sh", "local"]
+    docker_depends_on: [db, redis]
+    ports: [{name: http, port: 5600}]
+    ready: {tcp: "127.0.0.1:5600"}
+    stop: {signal: INT, timeout_seconds: 15}

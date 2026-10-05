@@ -1,0 +1,178 @@
+version: 2
+project:
+  id: backend
+  name: PageSmith backend
+context:
+  cwd: /path/to/easy_study_pipeline/backend
+  env_files:
+  - /path/to/easy_study_pipeline/.env
+  env:
+    PAGESMITH_DATABASE_URL: postgresql+psycopg2://pdforge:pdforge@127.0.0.1:5602/pdforge
+    PAGESMITH_CELERY_BROKER_URL: redis://127.0.0.1:5604/0
+    PAGESMITH_CREATE_TABLES: 'false'
+    PAGESMITH_PDFORGE_OPEN: 'false'
+    PAGESMITH_STATE_DIR: /path/to/easy_study_pipeline/.pdforge
+    PAGESMITH_DATA_DIR: /path/to/easy_study_pipeline/data
+tasks:
+  preflight:
+    name: Environment check
+    effect: read-only
+    policy: always
+    timeout_seconds: 30
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - scripts/stackharbor/preflight.py
+  migrate:
+    name: Database migration
+    effect: schema-write
+    policy: when-needed
+    timeout_seconds: 180
+    requires:
+    - node: backend/task/preflight
+      condition: succeeded
+    - node: resource/database
+      condition: available
+    lock:
+      scope: database
+      target:
+        env: PAGESMITH_DATABASE_URL
+      schema: public
+    check:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - scripts/stackharbor/migration_status.py
+      satisfied_exit: 0
+      needed_exit: 10
+      drift_exit: 20
+      required_scope:
+      - migration_chain
+      - pending_create_table_conflicts
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - -m
+      - alembic
+      - upgrade
+      - head
+    verify:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - scripts/stackharbor/migration_status.py
+      success_exit: 0
+      required_scope:
+      - migration_chain
+      - target_table_column_presence
+    inputs:
+    - alembic.ini
+    - app/infrastructure/db/migrations
+    - scripts/stackharbor/migration_status.py
+services:
+  api:
+    name: API
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - server.py
+      - --no-open
+      - --reload
+    requires:
+    - node: backend/task/migrate
+      condition: succeeded
+    - node: resource/redis
+      condition: available
+    ports:
+    - name: http
+      port: 5600
+    ready:
+      tcp: 127.0.0.1:5600
+    stop:
+      signal: INT
+      timeout_seconds: 15
+  worker:
+    name: Worker
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - -m
+      - celery
+      - -A
+      - app.infrastructure.async_tasks.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=system,fetch,process,llm,export
+      - --concurrency=2
+    requires:
+    - node: backend/task/migrate
+      condition: succeeded
+    - node: resource/redis
+      condition: available
+  relay:
+    name: Outbox Relay
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - -m
+      - app.infrastructure.async_tasks.outbox_relay
+    requires:
+    - node: backend/task/migrate
+      condition: succeeded
+    - node: resource/redis
+      condition: available
+  beat:
+    name: Beat
+    run:
+      command:
+      - uv
+      - run
+      - --no-sync
+      - --offline
+      - python
+      - -B
+      - -m
+      - celery
+      - -A
+      - app.infrastructure.async_tasks.celery_app:celery_app
+      - beat
+      - --loglevel=INFO
+      - --schedule=/path/to/easy_study_pipeline/.pdforge/celerybeat-schedule-local
+    requires:
+    - node: backend/task/migrate
+      condition: succeeded
+    - node: resource/redis
+      condition: available

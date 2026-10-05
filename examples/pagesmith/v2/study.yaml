@@ -1,0 +1,21 @@
+version: 2
+project:
+  id: study
+  name: Study app
+context:
+  cwd: /path/to/easy_study_pipeline/frontend/study_app
+services:
+  web:
+    run:
+      command:
+      - pnpm
+      - dev
+    requires:
+    - node: backend/service/api
+      condition: ready
+    ports:
+    - name: http
+      port: 5612
+    ready:
+      tcp: 127.0.0.1:5612
+    open: http://127.0.0.1:5612/

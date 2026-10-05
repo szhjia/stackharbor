@@ -1,0 +1,15 @@
+version: 1
+project:
+  id: web
+  name: Demo web
+services:
+  dev:
+    run:
+      command: [go, run, .]
+    env:
+      DEMO_PORT: "18080"
+      DEMO_NAME: web
+    ports:
+      - {name: http, port: 18080}
+    ready: {http: "http://127.0.0.1:18080/"}
+    open: "http://127.0.0.1:18080/"

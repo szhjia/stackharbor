@@ -1,0 +1,27 @@
+version: 2
+root: /path/to/easy_study_pipeline
+discover: false
+registrations:
+- /path/to/registrations/backend.yaml
+- /path/to/registrations/admin.yaml
+- /path/to/registrations/studio.yaml
+- /path/to/registrations/study.yaml
+resources:
+  database:
+    name: PostgreSQL
+    adapter: compose
+    file: /path/to/easy_study_pipeline/docker-compose.yml
+    project: easy_study_pipeline
+    service: db
+    available: healthy
+    lifetime: persistent
+    control: managed
+  redis:
+    name: Redis
+    adapter: compose
+    file: /path/to/easy_study_pipeline/docker-compose.yml
+    project: easy_study_pipeline
+    service: redis
+    available: healthy
+    lifetime: persistent
+    control: managed

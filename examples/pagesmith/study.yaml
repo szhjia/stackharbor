@@ -1,0 +1,11 @@
+version: 1
+project: {id: study, name: Study app}
+services:
+  dev:
+    cwd: ../../../frontend/study_app
+    run:
+      command: ["pnpm", "dev"]
+    ports: [{name: http, port: 5612}]
+    ready: {tcp: "127.0.0.1:5612"}
+    depends_on: [backend/dev]
+    open: "http://127.0.0.1:5612/"

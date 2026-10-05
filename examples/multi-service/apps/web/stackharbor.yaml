@@ -1,0 +1,10 @@
+version: 1
+project: {id: web, name: Demo frontend}
+services:
+  dev:
+    run: {command: [go, run, .]}
+    env: {DEMO_PORT: "18082", DEMO_NAME: web}
+    ports: [{name: http, port: 18082}]
+    depends_on: [api/server]
+    ready: {http: "http://127.0.0.1:18082/"}
+    open: "http://127.0.0.1:18082/"

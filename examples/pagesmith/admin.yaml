@@ -1,0 +1,11 @@
+version: 1
+project: {id: admin, name: Admin console}
+services:
+  dev:
+    cwd: ../../../frontend/admin_console
+    run:
+      command: ["pnpm", "dev"]
+    ports: [{name: http, port: 5611}]
+    ready: {tcp: "127.0.0.1:5611"}
+    depends_on: [backend/dev]
+    open: "http://127.0.0.1:5611/"

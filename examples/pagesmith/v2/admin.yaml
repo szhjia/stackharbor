@@ -1,0 +1,21 @@
+version: 2
+project:
+  id: admin
+  name: Admin console
+context:
+  cwd: /path/to/easy_study_pipeline/frontend/admin_console
+services:
+  web:
+    run:
+      command:
+      - pnpm
+      - dev
+    requires:
+    - node: backend/service/api
+      condition: ready
+    ports:
+    - name: http
+      port: 5611
+    ready:
+      tcp: 127.0.0.1:5611
+    open: http://127.0.0.1:5611/
