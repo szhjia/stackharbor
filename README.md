@@ -7,7 +7,7 @@
 [![Checks](https://github.com/szhjia/stackharbor/actions/workflows/check.yml/badge.svg)](https://github.com/szhjia/stackharbor/actions/workflows/check.yml)
 [![Release](https://img.shields.io/github/v/release/szhjia/stackharbor)](https://github.com/szhjia/stackharbor/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![skills.sh](https://skills.sh/b/szhjia/stackharbor)](https://skills.sh/szhjia/stackharbor)
+[![skills.sh](https://skills.sh/b/szhjia/stackharbor)](https://skills.sh/szhjia/stackharbor/stackharbor)
 
 ## Why I built this
 
@@ -115,8 +115,10 @@ Ports in YAML describe the application; they do not configure its listener. Comm
 Install the bundled skill through the open skills CLI (requires Node.js/npm):
 
 ```sh
-npx skills add szhjia/stackharbor --skill stackharbor
+npx skills add szhjia/stackharbor
 ```
+
+Public skill page: [stackharbor on skills.sh](https://skills.sh/szhjia/stackharbor/stackharbor). The command above installs the skill directly from this GitHub repository.
 
 Then ask your agent:
 

@@ -7,7 +7,7 @@
 [![检查](https://github.com/szhjia/stackharbor/actions/workflows/check.yml/badge.svg)](https://github.com/szhjia/stackharbor/actions/workflows/check.yml)
 [![版本](https://img.shields.io/github/v/release/szhjia/stackharbor)](https://github.com/szhjia/stackharbor/releases/latest)
 [![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![skills.sh](https://skills.sh/b/szhjia/stackharbor)](https://skills.sh/szhjia/stackharbor)
+[![skills.sh](https://skills.sh/b/szhjia/stackharbor)](https://skills.sh/szhjia/stackharbor/stackharbor)
 
 ## 为什么做这个项目
 
@@ -115,8 +115,10 @@ YAML 中的端口用于描述和观测，不会改变应用监听配置。命令
 通过 skills CLI 安装技能（需要 Node.js/npm）：
 
 ```sh
-npx skills add szhjia/stackharbor --skill stackharbor
+npx skills add szhjia/stackharbor
 ```
+
+公开技能页面：[skills.sh 上的 stackharbor](https://skills.sh/szhjia/stackharbor/stackharbor)。上述命令直接从本 GitHub 仓库安装技能。
 
 然后告诉 Agent：
 
