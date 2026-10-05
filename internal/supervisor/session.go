@@ -19,6 +19,7 @@ import (
 type entry struct {
 	spec                                     model.Service
 	state, reason                            string
+	observedState, observedReason            string
 	gen                                      uint64
 	handle                                   runner.Handle
 	cancel                                   context.CancelFunc

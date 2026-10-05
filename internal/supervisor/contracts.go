@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/docker"
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/observe"
 	"os"
@@ -129,7 +130,7 @@ func inputDigest(path string) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(rows.String()))), nil
 }
 
-func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]uint64) {
+func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]uint64, ports map[model.ServiceID][]model.PortObservation, owned map[model.ServiceID][]model.ProcessIdentity) map[model.ServiceID]model.DockerSnapshot {
 	type result struct {
 		available        bool
 		identity, reason string
@@ -138,25 +139,49 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 	cache := map[string][]model.DockerSnapshot{}
 	reasons := map[string]string{}
 	services := map[string]map[string]bool{}
+	managers := map[string]*docker.Manager{}
 	for id, m := range s.resources {
 		key := m.File + "\x00" + m.Project
+		managers[key] = m
 		if services[key] == nil {
 			services[key] = map[string]bool{}
 		}
 		services[key][s.entries[id].spec.Resource.Service] = true
 	}
-	for id, m := range s.resources {
-		key := m.File + "\x00" + m.Project
-		if _, ok := cache[key]; !ok {
-			rows, reason := m.Observe(ctx)
-			selected := []model.DockerSnapshot{}
-			for _, row := range rows {
-				if services[key][row.Service] {
-					selected = append(selected, row)
+	specs := map[model.ServiceID]model.Service{}
+	for _, spec := range s.workspace.Services() {
+		specs[spec.ID] = spec
+	}
+	allRows := []model.DockerSnapshot{}
+	for key, m := range managers {
+		cache[key], reasons[key] = m.Observe(ctx)
+		if reasons[key] == "" {
+			allRows = append(allRows, cache[key]...)
+		}
+	}
+	external := externalDockerServices(specs, ports, owned, allRows)
+	for key, m := range managers {
+		selected := []model.DockerSnapshot{}
+		for _, row := range cache[key] {
+			include := services[key][row.Service]
+			for _, match := range external {
+				include = include || match.ID == row.ID
+			}
+			if include {
+				selected = append(selected, row)
+			}
+		}
+		cache[key] = m.SampleMetrics(ctx, selected)
+		for _, row := range cache[key] {
+			for id, match := range external {
+				if match.ID == row.ID {
+					external[id] = row
 				}
 			}
-			cache[key], reasons[key] = m.SampleMetrics(ctx, selected), reason
 		}
+	}
+	for id, m := range s.resources {
+		key := m.File + "\x00" + m.Project
 		n := s.entries[id].spec
 		available, identity := resourceAvailable(n.Resource, cache[key])
 		reason := reasons[key]
@@ -179,7 +204,7 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 		observedErrors[id] = err
 	}
 	if ctx.Err() != nil {
-		return
+		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -250,4 +275,5 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 			s.event(id, state, reason)
 		}
 	}
+	return external
 }

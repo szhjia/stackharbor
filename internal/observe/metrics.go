@@ -136,8 +136,7 @@ func (s *Sampler) SampleServices(ctx context.Context, owned map[model.ServiceID]
 				if reserved[l.PID] {
 					continue
 				}
-				name := strings.ToLower(l.Command)
-				if strings.Contains(name, "docker") || strings.Contains(name, "colima") || strings.Contains(name, "com.dock") || strings.Contains(name, "gvproxy") || strings.Contains(name, "qemu") || strings.Contains(name, "ssh") {
+				if IsForwarder(l.Command) {
 					sources[id] = "forwarder"
 					continue
 				}
@@ -192,4 +191,14 @@ func (s *Sampler) SampleServices(ctx context.Context, owned map[model.ServiceID]
 		}
 	}
 	return metrics, self, sources
+}
+
+func IsForwarder(command string) bool {
+	name := strings.ToLower(command)
+	for _, forwarder := range []string{"docker", "colima", "com.dock", "gvproxy", "qemu", "ssh"} {
+		if strings.Contains(name, forwarder) {
+			return true
+		}
+	}
+	return false
 }

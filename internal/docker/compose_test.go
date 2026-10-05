@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/szhjia/stackharbor/internal/model"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -58,5 +59,25 @@ func TestEnsureDependencyOrderWithoutUnrelatedMigrations(t *testing.T) {
 	}
 	if !reflect.DeepEqual(calls, []string{"db", "worker"}) {
 		t.Fatal(calls)
+	}
+}
+
+func TestPublishedEndpointAssociationOnlyIncludesLocalTCPBindings(t *testing.T) {
+	m := &Manager{File: "compose.yaml", specs: []model.DockerSnapshot{{Service: "api"}}, run: func(context.Context, ...string) ([]byte, error) {
+		return []byte(`[{"ID":"api-id","Service":"api","State":"running","Publishers":[{"URL":"127.0.0.1","PublishedPort":6210,"Protocol":"tcp"},{"URL":"0.0.0.0","PublishedPort":6211,"Protocol":"tcp"},{"URL":"192.0.2.1","PublishedPort":6212,"Protocol":"tcp"},{"URL":"127.0.0.1","PublishedPort":6213,"Protocol":"udp"},{"URL":"","PublishedPort":0,"Protocol":"tcp"}]}]`), nil
+	}}
+	rows, reason := m.Observe(context.Background())
+	if reason != "" || len(rows) != 1 || !reflect.DeepEqual(rows[0].PublishedEndpoints, []model.PublishedEndpoint{{Host: "127.0.0.1", Port: 6210}, {Host: "0.0.0.0", Port: 6211}}) {
+		t.Fatal(rows, reason)
+	}
+}
+
+func TestReplicatedServiceDoesNotAttributeOneInstancesPortToAnother(t *testing.T) {
+	m := &Manager{File: "compose.yaml", specs: []model.DockerSnapshot{{Service: "api"}}, run: func(context.Context, ...string) ([]byte, error) {
+		return []byte(`[{"ID":"api-first","Service":"api","State":"running","Publishers":[{"URL":"127.0.0.1","PublishedPort":6210,"Protocol":"tcp"}]},{"ID":"api-second","Service":"api","State":"running","Publishers":[{"URL":"127.0.0.1","PublishedPort":6214,"Protocol":"tcp"}]}]`), nil
+	}}
+	rows, reason := m.Observe(context.Background())
+	if reason != "" || len(rows) != 1 || len(rows[0].PublishedEndpoints) != 0 {
+		t.Fatal("replica ports attributed to one instance", rows, reason)
 	}
 }

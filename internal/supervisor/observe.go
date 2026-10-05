@@ -83,7 +83,11 @@ func (s *Session) sample(ctx context.Context) {
 	if len(s.resources) == 0 {
 		dockerRows = s.docker.SampleMetrics(ctx, dockerRows)
 	}
-	s.sampleContracts(ctx, gens)
+	externalDocker := s.sampleContracts(ctx, gens, ports, owned)
+	if len(s.resources) == 0 && dockerError == "" {
+		externalDocker = externalDockerServices(specs, ports, owned, dockerRows)
+	}
+	observedStates, observedReasons := observeExternalServices(ctx, specs, ports, owned)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.resources) == 0 {
@@ -99,6 +103,11 @@ func (s *Session) sample(ctx context.Context) {
 			e.metric = metrics[id]
 			e.metricSource = sources[id]
 			e.metricError = ""
+			e.observedState, e.observedReason = observedStates[id], observedReasons[id]
+			if row, ok := externalDocker[id]; ok {
+				e.metric, e.metricError = row.Metric, row.MetricError
+				e.metricSource = "docker-external"
+			}
 			if e.spec.Resource != nil {
 				row := resourceMetrics[id]
 				e.metric, e.metricError = row.Metric, row.MetricError

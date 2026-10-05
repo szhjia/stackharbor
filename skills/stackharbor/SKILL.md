@@ -48,7 +48,7 @@ When the user has requested starting the local app and its established runtime i
 
 先核对实际二进制的 `--version` 和 `--help`。`sessions` 是只读会话列表；同一工作区已有会话时，使用已报告的 PID/TTY 找回窗口。`--focus` 仅支持 macOS Terminal；其它终端和 Linux 根据列表手动定位。关闭会话需用户要求停止或关闭对应工作区；`kill --root ROOT` 触发正常退出并清理会话拥有的服务，不能用于普通注册或观测工作，也不能代替释放外部进程端口。
 
-Dashboard、资源详情和 Docker 面板显示容器内存/CPU。v2 仅采样已注册的 Compose 资源；引擎/容器就绪观测和指标采样独立。指标缺失时按 [Docker 指标排查](references/docker.md#container-resource-metrics-v020) 核对选定上下文、容器 ID 和 `docker stats`，保留错误证据。`—` 表示当前没有有效样本，`0` 表示有效零值；不能凭指标缺失认定容器未运行。
+Dashboard、资源详情和 Docker 面板显示容器内存/CPU。v2 采样已注册 Compose 资源及同一配置范围内按 TCP 发布端口唯一匹配的外部应用容器；引擎/容器就绪观测和指标采样独立。Running ext 表示外部端点就绪，Listening 仅确认监听，Session 单独表示本会话管理归属；观测不会接管进程。外部容器指标只属于匹配端点容器，不汇总 worker。指标缺失时按 [Docker 指标排查](references/docker.md#container-resource-metrics-v020) 核对选定上下文、容器 ID 和 `docker stats`，保留错误证据。`—` 表示当前没有有效样本，`0` 表示有效零值；不能凭指标缺失认定容器未运行。
 
 ## 最小 v2 示例
 

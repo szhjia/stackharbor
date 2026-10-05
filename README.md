@@ -98,7 +98,7 @@ This builds StackHarbor and opens Harbor Café. Press **Shift+S** to start its s
 
 ![Harbor Café running in macOS Terminal](docs/screenshots/harbor-cafe-dashboard.png)
 
-The dashboard answers the everyday questions: which services are running, which ports they listen on, and who owns those listeners. **Session running 2/2** means both services were started by this session. **Port owner** identifies the observed listener ownership; memory and CPU come from actual process measurements. **Session events** shows the API becoming ready before the counter starts. This is a real capture from macOS Terminal.
+The dashboard answers the everyday questions: which services are running, which ports they listen on, and who owns those listeners. The capture predates v2.0.1. The current **Running 2/2** count includes ready external services; **Session 2** counts services managed by this session. **Running ext** identifies a ready external endpoint, and **Listening** means a listener exists without a readiness probe. **Port owner** identifies the observed listener ownership; memory and CPU come from actual process measurements. **Session events** shows the API becoming ready before the counter starts. This is a real capture from macOS Terminal.
 
 ![Order counter logs in macOS Terminal](docs/screenshots/harbor-cafe-logs.png)
 
@@ -176,7 +176,7 @@ StackHarbor runs local foreground processes with your user permissions; it is no
 
 Readiness probes are loopback-only. Logs are bounded (2,000 lines / 2 MiB per service, 16 MiB total) and terminal control sequences are stripped. RSS may double-count shared pages; process CPU can exceed 100%. External service measurements are read-only. Set `NO_COLOR` to disable colors; `STACKHARBOR_CACHE_DIR` overrides the session-lock/history cache directory.
 
-Docker resource metrics refresh through batched `docker stats` samples. Registered Compose resources show memory and CPU on the Dashboard, project details, and Docker panel; failed samples display unknown values with a reason. See the [usage guide](docs/usage.zh-CN.md#docker-依赖) for metric semantics.
+Docker resource metrics refresh through batched `docker stats` samples. Registered Compose resources and uniquely associated external forwarded endpoints show memory and CPU on the Dashboard, project details, and Docker panel; failed samples display unknown values with a reason. See the [usage guide](docs/usage.zh-CN.md#docker-依赖) for metric semantics.
 
 This early release does not provide Windows support, a web console, background supervision, automatic restart, or hot reload. Configuration validation does not prove an application's real startup or migration behavior.
 

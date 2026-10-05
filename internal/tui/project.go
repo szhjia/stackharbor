@@ -52,7 +52,7 @@ func (m Model) project() []string {
 			unknownPorts = unknownPorts || port.Status == "unknown" || port.Status == ""
 		}
 		active = active || (v.State != "stopped" && v.State != "failed")
-		summary := m.stateBadge(v.State)
+		summary := m.runtimeBadge(v)
 		if v.Spec.Kind != "task" && v.Spec.Kind != "resource" {
 			summary += "   " + m.portSummary(v)
 		}
@@ -78,11 +78,14 @@ func (m Model) project() []string {
 		if v.MetricSource == "forwarder" {
 			metadata = append(metadata, m.tone("Docker / VM forwarding · excluded from project metrics", muted))
 		}
-		if v.MetricSource == "docker" {
+		if v.MetricSource == "docker" || v.MetricSource == "docker-external" {
 			metadata = append(metadata, m.tone("Metrics from Docker stats · container usage", muted))
 		}
 		if v.MetricError != "" {
 			metadata = append(metadata, m.tone(plain(v.MetricError), amber))
+		}
+		if v.ObservedReason != "" {
+			metadata = append(metadata, m.tone(plain(v.ObservedReason), amber))
 		}
 		if v.Reason != "" {
 			metadata = append(metadata, m.tone(plain(v.Reason), amber))
@@ -232,6 +235,12 @@ func (m Model) projectStatus(project string) string {
 			if v.Spec.ProjectID == project {
 				for _, p := range ports(v) {
 					if p.Status == "external" {
+						if v.ObservedState == "running" {
+							return m.tone(fmt.Sprintf("● Running ext :%d", p.Port), green)
+						}
+						if v.ObservedState == "unready" {
+							return m.tone(fmt.Sprintf("! Unready ext :%d", p.Port), amber)
+						}
 						return m.tone(fmt.Sprintf("◐ External :%d", p.Port), amber)
 					}
 				}
@@ -240,7 +249,16 @@ func (m Model) projectStatus(project string) string {
 		return m.tone("- Not started", muted)
 	}
 	if state == "running" {
-		return m.tone("● Session running", green)
+		managed := false
+		for _, v := range m.snapshot.Services {
+			if v.Spec.ProjectID == project && v.Spec.Kind != "task" && v.Spec.Kind != "resource" && v.Spec.Control != "observe" && (v.State == "running" || v.State == "started") {
+				managed = true
+			}
+		}
+		if !managed {
+			return m.tone("● Running ext", green)
+		}
+		return m.tone("● Running", green)
 	}
 	if state == "partial" {
 		return m.tone("◐ Partly running", amber)

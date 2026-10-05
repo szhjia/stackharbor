@@ -98,7 +98,7 @@ make demo
 
 ![macOS Terminal 中实际运行的 Harbor Café 总览](docs/screenshots/harbor-cafe-dashboard.png)
 
-总览回答日常最常见的问题：哪些服务正在运行、监听哪些端口、端口属于谁。**Session running 2/2** 表示本会话启动的两个服务都在运行；**Port owner** 表示观测到的监听端口归属，内存和 CPU 来自实际进程观测。**Session events** 展示菜单 API 就绪后才启动点单服务的顺序。这是 macOS 自带 Terminal 的真实运行截图。
+总览回答日常最常见的问题：哪些服务正在运行、监听哪些端口、端口属于谁。截图为旧版；当前 **Running 2/2** 包含就绪的外部服务，**Session 2** 单独统计本会话管理的服务。**Running ext** 表示外部端点就绪，**Listening** 只确认存在监听；**Port owner** 表示观测到的监听端口归属，内存和 CPU 来自实际进程观测。**Session events** 展示菜单 API 就绪后才启动点单服务的顺序。这是 macOS 自带 Terminal 的真实运行截图。
 
 ![macOS Terminal 中点单服务的实际日志](docs/screenshots/harbor-cafe-logs.png)
 
@@ -176,7 +176,7 @@ StackHarbor 以当前用户权限运行本地前台进程，不提供安全沙�
 
 就绪探针仅访问环回地址。日志每服务最多 2,000 行 / 2 MiB，总计 16 MiB，并清除终端控制序列。RSS 可能重复计算共享页，进程 CPU 可超过 100%；外部服务只读观测。`NO_COLOR` 禁用颜色，`STACKHARBOR_CACHE_DIR` 可指定会话锁与历史缓存目录。
 
-Docker 资源指标通过批量 `docker stats` 采样动态刷新。注册的 Compose 资源在总览、工程详情和 Docker 页面显示内存、CPU；采样失败显示未知值和原因。指标口径见 [使用说明](docs/usage.zh-CN.md#docker-依赖)。
+Docker 资源指标通过批量 `docker stats` 采样动态刷新。注册的 Compose 资源在总览、工程详情和 Docker 页面显示内存、CPU；外部转发端口在已配置 Compose 范围内唯一匹配运行容器时，工程行也显示该容器指标；采样失败显示未知值和原因。指标口径见 [使用说明](docs/usage.zh-CN.md#docker-依赖)。
 
 当前早期版本不提供 Windows、网页控制台、后台托管、自动重启或热加载。配置校验成功不代表已经验证应用的真实启动和数据库迁移行为。
 

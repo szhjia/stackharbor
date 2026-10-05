@@ -8,6 +8,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/model"
 	"go.yaml.in/yaml/v3"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -212,6 +213,7 @@ type container struct {
 	Service, Name, State, Health string
 	Publishers                   []struct {
 		PublishedPort int
+		URL           string
 		TargetPort    int
 		Protocol      string
 	}
@@ -260,10 +262,13 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 	}
 	for i := range rows {
 		rows[i].State = "absent"
+		instances := 0
 		for _, c := range cs {
 			if c.Service != rows[i].Service {
 				continue
 			}
+			instances++
+			rows[i].PublishedEndpoints = nil
 			rows[i].Name = c.Name
 			rows[i].ID = c.ID
 			rows[i].State = c.State
@@ -271,6 +276,11 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 			ps := []string{}
 			seenPorts := map[string]bool{}
 			for _, p := range c.Publishers {
+				address := net.ParseIP(p.URL)
+				local := p.URL == "" || p.URL == "localhost" || address != nil && (address.IsLoopback() || address.IsUnspecified())
+				if p.PublishedPort > 0 && p.Protocol == "tcp" && local {
+					rows[i].PublishedEndpoints = append(rows[i].PublishedEndpoints, model.PublishedEndpoint{Host: p.URL, Port: p.PublishedPort})
+				}
 				label := fmt.Sprintf("%d→%d", p.PublishedPort, p.TargetPort)
 				if !seenPorts[label] {
 					ps = append(ps, label)
@@ -278,6 +288,9 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 				}
 			}
 			rows[i].Ports = strings.Join(ps, ", ")
+		}
+		if instances > 1 {
+			rows[i].PublishedEndpoints = nil
 		}
 	}
 	return rows, ""

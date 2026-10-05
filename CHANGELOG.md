@@ -2,10 +2,33 @@
 
 Notable user-facing changes are recorded here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). StackHarbor remains in
-the 0.x development phase.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). YAML protocol versions remain independent of executable release versions.
 
 ## [Unreleased]
+
+## [2.0.1] - 2026-10-05
+
+### Fixed
+
+- External services with successful readiness probes display `Running ext` on
+  the Dashboard, sidebar, and project page. A listener without a readiness
+  contract displays `Listening`; failed and unknown observations remain distinct.
+- The Dashboard separates the total running service count from the number
+  managed by the current session. Observation never adopts process ownership.
+- Docker / Colima / SSH forwarded endpoints associate with a unique running
+  container by TCP published port within the workspace's configured Compose
+  scopes. Its memory and CPU join the existing batched stats sample, even when
+  that application container is not registered as an infrastructure resource.
+- Ambiguous or replicated container matches, incompatible host bindings, and unrelated host listeners are excluded from
+  container attribution; failed stats clear stale metrics independently of readiness.
+
+### Upgrade notes
+
+- Existing v1 and v2 YAML registrations continue to work. Preserve the installed
+  binary as a backup, install v2.0.1, and restart StackHarbor to load it.
+- External Docker metrics describe the container serving the published endpoint,
+  not a sum of workers or other containers in the application.
+- Missing listeners remain stopped; installation does not start applications.
 
 ## [0.2.0] - 2026-10-05
 

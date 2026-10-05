@@ -85,16 +85,16 @@ func (m Model) serviceName(v model.ServiceSnapshot) string {
 func (m Model) dashboardRows(v model.ServiceSnapshot) []string {
 	w := m.contentWidth()
 	if w >= 80 {
-		return []string{fit(m.serviceName(v), w-67) + "  " + fit(m.stateBadge(v.State), 14) + "  " + fit(m.portSummary(v), 18) + "  " + fit(memory(v.Metric), 20) + "  " + fit(cpu(v.Metric), 7)}
+		return []string{fit(m.serviceName(v), w-67) + "  " + fit(m.runtimeBadge(v), 14) + "  " + fit(m.portSummary(v), 18) + "  " + fit(memory(v.Metric), 20) + "  " + fit(cpu(v.Metric), 7)}
 	}
 	if w >= 47 {
-		return []string{fit(m.serviceName(v), w-36) + "  " + fit(m.stateBadge(v.State), 14) + "  " + fit(m.portSummary(v), 18)}
+		return []string{fit(m.serviceName(v), w-36) + "  " + fit(m.runtimeBadge(v), 14) + "  " + fit(m.portSummary(v), 18)}
 	}
-	return []string{heading(m.serviceName(v)), "  " + m.stateBadge(v.State) + " · " + m.portSummary(v)}
+	return []string{heading(m.serviceName(v)), "  " + m.runtimeBadge(v) + " · " + m.portSummary(v)}
 }
 func (m Model) dashboardHeading() []string {
 	w := m.contentWidth()
-	running, failed, total, tasks := 0, 0, 0, 0
+	running, sessionRunning, failed, total, tasks := 0, 0, 0, 0, 0
 	projects := map[string]bool{}
 	external := map[int]bool{}
 	unknownPorts := false
@@ -106,10 +106,16 @@ func (m Model) dashboardHeading() []string {
 		if v.Spec.Kind == "task" {
 			tasks++
 		}
-		if v.State == "running" || v.State == "started" {
+		if v.Spec.Kind != "task" && v.Spec.Kind != "resource" && (v.State == "running" || v.State == "started") {
+			running++
+			if v.Spec.Control != "observe" {
+				sessionRunning++
+			}
+		}
+		if v.Spec.Kind != "task" && v.Spec.Kind != "resource" && (v.State == "stopped" || v.State == "failed") && v.ObservedState == "running" {
 			running++
 		}
-		if v.State == "failed" || v.State == "unready" || v.State == "blocked" || v.State == "unknown" {
+		if v.State == "failed" || v.State == "unready" || v.State == "blocked" || v.State == "unknown" || v.ObservedState == "unready" || v.ObservedState == "unknown" {
 			failed++
 		}
 		for _, p := range ports(v) {
@@ -126,9 +132,9 @@ func (m Model) dashboardHeading() []string {
 			externalCount = fmt.Sprintf("%d+ (partial)", len(external))
 		}
 	}
-	out := []string{heading("Dashboard"), "", fmt.Sprintf("%d projects · Session running %d/%d · External %s", len(projects), running, total, externalCount)}
+	out := []string{heading("Dashboard"), "", fmt.Sprintf("%d projects · Running %d/%d · Session %d · External %s", len(projects), running, total, sessionRunning, externalCount)}
 	if ansi.StringWidth(out[2]) > w {
-		out[2] = fmt.Sprintf("Session running %d/%d · External %s", running, total, externalCount)
+		out[2] = fmt.Sprintf("Running %d/%d · Session %d · External %s", running, total, sessionRunning, externalCount)
 	}
 	if tasks > 0 {
 		out = append(out, m.tone(fmt.Sprintf("%d prerequisite tasks · dependency order", tasks), muted))
@@ -169,9 +175,9 @@ func (m Model) dashboardHeading() []string {
 	}
 	out = append(out, "")
 	if w >= 80 {
-		out = append(out, fit("Project", w-67)+"  "+fit("Session", 14)+"  "+fit("Port owner", 18)+"  "+fit("Memory", 20)+"  "+fit("CPU", 7))
+		out = append(out, fit("Project", w-67)+"  "+fit("Status", 14)+"  "+fit("Port owner", 18)+"  "+fit("Memory", 20)+"  "+fit("CPU", 7))
 	} else if w >= 47 {
-		out = append(out, fit("Project", w-36)+"  "+fit("Session", 14)+"  "+fit("Port owner", 18))
+		out = append(out, fit("Project", w-36)+"  "+fit("Status", 14)+"  "+fit("Port owner", 18))
 	}
 	out = append(out, m.tone(strings.Repeat("─", w), muted))
 	return out
@@ -218,4 +224,27 @@ func (m Model) dashboard() []string {
 		}
 	}
 	return out
+}
+
+func (m Model) runtimeBadge(v model.ServiceSnapshot) string {
+	if v.Spec.Control == "observe" && v.State == "running" {
+		return m.tone("● Running ext", green)
+	}
+	if v.Spec.Control == "observe" && v.State == "unready" {
+		return m.tone("! Unready ext", amber)
+	}
+	if v.Spec.Kind != "task" && v.Spec.Kind != "resource" && (v.State == "stopped" || v.State == "failed") {
+		switch v.ObservedState {
+		case "running":
+			return m.tone("● Running ext", green)
+		case "unready":
+			return m.tone("! Unready ext", amber)
+		case "unknown":
+			return m.tone("? Unknown", muted)
+		}
+		if hasExternal(v) {
+			return m.tone("◐ Listening", amber)
+		}
+	}
+	return m.stateBadge(v.State)
 }
