@@ -1,11 +1,11 @@
 ---
 name: stackharbor
-description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or closing workspace sessions, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases. 适用于安装栈港、工程接入、Docker 就绪与资源指标排查、会话管理、服务编排与技能升级。
+description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or closing workspace sessions, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
 ---
 
 # StackHarbor installation and workspace integration
 
-从工程实际启动契约生成 registration；技能和协议参考由 StackHarbor 代码库共同维护。支持 macOS/Linux 本地前台进程，资源、任务和服务具有不同生命周期。
+Generate registrations from the project's actual startup contract. The skill and protocol references are maintained together in the StackHarbor repository. StackHarbor supports local foreground processes on macOS/Linux, with distinct lifecycles for resources, tasks, and services.
 
 ## Install the application
 
@@ -17,42 +17,42 @@ Before reporting that a Docker-backed app is ready to start, follow [Docker pref
 
 When the user has requested starting the local app and its established runtime is Docker Desktop on macOS, starting that existing runtime is part of the requested prerequisite work: launch it, wait for a successful bounded engine probe, then proceed with the declared dependencies. Registration-only work stays read-only. Do not repeatedly ask for the same already-authorized prerequisite. Missing installation, first-run agreements, a remote endpoint, or an unknown runtime must be reported and resolved explicitly. A stopped container and a stopped Docker engine are different failures.
 
-## 接入步骤
+## Integration steps
 
-1. 确定目标工程根目录，读取工程指令、已有 workspace/registration、manifest、启动脚本和 Compose 配置。定位 PATH 中或用户指定的二进制，运行 `--version`、`--help` 核实能力。缺少二进制时仍可准备 YAML，但明确校验未完成；安装工具依赖需要对应授权。
-2. 运行 discover，检查 diagnostics、已注册节点及待注册候选。读取命令真实调用链，确认包管理器、前台入口、cwd、端口来源、健康路径、停止信号和依赖。只记录环境变量名/文件路径，避免读取或输出秘密值；未知模块、端口或迁移状态保持待确认。
-3. **新接入默认 v2**：先读 [v2 完整契约](references/v2.md)，再写 YAML。已有 v1 按 [v1 参考](references/registration.md) 保留协议和 ID；整体迁移时更新所有依赖引用。v2 节点为 `project/service/key`、`project/task/key`、`resource/key`，分别依赖 ready/started、succeeded、available。
-4. 子工程优先使用旁置 `stackharbor.yaml`；集中配置放在根 `.stackharbor/` 并用 workspace 显式导入。cwd 相对注册文件且位于目标根内；workspace root/registrations 相对 workspace 文件。保留已有导入、排除项和 discover 策略；`discover: false` 必须追加新注册路径。配置默认纳入目标工程版本控制，只有用户要求本机专用时才排除。
-5. 拆分混合脚本前核实独立的前台服务、Compose 身份和检查入口。仅当真实 check/run/verify、required_scope、inputs 和 PostgreSQL 目标锁契约齐全时注册 schema-write task。若缺失，列出适配缺口；保留已有 wrapper（启动时仍有原副作用），或仅接入已核实的独立服务，不编造迁移检查、不顺带改启动脚本。观察外部进程/容器使用 observe，管理资源明确 control/lifetime。
-6. 对使用 Docker 的工程执行 [Docker 前置检查](references/docker.md)，明确引擎和容器状态；先把数据库、Redis 等真实前置依赖接入 DAG，再验证应用服务。非 Docker 工程跳过。
-7. 执行 validate；v2 再对目标执行 plan，逐项核对闭包、依赖条件和动作，修正配置错误。报告文件变更、节点/命令/端口、校验结果、Docker 引擎与依赖就绪状态、未解决项、TUI 启动命令。配置校验成功只证明声明有效；实际启动/就绪未经执行时标明未验证。
+1. Identify the target project root and read project instructions, existing workspace/registration files, manifests, startup scripts, and Compose configuration. Locate the binary on PATH or at the user-specified path, then run `--version` and `--help` to verify its capabilities. YAML can still be prepared without the binary, but report that validation is incomplete. Installing tool dependencies requires authorization for that action.
+2. Run discover and inspect diagnostics, registered nodes, and registration candidates. Trace the actual command invocation chain to confirm the package manager, foreground entry point, cwd, port sources, health paths, stop signals, and dependencies. Record only environment variable names and file paths; avoid reading or printing secret values. Leave unknown modules, ports, or migration states pending confirmation.
+3. **Default to v2 for new integrations**: read the [complete v2 contract](references/v2.md) before writing YAML. For existing v1 configurations, preserve the protocol and IDs according to the [v1 reference](references/registration.md); update all dependency references during a full migration. v2 node IDs are `project/service/key`, `project/task/key`, and `resource/key`, with dependency conditions ready/started, succeeded, and available respectively.
+4. Prefer a `stackharbor.yaml` alongside each subproject. Place centralized configuration in the root `.stackharbor/` directory and import it explicitly through the workspace. cwd is relative to the registration file and must stay within the target root; workspace root/registrations are relative to the workspace file. Preserve existing imports, exclusions, and discovery settings. When `discover: false`, add each new registration path explicitly. Include configuration in the target project's version control by default; exclude it only when the user requests local-only configuration.
+5. Before splitting scripts that combine multiple operations, verify independent foreground services, Compose identities, and check entry points. Register a schema-write task only when actual check/run/verify commands, required_scope, inputs, and the PostgreSQL target lock contract are all available. If any are missing, list the integration gaps. Preserve the existing wrapper, including its startup side effects, or integrate only verified independent services. Do not invent migration checks or modify startup scripts as an incidental change. Use observe for external processes/containers, and specify control/lifetime explicitly for managed resources.
+6. For projects using Docker, perform [Docker preflight checks](references/docker.md) and establish the engine and container states. Register actual prerequisites such as databases and Redis in the DAG before validating application services. Skip this step for projects that do not use Docker.
+7. Run validate; for v2, also run plan for the target. Check the dependency closure, conditions, and actions individually, and correct configuration errors. Report file changes, nodes/commands/ports, validation results, Docker engine and dependency readiness, unresolved items, and the TUI startup command. Successful configuration validation proves only that the declarations are valid. Mark actual startup/readiness as unverified if it has not been exercised.
 
-## 快速参考
+## Quick reference
 
-| 目的 | 命令（ROOT、NODE 替换为实际值） |
+| Purpose | Command (replace ROOT and NODE with actual values) |
 |---|---|
-| 发现 | `stackharbor discover --root ROOT --json` |
-| 候选草案 | `stackharbor init --root ROOT --project DIR --dry-run` |
-| 声明校验 | `stackharbor validate --root ROOT --json` |
-| v2 只读计划 | `stackharbor plan start --root ROOT --target NODE --json` |
-| 活动会话列表 | `stackharbor sessions --json`，加 `--root ROOT` 筛选工作区 |
-| 找回已有窗口 | `stackharbor sessions --focus PID`（macOS Terminal） |
-| 关闭工作区会话 | `stackharbor kill --root ROOT`（停止会话及其拥有的服务） |
-| 交互入口 | `stackharbor --root ROOT`，或在工程根运行 `stackharbor` |
+| Discovery | `stackharbor discover --root ROOT --json` |
+| Candidate draft | `stackharbor init --root ROOT --project DIR --dry-run` |
+| Declaration validation | `stackharbor validate --root ROOT --json` |
+| v2 read-only plan | `stackharbor plan start --root ROOT --target NODE --json` |
+| Active sessions | `stackharbor sessions --json`; add `--root ROOT` to filter by workspace |
+| Focus an existing window | `stackharbor sessions --focus PID` (macOS Terminal) |
+| Close workspace sessions | `stackharbor kill --root ROOT` (stops sessions and the services they own) |
+| Interactive entry point | `stackharbor --root ROOT`, or run `stackharbor` in the project root |
 
-使用非默认 workspace 时，所有命令加 `--workspace FILE`，ROOT 与 workspace root 必须一致。init 当前生成 v1 草案；只有用户接受 v1 且候选明确时才用 `--write`，不覆盖已有文件。新 v2 接入手工生成后校验。
+For a non-default workspace, add `--workspace FILE` to every command; ROOT must match the workspace root. init currently generates v1 drafts. Use `--write` only when the user accepts v1 and the candidate is confirmed; do not overwrite existing files. Generate new v2 integrations manually, then validate them.
 
-注册工作保持只读：执行 discover/init --dry-run/validate/plan，以及需要时的 Docker 前置观测。doctor 会执行检查脚本，task run 会执行任务及资源前置项；服务启动、迁移、依赖安装、外部端口释放需要相应操作授权。StackHarbor 不提供权限沙箱。
+Keep registration work read-only: use discover/init --dry-run/validate/plan and Docker preflight observation when needed. doctor executes check scripts; task run executes tasks and their resource prerequisites. Starting services, running migrations, installing dependencies, and freeing ports used by external processes require authorization for those actions. StackHarbor does not provide a permission sandbox.
 
-## 会话与容器指标排查（v0.2.0+）
+## Session and container metrics troubleshooting (v0.2.0+)
 
-先核对实际二进制的 `--version` 和 `--help`。`sessions` 是只读会话列表；同一工作区已有会话时，使用已报告的 PID/TTY 找回窗口。`--focus` 仅支持 macOS Terminal；其它终端和 Linux 根据列表手动定位。关闭会话需用户要求停止或关闭对应工作区；`kill --root ROOT` 触发正常退出并清理会话拥有的服务，不能用于普通注册或观测工作，也不能代替释放外部进程端口。
+First verify `--version` and `--help` on the actual binary. `sessions` lists sessions without modifying them. If the workspace already has a session, use the reported PID/TTY to locate its window. `--focus` supports only macOS Terminal; locate sessions manually from the list on other terminals and Linux. Closing sessions requires a user request to stop or close that workspace. `kill --root ROOT` triggers a normal exit and cleans up services owned by the sessions. Do not use it for routine registration or observation, or as a substitute for freeing ports used by external processes.
 
-Dashboard、资源详情和 Docker 面板显示容器内存/CPU。v2 采样已注册 Compose 资源及同一配置范围内按 TCP 发布端口唯一匹配的外部应用容器；引擎/容器就绪观测和指标采样独立。Running ext 表示外部端点就绪，Listening 仅确认监听，Session 单独表示本会话管理归属；观测不会接管进程。外部容器指标只属于匹配端点容器，不汇总 worker。指标缺失时按 [Docker 指标排查](references/docker.md#container-resource-metrics-v020) 核对选定上下文、容器 ID 和 `docker stats`，保留错误证据。`—` 表示当前没有有效样本，`0` 表示有效零值；不能凭指标缺失认定容器未运行。
+The Dashboard, resource details, and Docker panel display container memory/CPU usage. v2 samples registered Compose resources and external application containers uniquely matched by TCP published ports within the same configuration scope. Engine/container readiness observation and metrics sampling are independent. Running ext means an external endpoint is ready; Listening confirms only a listener; Session separately indicates management by the current session. Observation does not take control of processes. External container metrics cover only the matched endpoint container, without aggregating workers. When metrics are missing, follow [Docker metrics troubleshooting](references/docker.md#container-resource-metrics-v020) to check the selected context, container IDs, and `docker stats`, and retain error evidence. `—` means there is no valid current sample; `0` is a valid zero value. Missing metrics alone do not prove that a container has stopped.
 
-## 最小 v2 示例
+## Minimal v2 example
 
-已核实工程使用 `pnpm dev`，应用自身配置监听 3000；以下文件放在应用目录：
+After verifying that the project uses `pnpm dev` and the application is configured to listen on port 3000, place this file in the application directory:
 
 ```yaml
 version: 2
@@ -66,22 +66,22 @@ services:
     open: "http://127.0.0.1:3000/"
 ```
 
-`web/service/dev` 是计划目标。命令使用 argv 数组；shell 语法必须显式使用 shell。
+`web/service/dev` is the plan target. Commands use argv arrays; shell syntax requires an explicit shell invocation.
 
-## 安装与升级
+## Installation and upgrades
 
-通过公开仓库安装：`npx skills add szhjia/stackharbor --skill stackharbor`；已有全局技能使用 `npx skills update stackharbor -g` 单独更新。在 StackHarbor 源码或固定解压的发行目录也可执行 `sh scripts/install-skill.sh`，链接整目录到 `~/.agents/skills/stackharbor`；新会话发现技能。技能升级与二进制升级分别进行。具体入口、冲突处理、升级及维护检查见 [维护参考](references/maintenance.md)。
+Install from the public repository with `npx skills add szhjia/stackharbor --skill stackharbor`. Update an existing global skill individually with `npx skills update stackharbor -g`. From the StackHarbor source tree or a release extracted to a permanent directory, you can also run `sh scripts/install-skill.sh` to link the entire directory to `~/.agents/skills/stackharbor`; new sessions discover the skill. Upgrade the skill and binary separately. See the [maintenance reference](references/maintenance.md) for installation entry points, conflict handling, upgrades, and maintenance checks.
 
-## 常见错误
+## Common mistakes
 
-| 错误 | 正确契约 |
+| Mistake | Correct contract |
 |---|---|
-| Docker CLI 存在就认为可以启动 | 验证 Compose 插件、当前引擎可达和已声明容器健康 |
-| Docker Desktop 已打开就立即启动应用 | 等待引擎探测成功，再按 DAG 启动资源并等待就绪 |
-| 内存/CPU 为 `—` 就认定容器停止 | 分别检查容器状态与指标错误；有效零值不能隐藏 |
-| 数据库/Redis 只写在文档里 | v2 显式注册 resource 并连接 requires，v1 使用 docker_depends_on |
-| ports 声明被当成应用配置 | 应用参数/环境真正决定端口 |
-| 候选脚本直接变成可执行节点 | 先读真实调用链、注册并校验 |
-| 将迁移当常驻服务或臆造 checker | 使用已核实的 v2 task 契约，缺口明确报告 |
-| 自动发现关闭却只添加旁置 YAML | 更新已有 workspace 的显式导入 |
-| 复制技能后期待源码升级自动同步 | 安装整目录软链接并保留源目录 |
+| Assuming the Docker CLI alone makes the app ready to start | Verify the Compose plugin, current engine reachability, and declared container health |
+| Starting the app as soon as Docker Desktop opens | Wait for a successful engine probe, then start resources in DAG order and wait for readiness |
+| Treating `—` memory/CPU as proof that a container has stopped | Check container state and metrics errors separately; preserve valid zero values |
+| Mentioning databases/Redis only in documentation | In v2, register resources explicitly and connect requires; in v1, use docker_depends_on |
+| Treating ports declarations as application configuration | Application arguments/environment determine the actual ports |
+| Turning candidate scripts directly into executable nodes | Read the actual invocation chain, register the nodes, and validate them first |
+| Treating migrations as persistent services or inventing checkers | Use verified v2 task contracts and report gaps explicitly |
+| Adding only a local YAML file when discovery is disabled | Update the existing workspace's explicit imports |
+| Expecting a copied skill to follow source upgrades automatically | Install a symlink to the entire directory and retain the source directory |
