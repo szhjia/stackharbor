@@ -17,7 +17,7 @@ for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
   cp -R skills examples licenses "$stage/"
   mkdir -p "$stage/scripts" "$stage/docs"
   cp docs/protocol-v2.md docs/usage.zh-CN.md "$stage/docs/"
-  cp -R docs/diagrams "$stage/docs/"
+  cp -R docs/diagrams docs/screenshots "$stage/docs/"
   cp scripts/install.sh scripts/install-skill.sh scripts/install-release.sh "$stage/scripts/"
   COPYFILE_DISABLE=1 tar -czf "dist/$archive" -C "$stage" stackharbor .stackharbor-tool LICENSE README.md README.zh-CN.md CHANGELOG.md CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES skills examples licenses scripts docs
   if [ "$goos" = "$(go env GOOS)" ] && [ "$goarch" = "$(go env GOARCH)" ]; then native=$(mktemp dist/.stackharbor.XXXXXXXX); cp "$stage/stackharbor" "$native"; chmod 755 "$native"; mv -f "$native" dist/stackharbor; fi

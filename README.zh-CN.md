@@ -25,13 +25,19 @@
 - **让人和 AI 共享同一份契约。** 可版本管理的配置、只读计划和随工具维护的技能，让接入过程可检查、可复现。
 - **保持专注，立足本地。** 用一个终端程序、有限的日志和清理预算解决问题，避免再增加一套托管控制平台。
 
-## 界面释义与工作原理
+## 界面释义：以 Harbor Café 为例
 
-![StackHarbor 界面释义与执行流程](docs/diagrams/how-it-works.svg)
+[Harbor Café](examples/harbor-cafe) 是专门为本说明编写、可以实际运行的咖啡店案例：**Menu API** 提供三款饮品，**Order counter** 从 API 读取菜单。点单服务必须等菜单 API 就绪后才能启动。运行 `make demo`，再按 **Shift+S**。
 
-[打开中文图解](docs/diagrams/how-it-works.svg) · [English diagram](docs/diagrams/how-it-works.en.svg)
+![macOS Terminal 中实际运行的 Harbor Café 总览](docs/screenshots/harbor-cafe-dashboard.png)
 
-图中展示的是带说明的结构示意，并非实时截图。应用界面使用英文，工程名称和服务日志保留原文。左侧选择工程，总览显示会话状态、端口归属和资源指标；工程页以日志为主，按 `i` 展开命令与路径详情，上下选择 Docker，左右切换容器；`d` 保留为可选快捷入口。当前不统计容器内存和 CPU。
+这是 macOS 自带 Terminal 的真实运行截图。左侧列出两个工程；纵向分割线让没有侧栏背景色的终端也能清楚区分导航和内容。**Session running 2/2** 表示本会话启动的两个服务都在运行；**Port owner** 表示监听端口的归属，内存和 CPU 来自实际进程观测。**Session events** 展示菜单 API 就绪后才启动点单服务的顺序。
+
+![macOS Terminal 中点单服务的实际日志](docs/screenshots/harbor-cafe-logs.png)
+
+按 **↓** 选中 **Order counter**，即可阅读实时日志。访问 `http://127.0.0.1:18282/` 会从 API 读取饮品，并产生截图中的请求日志。按 **i** 展开命令和路径详情，**o** 打开服务页面，**Home** 回到总览。按 **q** 停止这两个由本会话管理的进程并退出。
+
+软件界面使用英文，本说明也有 [English 版本](README.md#interface-walkthrough-harbor-café)。对于使用 Docker 的工作区，上下选择 Docker，左右切换容器；`d` 保留为可选快捷入口。这个咖啡店案例不需要 Docker，当前不统计容器 CPU 和内存。
 
 ## 在 macOS 或 Linux 安装
 
@@ -64,7 +70,7 @@ cd stackharbor
 make demo
 ```
 
-这条命令编译工具并打开自带的多服务演示。按 **Shift+S** 启动服务，默认使用 18081–18082 端口；出现端口冲突时先核实影响。按 `q` 停止本会话启动的进程并退出。
+这条命令编译工具并打开自带的 Harbor Café 咖啡店演示。按 **Shift+S** 启动服务，默认使用 18281–18282 端口；出现端口冲突时先核实影响。按 `q` 停止本会话启动的进程并退出。
 
 | 命令 | 用途 |
 | --- | --- |

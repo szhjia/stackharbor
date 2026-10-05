@@ -10,6 +10,36 @@ import (
 	"testing"
 )
 
+func TestSidebarDividerVisibleWithoutColorAndInBothThemes(t *testing.T) {
+	for _, noColor := range []string{"", "1"} {
+		for _, light := range []bool{false, true} {
+			for _, width := range []int{60, 80, 120} {
+				t.Run(fmt.Sprintf("noColor=%s/light=%t/width=%d", noColor, light, width), func(t *testing.T) {
+					t.Setenv("NO_COLOR", noColor)
+					m := resized(NewModel(designFixture()), width, 24)
+					m.lightTheme = light
+					rows := strings.Split(m.render(), "\n")
+					if m.sidebarWidth() == 0 {
+						if strings.Contains(m.render(), "│") {
+							t.Fatal("narrow single pane has a divider")
+						}
+						return
+					}
+					x := m.pageInset() + m.sidebarWidth() + 1
+					for y := m.verticalInset() + 2; y < m.verticalInset()+2+m.bodyHeight(); y++ {
+						if got := []rune(ansi.Strip(rows[y]))[x]; got != '│' {
+							t.Fatalf("missing divider at %d,%d in %d columns", x, y, width)
+						}
+						if ansi.StringWidth(rows[y]) != width {
+							t.Fatal("divider changed frame width")
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
 // Catch edge-to-edge selection, nested status resets, and unpainted rows in
 // the narrow navigation view using the same cell stream the terminal receives.
 func TestSidebarPaddingAndSelectionBounds(t *testing.T) {

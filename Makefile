@@ -7,7 +7,7 @@ run: build
 	./dist/stackharbor $(ARGS)
 
 demo: build
-	./dist/stackharbor --root examples/multi-service
+	./dist/stackharbor --root examples/harbor-cafe
 
 install: build
 	sh scripts/install.sh

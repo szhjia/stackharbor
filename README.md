@@ -25,13 +25,19 @@ I built StackHarbor to reduce that overhead. Open a terminal in a workspace, see
 - **Give humans and AI a shared contract.** Versioned configuration, read-only planning, and a bundled agent skill make setup inspectable and repeatable.
 - **Stay focused and local.** A single terminal application, with bounded logs and cleanup, should be useful without adding another hosted control plane.
 
-## Interface and how it works
+## Interface walkthrough: Harbor Café
 
-![StackHarbor interface and execution flow](docs/diagrams/how-it-works.en.svg)
+[Harbor Café](examples/harbor-cafe) is a small, runnable example created for this guide: a **Menu API** serves three drinks, and an **Order counter** fetches that menu. The counter starts only after the API is ready. Run `make demo`, then press **Shift+S**.
 
-[Open the English diagram](docs/diagrams/how-it-works.en.svg) · [中文图解](docs/diagrams/how-it-works.svg)
+![Harbor Café running in macOS Terminal](docs/screenshots/harbor-cafe-dashboard.png)
 
-The diagram is an annotated schematic, not a live screenshot. The application UI is English; project names and service logs retain their original language. The sidebar selects projects, the dashboard summarizes session state and port ownership, project pages show logs, and `i` reveals command/path details. Select Docker with ↑/↓ and switch containers with ←/→; `d` remains an optional shortcut. Docker container memory/CPU accounting is not included.
+This is a real macOS Terminal capture of the example running locally. The sidebar lists the two projects; the vertical divider keeps navigation distinct even when a terminal shows no sidebar background. **Session running 2/2** means both services were started by this session. **Port owner** identifies who owns each listener; memory and CPU are observed process measurements. **Session events** shows the API becoming ready before the counter starts.
+
+![Order counter logs in macOS Terminal](docs/screenshots/harbor-cafe-logs.png)
+
+Press **↓** to select **Order counter** and read its live logs. Open `http://127.0.0.1:18282/` to fetch the drinks from the API and generate the request log shown here. Press **i** for command/path details, **o** to open the service, and **Home** to return to the dashboard. **q** stops the two session-owned processes and exits.
+
+The UI is English; this explanation is also available in [中文](README.zh-CN.md#界面释义以-harbor-café-为例). For Docker-backed workspaces, select Docker with ↑/↓ and containers with ←/→; `d` is optional. This café example does not require Docker. Container CPU and memory are not included.
 
 ## Install on macOS or Linux
 
@@ -64,7 +70,7 @@ cd stackharbor
 make demo
 ```
 
-This builds StackHarbor and opens the bundled multi-service example. Press **Shift+S** to start it. Demo ports are 18081–18082; review any conflict before taking action. `q` stops processes started by the session and exits.
+This builds StackHarbor and opens the bundled Harbor Café example. Press **Shift+S** to start it. Demo ports are 18281–18282; review any conflict before taking action. `q` stops processes started by the session and exits.
 
 | Command | Purpose |
 | --- | --- |

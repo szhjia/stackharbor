@@ -352,7 +352,7 @@ func (m Model) render() string {
 				if i < len(right) {
 					b = right[i]
 				}
-				lines = append(lines, a+"   "+fit(b, m.contentWidth()))
+				lines = append(lines, a+" "+m.tone("│", muted)+" "+fit(b, m.contentWidth()))
 			}
 		}
 	}

@@ -9,3 +9,8 @@ if [ -n "$unformatted" ]; then printf 'Unformatted Go files:\n%s\n' "$unformatte
 go vet ./...
 go test ./... -count=1 -timeout 120s
 go test -race ./... -count=1 -timeout 120s
+
+# Each runnable example is an independent Go module; verify it too.
+find examples -name go.mod -print | while IFS= read -r manifest; do
+  (cd "$(dirname "$manifest")" && go test ./...)
+done

@@ -1,0 +1,10 @@
+version: 2
+project: {id: orders, name: Order counter}
+context: {cwd: .}
+services:
+  web:
+    run: {command: [go, run, .]}
+    ports: [{name: http, port: 18282}]
+    requires: [{node: menu/service/api, condition: ready}]
+    ready: {http: "http://127.0.0.1:18282/healthz"}
+    open: "http://127.0.0.1:18282/"

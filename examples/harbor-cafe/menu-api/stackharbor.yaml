@@ -1,0 +1,9 @@
+version: 2
+project: {id: menu, name: Menu API}
+context: {cwd: .}
+services:
+  api:
+    run: {command: [go, run, .]}
+    ports: [{name: http, port: 18281}]
+    ready: {http: "http://127.0.0.1:18281/healthz"}
+    open: "http://127.0.0.1:18281/menu"

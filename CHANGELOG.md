@@ -9,7 +9,8 @@
 
 - Shared up/down project and Docker navigation; left/right selects containers.
 - Docker engine preflight and recovery guidance in the agent skill.
-- English and Chinese guides with project philosophy and annotated diagrams.
+- English and Chinese guides with project philosophy and real macOS Terminal screenshots.
+- Runnable Harbor Café example and a sidebar divider for terminals without background colors.
 - Verified GitHub release installer, Make build/demo commands, and automated release publishing.
 
 - One-time user command installer; launch with `stackharbor` from a project root and use its default workspace automatically.

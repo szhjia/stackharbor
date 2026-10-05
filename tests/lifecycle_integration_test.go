@@ -20,7 +20,7 @@ import (
 )
 
 func TestExamplesValidateAndHavePortablePaths(t *testing.T) {
-	for _, name := range []string{"minimal", "multi-service"} {
+	for _, name := range []string{"minimal", "multi-service", "harbor-cafe"} {
 		w := discovery.Discover(context.Background(), discovery.Options{Root: filepath.Join("..", "examples", name)})
 		g, ds := graph.Build(w.Services())
 		if w.Invalid() || g == nil || len(ds) > 0 || len(w.Projects) == 0 {

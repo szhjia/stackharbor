@@ -1,0 +1,4 @@
+version: 2
+root: .
+discover: false
+registrations: [menu-api/stackharbor.yaml, order-web/stackharbor.yaml]
