@@ -19,7 +19,7 @@ func (s *Session) Snapshot() model.Snapshot {
 	}
 	for _, spec := range s.workspace.Services() {
 		e := s.entries[spec.ID]
-		v := model.ServiceSnapshot{Spec: e.spec, State: e.state, Reason: e.reason, ExitCode: e.exit, Metric: e.metric, MetricSource: e.metricSource, Ports: e.ports, ReadinessChecked: e.checked}
+		v := model.ServiceSnapshot{Spec: e.spec, State: e.state, Reason: e.reason, ExitCode: e.exit, Metric: e.metric, MetricSource: e.metricSource, MetricError: e.metricError, Ports: e.ports, ReadinessChecked: e.checked}
 		if e.handle != nil {
 			v.Owned = e.handle.Identities()
 		}

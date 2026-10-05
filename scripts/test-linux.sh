@@ -9,8 +9,8 @@ docker run --rm --init -v "$root:/src:ro" golang:1.26-bookworm sh -eu -c '
   cp -R /src/. /tmp/stackharbor/source/
   cd /tmp/stackharbor/source
   ./scripts/check.sh
-  archive=dist/stackharbor_0.1.0_linux_arm64.tar.gz
-  if [ "$(go env GOARCH)" = amd64 ]; then archive=dist/stackharbor_0.1.0_linux_amd64.tar.gz; fi
+  version=$(sed -n '\''s/^var Version = "\([^"]*\)"$/\1/p'\'' internal/buildinfo/version.go)
+  archive="dist/stackharbor_${version}_linux_$(go env GOARCH).tar.gz"
   if [ -f "$archive" ]; then
     mkdir -p /tmp/stackharbor/bundle
     tar -xzf "$archive" -C /tmp/stackharbor/bundle

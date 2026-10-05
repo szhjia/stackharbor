@@ -4,6 +4,8 @@
 
 ## 用户级安装
 
+从公开 GitHub 仓库安装：`npx skills add szhjia/stackharbor --skill stackharbor -g`。该方式下载完整技能目录，后续用 `npx skills update stackharbor -g` 只更新此技能；升级前检查本机是否有自定义改动。skills.sh 展示仓库技能，页面索引可能滞后于源码更新。以下源码链接安装是另一种入口。
+
 在源码根目录或**永久保留**的发行解压目录执行：
 
 ```sh

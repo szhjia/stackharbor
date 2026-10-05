@@ -28,6 +28,7 @@ type entry struct {
 	exit                                     *int
 	metric                                   model.Metric
 	metricSource                             string
+	metricError                              string
 	ports                                    []model.PortObservation
 	checked                                  bool
 	operationID, attemptID, resourceIdentity string

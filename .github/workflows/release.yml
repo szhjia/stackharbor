@@ -38,4 +38,4 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" dist/stackharbor_"$RELEASE_VERSION"_*.tar.gz dist/SHA256SUMS \
-            --verify-tag --title "StackHarbor $RELEASE_TAG" --notes-file CHANGELOG.md
+            --verify-tag --title "StackHarbor $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md

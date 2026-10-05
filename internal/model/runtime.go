@@ -13,6 +13,7 @@ type ServiceSnapshot struct {
 	Owned            []ProcessIdentity
 	Metric           Metric
 	MetricSource     string
+	MetricError      string
 	Ports            []PortObservation
 	ReadinessChecked bool
 }
@@ -27,6 +28,8 @@ type DockerSnapshot struct {
 	ID                                          string
 	Service, Name, Image, State, Health, Reason string
 	Ports                                       string
+	Metric                                      Metric
+	MetricError                                 string
 }
 
 type Snapshot struct {

@@ -24,14 +24,17 @@ import (
 )
 
 const usage = `StackHarbor — terminal console for monorepos
-Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history] [options]
+Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|kill] [options]
   --root PATH          Project root (default: current directory)
   --workspace FILE     Explicit workspace YAML
-  --json               Machine-readable discover/validate/plan output
+  --json               Machine-readable discover/validate/plan/sessions output
   plan start|stop|restart --target NODE    Read-only dependency plan
   doctor --target TASK                    Run read-only checks
   task run TASK                          Run an explicit task and its dependencies
   history                                Read redacted action and task history (JSON)
+  sessions [--json]                       List active workspace sessions
+  sessions --focus PID                    Locate an existing macOS Terminal tab
+  kill                                   Close this workspace's existing session
   --version            Show version
   init --dry-run       Preview candidate registration drafts
   init --write         Write unambiguous drafts without overwriting files
@@ -46,6 +49,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	workspace := fs.String("workspace", "", "workspace")
 	jsonMode := fs.Bool("json", false, "JSON")
 	version := fs.Bool("version", false, "version")
+	focus := fs.Int("focus", 0, "session PID to focus")
 	help := fs.Bool("help", false, "help")
 	fs.BoolVar(help, "h", false, "help")
 	dry := fs.Bool("dry-run", false, "dry run")
@@ -74,7 +78,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 			valueFlag = false
 			continue
 		}
-		if a == "--target" || a == "--root" || a == "--workspace" || a == "--project" || a == "-root" || a == "-workspace" || a == "-project" {
+		if a == "--focus" || a == "-focus" || a == "--target" || a == "--root" || a == "--workspace" || a == "--project" || a == "-root" || a == "-workspace" || a == "-project" {
 			filtered = append(filtered, a)
 			valueFlag = true
 			continue
@@ -101,8 +105,14 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprint(out, usage)
 		return 0
 	}
-	if command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
+	if command != "kill" && command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
 		fmt.Fprintln(errOut, "Unknown command:", command)
+		return 2
+	}
+	focusSet := false
+	fs.Visit(func(f *flag.Flag) { focusSet = focusSet || f.Name == "focus" })
+	if focusSet && (command != "sessions" || *focus <= 0 || *jsonMode) {
+		fmt.Fprintln(errOut, "Use sessions --focus <positive PID> without --json")
 		return 2
 	}
 	if command != "init" && (*dry || *write || *project != "") {
@@ -117,11 +127,29 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprintln(errOut, "init requires --dry-run or --write")
 		return 2
 	}
+	if command == "sessions" {
+		if *workspace != "" || *target != "" {
+			fmt.Fprintln(errOut, "sessions accepts --root, --json or --focus PID")
+			return 2
+		}
+		return runSessions(ctx, *root, *jsonMode, *focus, out, errOut)
+	}
+	if command == "kill" && (*jsonMode || *target != "") {
+		fmt.Fprintln(errOut, "kill accepts --root and --workspace")
+		return 2
+	}
 	if command == "run" && (!terminal(in) || !terminal(out)) {
 		fmt.Fprintln(errOut, "Interactive mode requires a terminal; use stackharbor discover or validate.")
 		return 2
 	}
 	w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})
+	if command == "kill" {
+		if w.Root == "" {
+			_ = WriteDiscovery(errOut, w, false)
+			return 2
+		}
+		return runKill(ctx, w.Root, out, errOut)
+	}
 	_, ds := graph.Build(w.Services())
 	w.Diagnostics = append(w.Diagnostics, ds...)
 	if command == "history" {
@@ -270,6 +298,10 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	reader := process.NewReader()
 	session, e := supervisor.New(w, runner.NewLocal(reader), observe.NewPortProbe(), observe.NewSampler(reader))
 	if e != nil {
+		var conflict *supervisor.SessionConflict
+		if errors.As(e, &conflict) {
+			return locateConflict(ctx, conflict, out, errOut)
+		}
 		fmt.Fprintln(errOut, e)
 		return 1
 	}

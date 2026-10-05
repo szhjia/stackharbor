@@ -1,6 +1,6 @@
 ---
 name: stackharbor
-description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness troubleshooting, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases. 适用于安装栈港、工程接入、Docker 未启动排查、服务编排与技能升级。
+description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or closing workspace sessions, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases. 适用于安装栈港、工程接入、Docker 就绪与资源指标排查、会话管理、服务编排与技能升级。
 ---
 
 # StackHarbor installation and workspace integration
@@ -35,11 +35,20 @@ When the user has requested starting the local app and its established runtime i
 | 候选草案 | `stackharbor init --root ROOT --project DIR --dry-run` |
 | 声明校验 | `stackharbor validate --root ROOT --json` |
 | v2 只读计划 | `stackharbor plan start --root ROOT --target NODE --json` |
+| 活动会话列表 | `stackharbor sessions --json`，加 `--root ROOT` 筛选工作区 |
+| 找回已有窗口 | `stackharbor sessions --focus PID`（macOS Terminal） |
+| 关闭工作区会话 | `stackharbor kill --root ROOT`（停止会话及其拥有的服务） |
 | 交互入口 | `stackharbor --root ROOT`，或在工程根运行 `stackharbor` |
 
 使用非默认 workspace 时，所有命令加 `--workspace FILE`，ROOT 与 workspace root 必须一致。init 当前生成 v1 草案；只有用户接受 v1 且候选明确时才用 `--write`，不覆盖已有文件。新 v2 接入手工生成后校验。
 
 注册工作保持只读：执行 discover/init --dry-run/validate/plan，以及需要时的 Docker 前置观测。doctor 会执行检查脚本，task run 会执行任务及资源前置项；服务启动、迁移、依赖安装、外部端口释放需要相应操作授权。StackHarbor 不提供权限沙箱。
+
+## 会话与容器指标排查（v0.2.0+）
+
+先核对实际二进制的 `--version` 和 `--help`。`sessions` 是只读会话列表；同一工作区已有会话时，使用已报告的 PID/TTY 找回窗口。`--focus` 仅支持 macOS Terminal；其它终端和 Linux 根据列表手动定位。关闭会话需用户要求停止或关闭对应工作区；`kill --root ROOT` 触发正常退出并清理会话拥有的服务，不能用于普通注册或观测工作，也不能代替释放外部进程端口。
+
+Dashboard、资源详情和 Docker 面板显示容器内存/CPU。v2 仅采样已注册的 Compose 资源；引擎/容器就绪观测和指标采样独立。指标缺失时按 [Docker 指标排查](references/docker.md#container-resource-metrics-v020) 核对选定上下文、容器 ID 和 `docker stats`，保留错误证据。`—` 表示当前没有有效样本，`0` 表示有效零值；不能凭指标缺失认定容器未运行。
 
 ## 最小 v2 示例
 
@@ -61,7 +70,7 @@ services:
 
 ## 安装与升级
 
-在 StackHarbor 源码或固定解压的发行目录执行 `sh scripts/install-skill.sh`，链接整目录到 `~/.agents/skills/stackharbor`；新会话发现技能。具体入口、冲突处理、升级及维护检查见 [维护参考](references/maintenance.md)。
+通过公开仓库安装：`npx skills add szhjia/stackharbor --skill stackharbor`；已有全局技能使用 `npx skills update stackharbor -g` 单独更新。在 StackHarbor 源码或固定解压的发行目录也可执行 `sh scripts/install-skill.sh`，链接整目录到 `~/.agents/skills/stackharbor`；新会话发现技能。技能升级与二进制升级分别进行。具体入口、冲突处理、升级及维护检查见 [维护参考](references/maintenance.md)。
 
 ## 常见错误
 
@@ -69,6 +78,7 @@ services:
 |---|---|
 | Docker CLI 存在就认为可以启动 | 验证 Compose 插件、当前引擎可达和已声明容器健康 |
 | Docker Desktop 已打开就立即启动应用 | 等待引擎探测成功，再按 DAG 启动资源并等待就绪 |
+| 内存/CPU 为 `—` 就认定容器停止 | 分别检查容器状态与指标错误；有效零值不能隐藏 |
 | 数据库/Redis 只写在文档里 | v2 显式注册 resource 并连接 requires，v1 使用 docker_depends_on |
 | ports 声明被当成应用配置 | 应用参数/环境真正决定端口 |
 | 候选脚本直接变成可执行节点 | 先读真实调用链、注册并校验 |

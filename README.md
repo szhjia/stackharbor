@@ -1,6 +1,8 @@
 # StackHarbor
 
-**A terminal harbor for your growing fleet of local apps.**
+**A lightweight, local development console for humans and coding agents.**
+
+See which services and ports are running. Start your apps without remembering their commands. Keep control of what starts and stops.
 
 [简体中文](README.zh-CN.md) · [Releases](https://github.com/szhjia/stackharbor/releases) · [Agent skill](skills/stackharbor/SKILL.md) · [Contributing](CONTRIBUTING.md)
 
@@ -9,37 +11,41 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![skills.sh](https://skills.sh/b/szhjia/stackharbor)](https://skills.sh/szhjia/stackharbor/stackharbor)
 
-## Why I built this
+## Development and design philosophy
 
-AI coding tools are making it easier than ever to build applications. I can turn an idea into a working app quickly—and then move on to the next one. But every new app brings another set of startup commands, ports, background processes, logs, and dependencies. As the number of apps grows, remembering how to run them and what is still running becomes its own job.
+AI coding tools make it easier to turn ideas into applications. Every new app also brings startup commands, ports, logs, and dependencies to manage. StackHarbor gives those growing app collections a shared place in your terminal, so you can spend less time recalling commands and finding terminal tabs.
 
-I built StackHarbor to reduce that overhead. Open a terminal in a workspace, see its projects in one place, and start, inspect, or stop the services you need. Spend more time building and using your applications, and less time managing terminal tabs.
+- **Keep daily development lightweight.** Use one local terminal program and readable configuration, with no hosted control platform to set up.
+- **Keep existing project workflows.** Register the foreground commands your apps already use. Preserve their languages, package managers, and startup contracts.
+- **Make running state clear.** Show observed services, listening ports, port ownership, and logs. Unknown measurements stay unknown; session-owned processes and external services remain distinct.
+- **Make operations explicit.** Opening the console starts nothing. Show the impact before stopping or restarting dependencies, and check process identity before releasing an external port.
+- **Respect different lifecycles.** Persistent databases, one-time tasks, and long-running services have separate handling. Normal exit cleans up session-owned processes while retaining persistent resources.
+- **Give humans and agents the same contract.** Versioned YAML, machine-readable discovery and validation, read-only plans, and a bundled skill make project setup inspectable and repeatable.
 
-## Development philosophy
+## Core advantages
 
-- **Make growing app collections manageable.** A clear overview should answer what is running, where its logs are, and what needs attention.
-- **Meet projects where they are.** Register existing foreground commands with readable YAML. Keep each app's language, package manager, and startup contract.
-- **Keep actions explicit.** Opening the console starts nothing. Show the impact of stopping or restarting dependencies before executing it.
-- **Respect different lifecycles.** A persistent database, a one-time migration, and a web server need different handling. Model resources, tasks, and services separately.
-- **Show what is known.** Unknown measurements stay unknown. Distinguish processes owned by this session from services already running elsewhere.
-- **Give humans and AI a shared contract.** Versioned configuration, read-only planning, and a bundled agent skill make setup inspectable and repeatable.
-- **Stay focused and local.** A single terminal application, with bounded logs and cleanup, should be useful without adding another hosted control plane.
+- **See services and ports in one place.** Find out which registered apps are running, who owns their listening ports, and where to read their logs. Port declarations describe the expected listeners; observed ownership and readiness provide runtime evidence.
+- **Register commands once, reuse them every day.** Save the working directory, command, ports, and dependencies in YAML. Start, stop, or restart through the console without recalling a different command for each app.
+- **Bring several projects into one workspace.** Discover project registrations and view them together while preserving each project's own startup workflow. Unregistered candidates are shown for review and never executed automatically.
+- **Work with your coding agent.** The bundled skill helps agents install and register apps using their real startup commands. JSON discovery, validation, and read-only dependency plans give agents a consistent way to inspect configuration before acting.
+- **Run locally with clear operation boundaries.** The console runs on your machine. Starting services is explicit; external services are observed without acquiring stop permission, and dependency changes show their impact. These controls make operations predictable; commands still run with your user permissions.
 
-## Interface walkthrough: Harbor Café
+## How StackHarbor differs from related tools
 
-[Harbor Café](examples/harbor-cafe) is a small, runnable example created for this guide: a **Menu API** serves three drinks, and an **Order counter** fetches that menu. The counter starts only after the API is ready. Run `make demo`, then press **Shift+S**.
+Choose StackHarbor when your main need is to keep a growing collection of local apps understandable: which services and ports are running, how to start each app, and which processes your session owns. Its lightweight workflow uses existing commands, project registrations, a workspace overview, and explicit lifecycle controls.
 
-![Harbor Café running in macOS Terminal](docs/screenshots/harbor-cafe-dashboard.png)
+| Tool | Main focus | StackHarbor's focus by comparison |
+| --- | --- | --- |
+| [Process Compose](https://github.com/F1bonacc1/process-compose) | General local process orchestration, including dependencies, health checks, recovery, a TUI, REST API, and MCP integration | Project discovery, reusable registrations, service/port visibility, and explicit session control for daily development |
+| [dekit (the next version of mprocs)](https://github.com/pvolok/dekit) | Process management for development and production, with dependency handling, crash recovery, background running, and a CLI for humans and agents | A foreground local console whose normal exit cleans up its owned processes and retains persistent resources |
+| [Overmind](https://github.com/DarthSim/overmind) | Procfile-based process management and interactive access through tmux | YAML project registrations and a workspace overview, without requiring tmux |
+| [Tilt](https://github.com/tilt-dev/tilt) | A development loop that watches code, builds container images, and updates environments using Kubernetes or Compose | Direct use of existing local foreground commands, with optional Compose resources |
 
-This is a real macOS Terminal capture of the example running locally. The sidebar lists the two projects; the vertical divider keeps navigation distinct even when a terminal shows no sidebar background. **Session running 2/2** means both services were started by this session. **Port owner** identifies who owns each listener; memory and CPU are observed process measurements. **Session events** shows the API becoming ready before the counter starts.
+StackHarbor keeps setup small: one terminal binary, no tmux requirement, and Docker only for apps that use Compose resources. Its advantage for this use case is the combination of project discovery, service/port visibility, reusable commands, and explicit session ownership. Choose according to the workflow you need; related tools also offer local operation and agent support.
 
-![Order counter logs in macOS Terminal](docs/screenshots/harbor-cafe-logs.png)
+## Install
 
-Press **↓** to select **Order counter** and read its live logs. Open `http://127.0.0.1:18282/` to fetch the drinks from the API and generate the request log shown here. Press **i** for command/path details, **o** to open the service, and **Home** to return to the dashboard. **q** stops the two session-owned processes and exits.
-
-The UI is English; this explanation is also available in [中文](README.zh-CN.md#界面释义以-harbor-café-为例). For Docker-backed workspaces, select Docker with ↑/↓ and containers with ←/→; `d` is optional. This café example does not require Docker. Container CPU and memory are not included.
-
-## Install on macOS or Linux
+### Release binary on macOS or Linux
 
 Prebuilt releases support Apple Silicon/Intel macOS and arm64/amd64 Linux. Running the binary does not require Go. Download and inspect the installer, then install the latest stable release:
 
@@ -53,16 +59,30 @@ stackharbor --version
 The installer selects your platform, verifies the archive against the release's SHA256 manifest, and installs to `~/.local/bin` without sudo. It refuses to overwrite an existing command. Add the PATH line to your shell configuration if needed. To choose a release and destination:
 
 ```sh
-sh /tmp/stackharbor-install.sh 0.1.0 "$HOME/.local/bin"
+sh /tmp/stackharbor-install.sh 0.2.0 "$HOME/.local/bin"
 ```
 
 You can also download an archive and `SHA256SUMS` from [Releases](https://github.com/szhjia/stackharbor/releases), verify it, extract it, and run `sh scripts/install.sh` inside the extracted directory. For upgrades, inspect the existing installation and move the old binary aside before reinstalling; keep it for rollback. Releases are not Apple-notarized.
 
 A real terminal is required. `ps` is used for process trees; install `lsof` for listener ownership (unknown if unavailable). Linux uses `xdg-open` to open URLs. Managed apps still need their own runtime dependencies. Docker is optional, for Compose resources only.
 
-## Build and launch with one command
+### Optional coding-agent skill
 
-From a checkout, with Go 1.26+ and Make installed:
+Install the bundled skill through the open skills CLI (requires Node.js/npm):
+
+```sh
+npx skills add szhjia/stackharbor
+```
+
+Public skill page: [stackharbor on skills.sh](https://skills.sh/szhjia/stackharbor/stackharbor). The command above installs the skill directly from this GitHub repository.
+
+Installing the skill alone does not install StackHarbor. For a local skill link from a permanent checkout or extracted release, see the [installation reference](skills/stackharbor/references/installation.md).
+
+## Usage
+
+### Try the bundled demo
+
+With Go 1.26+, Git, and Make installed:
 
 ```sh
 git clone https://github.com/szhjia/stackharbor.git
@@ -70,20 +90,23 @@ cd stackharbor
 make demo
 ```
 
-This builds StackHarbor and opens the bundled Harbor Café example. Press **Shift+S** to start it. Demo ports are 18281–18282; review any conflict before taking action. `q` stops processes started by the session and exits.
+This builds StackHarbor and opens Harbor Café. Press **Shift+S** to start its services on ports 18281–18282. Review any port conflict before taking action. Press **q** to stop the session-owned processes and exit.
 
-| Command | Purpose |
-| --- | --- |
-| `make build` | Build `dist/stackharbor` |
-| `make run ARGS="--root /path/to/workspace"` | Build and open your workspace |
-| `make demo` | Build and open the portable demo |
-| `make install` | Build and install to `~/.local/bin` |
-| `make check` | Formatting, vet, tests, race detector |
-| `make release VERSION=0.1.0` | Package all four platform targets |
+### Interface walkthrough: Harbor Café
 
-Without Make: `go build -o dist/stackharbor ./cmd/stackharbor`, then run `./dist/stackharbor --root /path/to/workspace`.
+[Harbor Café](examples/harbor-cafe) is a small, runnable example created for this guide: a **Menu API** serves three drinks, and an **Order counter** fetches that menu. The counter starts only after the API is ready. Run `make demo`, then press **Shift+S**.
 
-## Register your apps
+![Harbor Café running in macOS Terminal](docs/screenshots/harbor-cafe-dashboard.png)
+
+The dashboard answers the everyday questions: which services are running, which ports they listen on, and who owns those listeners. **Session running 2/2** means both services were started by this session. **Port owner** identifies the observed listener ownership; memory and CPU come from actual process measurements. **Session events** shows the API becoming ready before the counter starts. This is a real capture from macOS Terminal.
+
+![Order counter logs in macOS Terminal](docs/screenshots/harbor-cafe-logs.png)
+
+Press **↓** to select **Order counter** and read its live logs. Open `http://127.0.0.1:18282/` to fetch the drinks from the API and generate the request log shown here. Press **i** for command/path details, **o** to open the service, and **Home** to return to the dashboard. **q** stops the two session-owned processes and exits.
+
+The UI is English; this explanation is also available in [中文](README.zh-CN.md#界面释义以-harbor-café-为例). For Docker-backed workspaces, select Docker with ↑/↓ and containers with ←/→; `d` is optional. The container panel shows live memory and CPU usage. This café example does not require Docker.
+
+### Register your apps
 
 Run `stackharbor` in a workspace root. It discovers `stackharbor.yaml` files and reads `stackharbor.workspace.yaml` when present. Unregistered manifest candidates are shown for review, never executed automatically.
 
@@ -101,6 +124,8 @@ services:
     open: "http://127.0.0.1:3000/"
 ```
 
+From the workspace root, inspect the registrations, validate them, preview the dependency plan, and open the console:
+
 ```sh
 stackharbor discover --json
 stackharbor validate --json
@@ -110,25 +135,25 @@ stackharbor
 
 Ports in YAML describe the application; they do not configure its listener. Commands are argv arrays. Paths resolve relative to the registration file and must stay within the selected workspace. Protocol v2 separates resources, tasks, and services and orders them by dependency; v1 remains supported. See the [v2 protocol](docs/protocol-v2.md) (Chinese), [v1 reference](skills/stackharbor/references/registration.md) (English), and [detailed usage](docs/usage.zh-CN.md) (Chinese).
 
-## Use with your AI coding agent
+After registration, use **s / x / r** to start, stop, or restart the selected service. Use **Shift+S** to start all eligible registered apps. Opening the console itself starts nothing. Update the registration when your app's startup command or ports change.
 
-Install the bundled skill through the open skills CLI (requires Node.js/npm):
+### Find and close workspace sessions
 
-```sh
-npx skills add szhjia/stackharbor
-```
+Different workspaces can run simultaneously. Opening the same workspace again shows its existing session's path, PID and terminal, and attempts to select its matching macOS Terminal tab. Use `stackharbor sessions` to list active sessions, `stackharbor sessions --json` for JSON, or `stackharbor sessions --focus PID` to locate a window. Other terminals and Linux show observed PID/TTY details; automatic window selection currently supports macOS Terminal.
 
-Public skill page: [stackharbor on skills.sh](https://skills.sh/szhjia/stackharbor/stackharbor). The command above installs the skill directly from this GitHub repository.
+Run `stackharbor kill` in a project directory to close that workspace's existing session and clean up its owned services. Other workspaces are unaffected. Use `stackharbor kill --root /path/to/workspace` to select a workspace explicitly.
 
-Then ask your agent:
+### Use with your AI coding agent
+
+With the bundled skill installed, ask your agent:
 
 > Use the stackharbor skill to install StackHarbor on my Mac and register this repository using its existing startup commands.
 
-The skill covers verified GitHub release installation, project discovery, YAML registration, validation, and read-only plans. Installing the skill alone does not install the application. From a permanent checkout or extracted release, `sh scripts/install-skill.sh` can instead link the whole skill into `~/.agents/skills`.
+The skill covers verified GitHub release installation, project discovery, YAML registration, validation, and read-only plans. Humans and agents reuse the same registered startup commands.
 
 For Docker-backed apps, verify `docker compose version` and `docker info` before startup. The skill checks engine readiness and declared container health separately, and can start the existing Docker Desktop when you request local app startup. StackHarbor itself does not launch Docker Desktop. See [Docker preflight](skills/stackharbor/references/docker.md).
 
-## Keyboard controls
+### Keyboard controls
 
 | Keys | Action |
 | --- | --- |
@@ -151,13 +176,31 @@ StackHarbor runs local foreground processes with your user permissions; it is no
 
 Readiness probes are loopback-only. Logs are bounded (2,000 lines / 2 MiB per service, 16 MiB total) and terminal control sequences are stripped. RSS may double-count shared pages; process CPU can exceed 100%. External service measurements are read-only. Set `NO_COLOR` to disable colors; `STACKHARBOR_CACHE_DIR` overrides the session-lock/history cache directory.
 
-This early release does not provide Windows support, a web console, background supervision, automatic restart, hot reload, or container resource accounting. Configuration validation does not prove an application's real startup or migration behavior.
+Docker resource metrics refresh through batched `docker stats` samples. Registered Compose resources show memory and CPU on the Dashboard, project details, and Docker panel; failed samples display unknown values with a reason. See the [usage guide](docs/usage.zh-CN.md#docker-依赖) for metric semantics.
 
-## Contributing and security
+This early release does not provide Windows support, a web console, background supervision, automatic restart, or hot reload. Configuration validation does not prove an application's real startup or migration behavior.
+
+## Development and contributing
+
+To build from a checkout, install Go 1.26+ and Make:
+
+```sh
+make build
+make run ARGS="--root /path/to/workspace"
+```
+
+| Command | Purpose |
+| --- | --- |
+| `make build` | Build `dist/stackharbor` |
+| `make run ARGS="--root /path/to/workspace"` | Build and open your workspace |
+| `make demo` | Build and open the portable demo |
+| `make install` | Build and install to `~/.local/bin` |
+| `make check` | Formatting, vet, tests, race detector |
+| `make release VERSION=0.2.0` | Package all four platform targets and version-specific release notes |
+
+Without Make: `go build -o dist/stackharbor ./cmd/stackharbor`, then run `./dist/stackharbor --root /path/to/workspace`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CHANGELOG.md](CHANGELOG.md). CI checks macOS and Linux; version tags publish archives and checksums through GitHub Actions.
-
-Related projects: [Process Compose](https://github.com/F1bonacc1/process-compose) and [Overmind](https://github.com/DarthSim/overmind). StackHarbor focuses on project discovery, self-registration, and a workspace dashboard.
 
 ## Star history
 

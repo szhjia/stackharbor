@@ -80,6 +80,9 @@ func (s *Session) sample(ctx context.Context) {
 	}
 
 	dockerRows, dockerError := s.docker.Observe(ctx)
+	if len(s.resources) == 0 {
+		dockerRows = s.docker.SampleMetrics(ctx, dockerRows)
+	}
 	s.sampleContracts(ctx, gens)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -87,10 +90,20 @@ func (s *Session) sample(ctx context.Context) {
 		s.dockerRows, s.dockerError = dockerRows, dockerError
 	}
 	s.tool = tool
+	resourceMetrics := map[model.ServiceID]model.DockerSnapshot{}
+	for _, row := range s.dockerRows {
+		resourceMetrics[model.ServiceID(row.Service)] = row
+	}
 	for id, e := range s.entries {
 		if e.gen == gens[id] {
 			e.metric = metrics[id]
 			e.metricSource = sources[id]
+			e.metricError = ""
+			if e.spec.Resource != nil {
+				row := resourceMetrics[id]
+				e.metric, e.metricError = row.Metric, row.MetricError
+				e.metricSource = "docker"
+			}
 			e.ports = ports[id]
 		}
 	}

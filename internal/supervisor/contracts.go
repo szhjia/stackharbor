@@ -137,10 +137,25 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 	results := map[model.ServiceID]result{}
 	cache := map[string][]model.DockerSnapshot{}
 	reasons := map[string]string{}
+	services := map[string]map[string]bool{}
+	for id, m := range s.resources {
+		key := m.File + "\x00" + m.Project
+		if services[key] == nil {
+			services[key] = map[string]bool{}
+		}
+		services[key][s.entries[id].spec.Resource.Service] = true
+	}
 	for id, m := range s.resources {
 		key := m.File + "\x00" + m.Project
 		if _, ok := cache[key]; !ok {
-			cache[key], reasons[key] = m.Observe(ctx)
+			rows, reason := m.Observe(ctx)
+			selected := []model.DockerSnapshot{}
+			for _, row := range rows {
+				if services[key][row.Service] {
+					selected = append(selected, row)
+				}
+			}
+			cache[key], reasons[key] = m.SampleMetrics(ctx, selected), reason
 		}
 		n := s.entries[id].spec
 		available, identity := resourceAvailable(n.Resource, cache[key])

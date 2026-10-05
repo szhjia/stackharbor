@@ -27,6 +27,14 @@ For v1, use the existing `docker_depends_on` contract when appropriate. Do not l
 
 After engine readiness, let the declared plan start only the required managed resources and wait for their readiness before tasks/services. Do not run an unscoped `docker compose up -d` that also starts unrelated apps or migration services. Do not stop Docker Desktop or delete volumes when quitting StackHarbor.
 
+## Container resource metrics (v0.2.0+)
+
+StackHarbor samples running container IDs with batched `docker stats --no-stream --no-trunc --format '{{json .}}' ID...`. In v2, only registered Compose resources are sampled. It triggers the background observer every two seconds; command time affects the actual interval. Container events indicate lifecycle changes, not CPU/memory changes, so this version uses periodic samples rather than a continuous stream.
+
+For missing values, first verify the executable version and declared Compose identity. Inspect the scoped `compose ps` output for a running container ID, then run the stats command with those explicit IDs and the same selected context/endpoint. Keep the command bounded and inspect the metric error shown in the TUI. Do not omit IDs and accidentally sample every container on the engine. Sampling failure clears stale metrics but does not change independently observed health or availability.
+
+`—` means no valid current sample; `0 B` and `0.0%` are valid readings. Memory follows Docker CLI working-set accounting, which subtracts cache on Linux and is distinct from host process RSS; CPU can exceed 100%. Compare against the same `docker stats` accounting rather than Docker Desktop's total VM memory. See [Docker stats](https://docs.docker.com/reference/cli/docker/container/stats/).
+
 ## Completion evidence
 
 Report CLI/Compose availability, intended local context, successful engine probe or exact failure, required resource states, application readiness, and any unverified migration contract. For a registration-only task, explicitly say that actual resource/application startup was not performed.

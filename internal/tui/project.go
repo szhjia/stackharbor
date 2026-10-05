@@ -60,7 +60,7 @@ func (m Model) project() []string {
 			summary = serviceKey(v.Spec) + " · " + summary
 		}
 		resources := "Memory " + memory(v.Metric) + " · CPU " + cpu(v.Metric)
-		if v.Spec.Kind == "resource" || v.Spec.Kind == "task" && len(v.Owned) == 0 {
+		if v.Spec.Kind == "task" && len(v.Owned) == 0 {
 			resources = ""
 		}
 		if ansi.StringWidth(summary)+ansi.StringWidth(resources)+3 <= m.contentWidth() {
@@ -77,6 +77,12 @@ func (m Model) project() []string {
 		}
 		if v.MetricSource == "forwarder" {
 			metadata = append(metadata, m.tone("Docker / VM forwarding · excluded from project metrics", muted))
+		}
+		if v.MetricSource == "docker" {
+			metadata = append(metadata, m.tone("Metrics from Docker stats · container usage", muted))
+		}
+		if v.MetricError != "" {
+			metadata = append(metadata, m.tone(plain(v.MetricError), amber))
 		}
 		if v.Reason != "" {
 			metadata = append(metadata, m.tone(plain(v.Reason), amber))

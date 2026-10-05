@@ -14,7 +14,13 @@ func (m Model) dockerPanel() []string {
 		out = append(out, m.tone(plain(m.snapshot.DockerError), amber))
 	}
 	out = append(out, m.tone(strings.Repeat("─", m.contentWidth()), muted))
-	capacity := max(1, (m.bodyHeight()-len(out)-2)/2)
+	rowHeight := 3
+	for _, row := range m.snapshot.Docker {
+		if row.MetricError != "" {
+			rowHeight = 4
+		}
+	}
+	capacity := max(1, (m.bodyHeight()-len(out)-3)/rowHeight)
 	start := max(0, m.dockerIndex-capacity+1)
 	end := min(len(m.snapshot.Docker), start+capacity)
 	for i := start; i < end; i++ {
@@ -27,6 +33,10 @@ func (m Model) dockerPanel() []string {
 			name = "  " + name
 		}
 		out = append(out, name, m.tone("  "+state+" · "+plain(c.Ports), muted))
+		out = append(out, "  Memory "+memory(c.Metric)+" · CPU "+cpu(c.Metric))
+		if c.MetricError != "" {
+			out = append(out, m.tone("  "+plain(c.MetricError), amber))
+		}
 	}
 	if len(m.snapshot.Docker) > capacity {
 		out = append(out, m.tone(fmt.Sprintf("%d–%d / %d · ←/→ select", start+1, end, len(m.snapshot.Docker)), muted))

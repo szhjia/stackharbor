@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/szhjia/stackharbor/main/scripts/ins
 sh /tmp/stackharbor-install.sh
 ```
 
-The script resolves the latest stable GitHub release, downloads the matching archive and SHA256 manifest over HTTPS, verifies the checksum, and installs into `~/.local/bin` without sudo. It fails if an existing command or symlink occupies the destination. A pinned release can be selected with `sh /tmp/stackharbor-install.sh 0.1.0`. Checksums detect corruption, not a compromised publisher.
+The script resolves the latest stable GitHub release, downloads the matching archive and SHA256 manifest over HTTPS, verifies the checksum, and installs into `~/.local/bin` without sudo. It fails if an existing command or symlink occupies the destination. A pinned release can be selected with `sh /tmp/stackharbor-install.sh 0.2.0`. Checksums detect corruption, not a compromised publisher.
 
 4. Verify `~/.local/bin/stackharbor --version` and `~/.local/bin/stackharbor --help`. If the directory is missing from PATH, use the absolute path immediately and explain `export PATH="$HOME/.local/bin:$PATH"`; do not silently edit unrelated shell configuration. For source installs use `make build`, then `sh scripts/install.sh` in the checkout.
 5. For upgrades, establish which binary is used, retain an explicit backup, then install and verify the replacement. Do not delete arbitrary files. Do not globally disable Gatekeeper or remove quarantine indiscriminately; binaries are not Apple-notarized.

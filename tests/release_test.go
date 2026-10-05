@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/szhjia/stackharbor/internal/buildinfo"
 )
 
 func TestScriptsUseIndependentRoot(t *testing.T) {
@@ -26,7 +28,7 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 	}
 	version := os.Getenv("STACKHARBOR_RELEASE_VERSION")
 	if version == "" {
-		version = "0.1.0"
+		version = buildinfo.Version
 	}
 	files, e := filepath.Glob("../dist/stackharbor_" + version + "_*.tar.gz")
 	if e != nil || len(files) != 4 {
@@ -68,10 +70,17 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 			if name == "stackharbor" && h.Mode&0111 == 0 {
 				t.Fatal("binary not executable")
 			}
+			if name == "RELEASE_NOTES.md" {
+				packaged, err := io.ReadAll(r)
+				source, sourceErr := os.ReadFile("../dist/RELEASE_NOTES.md")
+				if err != nil || sourceErr != nil || string(packaged) != string(source) || !strings.Contains(string(packaged), "StackHarbor v"+version) {
+					t.Fatal(path, "release notes do not match this version", err, sourceErr)
+				}
+			}
 		}
 		gz.Close()
 		f.Close()
-		for _, required := range []string{"stackharbor", ".stackharbor-tool", "LICENSE", "README.md", "README.zh-CN.md", "docs", "THIRD_PARTY_NOTICES", "licenses", "skills", "examples", "scripts"} {
+		for _, required := range []string{"stackharbor", ".stackharbor-tool", "LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md", "RELEASE_NOTES.md", "docs", "THIRD_PARTY_NOTICES", "licenses", "skills", "examples", "scripts"} {
 			if !seen[required] {
 				t.Fatal(path, "missing", required)
 			}

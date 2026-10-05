@@ -1,6 +1,6 @@
 # StackHarbor
 
-V0.1.0：在 monorepo 根目录运行的 macOS/Linux 终端服务控制台。
+V0.2.0：在 monorepo 根目录运行的 macOS/Linux 终端服务控制台。
 
 应用内置的界面、帮助、提示及诊断统一使用英文。协议中的用户自定义展示名称仍可使用中文或其他语言，服务日志保留原文。
 
@@ -29,6 +29,27 @@ go build -o dist/stackharbor ./cmd/stackharbor
 ```
 
 交互模式需要真实终端。macOS/Linux 使用系统 `ps` 观察进程树；安装 `lsof` 可显示实际监听与归属，缺失时端口观测显示未知，启动前仍做环回地址绑定检查。Linux 打开网址需要 `xdg-open`。
+
+### 找回已有会话
+
+不同工作区可以同时运行，同一个真实路径保持一个管理会话。再次打开已有工作区时，会显示路径、PID、TTY 和可观测的终端类型，并尝试直接切换到 macOS Terminal 的对应标签页；成功定位返回 0，无法定位返回 1 并保留定位提示。
+
+```sh
+stackharbor sessions                 # 列出仍在运行的会话
+stackharbor sessions --json          # JSON 列表
+stackharbor sessions --root /path/to/workspace
+stackharbor sessions --focus 12345   # 将 PID 对应的 Terminal 标签页切到前台
+```
+
+`sessions` 不需要在工程目录运行，也不需要交互终端或读取工程配置。只显示仍持有系统锁的会话，退出后保留的锁文件不会被当成活动会话。旧版本的空锁文件会尝试用 `lsof` 和 `ps` 恢复所属 PID、TTY；当进程工作目录与锁身份一致时，也能恢复工程路径。无法观测的信息显示 `—`。
+
+窗口切换目前支持 macOS 自带 Terminal，按 TTY 精确选择标签页并恢复最小化的窗口。其他终端、tmux/screen、SSH 和 Linux 仍可查看列表。macOS 可能要求允许终端自动化；没有权限或找不到标签页时会报告原因。定位不会启动或停止服务。同一工作区的会话与列表命令需要使用相同的 `STACKHARBOR_CACHE_DIR`。
+
+### 关闭本工程的会话
+
+在工程目录运行 `stackharbor kill`，无需寻找窗口或输入 PID。命令按当前目录及 workspace 配置确定真实工作区路径，仅关闭该工作区的已有会话；其它工程保持运行。支持 `--root PATH` 和 `--workspace FILE` 指定工作区。
+
+发送 SIGTERM 前核对 PID、进程创建时间、程序名称及工作区锁文件归属，由已有会话按正常退出流程清理服务和恢复终端。最多等待 35 秒；超时或无法核验归属时返回错误，不升级为强制杀死。没有活动会话时返回成功。自定义缓存目录仍需使用相同的 `STACKHARBOR_CACHE_DIR`；macOS 使用系统 `lsof` 核验锁文件归属，Linux 使用 `/proc`。
 
 | 按键 | 操作 |
 |---|---|
@@ -131,6 +152,8 @@ MIT，见 [LICENSE](../LICENSE)。
 ## Docker 依赖
 
 自动读取工程根目录的 `compose.yaml` / `compose.yml` / `docker-compose.yaml` / `docker-compose.yml`（按此顺序选择第一个）。上下导航到 Docker（或按 `d`），左右切换容器；页面显示容器状态、健康和发布端口，支持单独控制；容器状态读取失败显示未知及原因。快捷键字母使用蓝色粗体，无独立背景。
+
+容器内存与 CPU 随后台采样动态刷新：每 2 秒触发观察，按运行中容器的 ID 批量执行 `docker stats --no-stream --no-trunc --format '{{json .}}'`，实际间隔受命令耗时影响；界面每 100 毫秒读取最新快照。v2 只采样注册的 Compose 资源，指标同时显示在 Dashboard、基础设施详情和 Docker 页面。容器内存使用 Docker CLI 的内存用量（Linux 下已扣除缓存），与宿主进程 RSS 的统计口径不同；CPU 使用 Docker 返回的百分比，可超过 100%。零占用显示为 `0`；停止、缺失或采样失败显示 `—`，失败会给出原因并清除旧值，不改变独立读取的容器可用状态。
 
 本地服务用 Compose 服务名声明依赖：
 

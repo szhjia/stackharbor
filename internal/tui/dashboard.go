@@ -145,6 +145,12 @@ func (m Model) dashboardHeading() []string {
 			label = "Docker status unknown · d details"
 		}
 		out = append(out, m.tone(label, accent))
+		for _, d := range m.snapshot.Docker {
+			if d.MetricError != "" {
+				out = append(out, m.tone("Docker metrics unavailable · d details", amber))
+				break
+			}
+		}
 	}
 	for _, v := range m.snapshot.Services {
 		if v.MetricSource == "external" {
