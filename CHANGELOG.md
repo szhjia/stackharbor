@@ -51,8 +51,8 @@ This release restores the intended 0.x version sequence. The previously publishe
 
 ## [2.0.1] - 2026-10-05
 
-**Misnumbered historical release.** Retained for traceability; superseded by
-`v0.3.0`. Continue using the 0.x release sequence.
+**Misnumbered historical release.** Its GitHub release and tag are withdrawn;
+`v0.3.0` includes these fixes. Continue using the 0.x release sequence.
 
 ### Fixed
 
@@ -164,6 +164,6 @@ Initial public release.
 
 [Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/szhjia/stackharbor/compare/v0.2.0...v0.3.0
-[2.0.1]: https://github.com/szhjia/stackharbor/releases/tag/v2.0.1
+[2.0.1]: https://github.com/szhjia/stackharbor/commit/4b690f938c3cf4aab52f9cd6e7bce562d50dae90
 [0.2.0]: https://github.com/szhjia/stackharbor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/szhjia/stackharbor/releases/tag/v0.1.0
