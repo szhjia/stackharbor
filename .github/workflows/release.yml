@@ -43,4 +43,19 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" dist/stackharbor_"$RELEASE_VERSION"_*.tar.gz dist/SHA256SUMS \
-            --verify-tag --title "StackHarbor $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
+            --verify-tag --latest --title "StackHarbor $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
+      - name: Annotate historical version numbering error
+        if: env.RELEASE_VERSION == '0.3.0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v2.0.1 --json body --jq .body > /tmp/stackharbor-legacy-notes.md
+          python3 - <<'PYNOTES'
+          from pathlib import Path
+          p = Path('/tmp/stackharbor-legacy-notes.md')
+          notice = "> **Version numbering correction:** v2.0.1 was misnumbered. StackHarbor remains in the 0.x development phase. Use [v0.3.0](https://github.com/szhjia/stackharbor/releases/tag/v0.3.0) or a later supported 0.x release. This historical tag and its assets are retained for traceability.\n\n"
+          body = p.read_text()
+          if not body.startswith(notice):
+              p.write_text(notice + body)
+          PYNOTES
+          gh release edit v2.0.1 --latest=false --title "StackHarbor v2.0.1 (misnumbered; superseded by v0.3.0)" --notes-file /tmp/stackharbor-legacy-notes.md

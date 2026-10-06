@@ -112,7 +112,7 @@ copied shadcn/ui components reside in `web/src/components/ui`.
 ```sh
 make build
 make check
-make release VERSION=2.0.1  # must match source version/release notes; packages only
+make release VERSION=0.3.0  # must match source version/release notes; packages only
 ```
 
 Supported Make/scripts paths run `npm ci`, build the real Vite bundle, and

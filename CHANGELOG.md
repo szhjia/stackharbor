@@ -2,11 +2,57 @@
 
 Notable user-facing changes are recorded here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). YAML protocol versions remain independent of executable release versions.
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). StackHarbor remains in the 0.x development phase. YAML protocol versions remain independent of executable release versions.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-06
+
+This release restores the intended 0.x version sequence. The previously published
+`v2.0.1` was misnumbered; it did not mark a 2.x stability or compatibility milestone.
+`v0.3.0` includes those fixes and is the supported successor to `v0.2.0`.
+
+### Added
+
+- A local React and TypeScript browser console with shadcn/ui components. Run
+  `stackharbor web` to open it on 127.0.0.1:16800; use `--port` to choose a port
+  or `--port 0 --no-open` for an available port without opening the browser.
+- Independent CLI control of existing workspace sessions: status, start, stop,
+  restart, explicit port release, logs and operation lookup. CLI control uses
+  private Unix sockets and does not require the browser gateway.
+- Workspace and shared-resource inventories, live metrics, bounded event/log
+  streaming, operation progress and explicit stale or unavailable state.
+- Expiring action plans, single-operation confirmation, identity revalidation,
+  cross-workspace resource locking and durable close-result lookup.
+
+### Fixed
+
+- Browser credential rotation cannot be overwritten by late responses. Browser
+  writes require JSON, same-origin validation and CSRF protection.
+- Close confirmation discloses affected nodes and preserved resources; shared
+  resource confirmation includes known references from other workspaces.
+- Manual sampling tests no longer race the background observer.
+- The complete published skill, including protocol and maintenance references,
+  is now in English. Skill version 0.3.0 is tracked independently of the executable.
+
+### Upgrade notes
+
+- Existing v1 and v2 YAML registrations remain supported. Restart workspace
+  sessions with the new binary to enable control; older sessions are read-only.
+- Noninteractive mutations require `--yes`; use `--dry-run` to review a live
+  plan. After an uncertain response, query the operation ID before acting again.
+- Closing the Web gateway leaves workspace applications running. Closing a
+  workspace preserves persistent and observe-only resources and never deletes
+  volumes. Sessions remain foreground processes; this release adds no daemon.
+- Release binaries embed the browser assets and need neither Node nor Go at
+  runtime. Building from source now requires Node 26.9.0 as well as Go 1.26+.
+- Frontend production dependency audit reported no advisories during validation;
+  seven high build-tool advisory paths remain documented in docs/web-control.md.
+
 ## [2.0.1] - 2026-10-05
+
+**Misnumbered historical release.** Retained for traceability; superseded by
+`v0.3.0`. Continue using the 0.x release sequence.
 
 ### Fixed
 
@@ -116,6 +162,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/szhjia/stackharbor/compare/v0.2.0...v0.3.0
+[2.0.1]: https://github.com/szhjia/stackharbor/releases/tag/v2.0.1
 [0.2.0]: https://github.com/szhjia/stackharbor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/szhjia/stackharbor/releases/tag/v0.1.0

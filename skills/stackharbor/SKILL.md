@@ -1,9 +1,13 @@
 ---
 name: stackharbor
 description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or controlling workspace sessions, browser console authentication, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
+metadata:
+  version: "0.3.0"
 ---
 
 # StackHarbor installation and workspace integration
+
+Skill version: **0.3.0**. This skill version is independent of the StackHarbor executable version.
 
 Generate registrations from the project's actual startup contract. The skill and protocol references are maintained together in the StackHarbor repository. StackHarbor supports local foreground processes on macOS/Linux, with distinct lifecycles for resources, tasks, and services.
 
