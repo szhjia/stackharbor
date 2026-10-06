@@ -11,3 +11,7 @@ dist/
 _runtime_verification/
 docs/verification/
 docs/superpowers/
+
+node_modules/
+web/coverage/
+web/test-results/

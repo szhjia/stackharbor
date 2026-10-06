@@ -77,7 +77,7 @@ var memoryPattern = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)\s*(B|kB|KB|MB|GB|
 // Docker's memory usage is its CLI working-set value (cache subtracted on
 // Linux), not host process RSS. The shared metric carries the byte count.
 func parseMetric(cpu, memory string) (model.Metric, string) {
-	metric := model.Metric{}
+	metric := model.Metric{SampledAt: time.Now().UTC()}
 	reasons := []string{}
 	usage := strings.TrimSpace(strings.SplitN(memory, "/", 2)[0])
 	parts := memoryPattern.FindStringSubmatch(usage)

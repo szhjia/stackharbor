@@ -1,6 +1,6 @@
 ---
 name: stackharbor
-description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or closing workspace sessions, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
+description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or controlling workspace sessions, browser console authentication, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
 ---
 
 # StackHarbor installation and workspace integration
@@ -37,7 +37,7 @@ When the user has requested starting the local app and its established runtime i
 | v2 read-only plan | `stackharbor plan start --root ROOT --target NODE --json` |
 | Active sessions | `stackharbor sessions --json`; add `--root ROOT` to filter by workspace |
 | Focus an existing window | `stackharbor sessions --focus PID` (macOS Terminal) |
-| Close workspace sessions | `stackharbor kill --root ROOT` (stops sessions and the services they own) |
+| Close workspace sessions | `stackharbor kill --root ROOT --yes` (explicit noninteractive close; preserves persistent resources) |
 | Interactive entry point | `stackharbor --root ROOT`, or run `stackharbor` in the project root |
 
 For a non-default workspace, add `--workspace FILE` to every command; ROOT must match the workspace root. init currently generates v1 drafts. Use `--write` only when the user accepts v1 and the candidate is confirmed; do not overwrite existing files. Generate new v2 integrations manually, then validate them.
@@ -85,3 +85,7 @@ Install from the public repository with `npx skills add szhjia/stackharbor --ski
 | Treating migrations as persistent services or inventing checkers | Use verified v2 task contracts and report gaps explicitly |
 | Adding only a local YAML file when discovery is disabled | Update the existing workspace's explicit imports |
 | Expecting a copied skill to follow source upgrades automatically | Install a symlink to the entire directory and retain the source directory |
+
+## Browser and session CLI control
+
+For existing foreground sessions, follow [control and recovery](references/web-control.md). Verify the actual binary help before using new commands. CLI control goes directly to the session Unix socket. Browser gateway startup is `stackharbor web` (loopback16800; `--port 0 --no-open` for a free port and launch URL), and stopping it preserves applications. Noninteractive mutation requires `--yes` within user-authorized scope; `--dry-run` previews a live60-second plan. Use `operations --id` after timeout or disconnect and never retry an unknown outcome blindly. Keep cache namespace, canonical root, persistence/observe boundaries, plan expiry and shared consumers explicit.

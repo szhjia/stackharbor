@@ -2,6 +2,7 @@ package tests
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"io"
 	"os"
@@ -45,6 +46,7 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 		}
 		r := tar.NewReader(gz)
 		seen := map[string]bool{}
+		seenFiles := map[string]bool{}
 		skillFiles := map[string]bool{}
 		for {
 			h, e := r.Next()
@@ -56,6 +58,7 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 			}
 			name := strings.TrimPrefix(h.Name, "./")
 			seen[strings.Split(name, "/")[0]] = true
+			seenFiles[name] = true
 			if h.Typeflag == tar.TypeReg && (strings.HasPrefix(name, "skills/stackharbor/") || name == "scripts/install-skill.sh") {
 				packaged, err := io.ReadAll(r)
 				if err != nil {
@@ -66,6 +69,28 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 					t.Fatal(path, "skill distribution differs from repository", name, err)
 				}
 				skillFiles[name] = true
+			}
+			if name == "stackharbor" {
+				data, err := io.ReadAll(r)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, asset := range []string{"../internal/web/dist/index.html", "../internal/web/dist/asset-manifest.json"} {
+					expected, err := os.ReadFile(asset)
+					if err != nil || !bytes.Contains(data, expected) {
+						t.Fatal(path, "missing actual embedded frontend", asset, err)
+					}
+				}
+				bundles, err := filepath.Glob("../internal/web/dist/assets/*.js")
+				if err != nil || len(bundles) == 0 {
+					t.Fatal("missing JavaScript fixture", err)
+				}
+				for _, asset := range bundles {
+					expected, err := os.ReadFile(asset)
+					if err != nil || !bytes.Contains(data, expected) {
+						t.Fatal(path, "missing embedded JavaScript", asset, err)
+					}
+				}
 			}
 			if name == "stackharbor" && h.Mode&0111 == 0 {
 				t.Fatal("binary not executable")
@@ -83,6 +108,11 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 		for _, required := range []string{"stackharbor", ".stackharbor-tool", "LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md", "RELEASE_NOTES.md", "docs", "THIRD_PARTY_NOTICES", "licenses", "skills", "examples", "scripts"} {
 			if !seen[required] {
 				t.Fatal(path, "missing", required)
+			}
+		}
+		for _, required := range []string{"docs/web-control.md", "licenses/frontend-NOTICES", "skills/stackharbor/references/web-control.md"} {
+			if !seenFiles[required] {
+				t.Fatal(path, "missing control docs/licenses", required)
 			}
 		}
 		for _, required := range []string{"scripts/install-skill.sh", "skills/stackharbor/SKILL.md", "skills/stackharbor/references/registration.md", "skills/stackharbor/references/v2.md", "skills/stackharbor/references/maintenance.md", "skills/stackharbor/references/installation.md", "skills/stackharbor/references/docker.md"} {

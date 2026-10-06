@@ -39,7 +39,8 @@ func dependencySatisfied(e *entry, condition string) bool {
 	}
 }
 func resourceAvailable(spec *model.ResourceSpec, rows []model.DockerSnapshot) (bool, string) {
-	for _, row := range rows {
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := rows[i]
 		if row.Service == spec.Service {
 			return row.State == "running" && (spec.Available == "running" || row.Health == "healthy"), row.ID
 		}
@@ -230,6 +231,20 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 	}
 	for id, r := range results {
 		e := s.entries[id]
+		manager := s.resources[id]
+		key := manager.File + "\x00" + manager.Project
+		if e.gen == gens[id] && reasons[key] == "" {
+			instances, running, known := physicalResourceObservation(e.spec.Resource.Service, cache[key])
+			// Running evidence remains meaningful even if daemon/container identity is unknown.
+			e.resourceRunning = e.resourceRunning || running
+			if known {
+				if e.resourceInstances == nil {
+					e.resourceInstances = instances
+				}
+				e.resourceRunning = running
+			}
+		}
+
 		if e.gen != gens[id] || e.state == "waiting" || e.state == "starting" || e.state == "stopping" {
 			continue
 		}
@@ -276,4 +291,74 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 		}
 	}
 	return external
+}
+
+// Physical instances are retained independently from the logical readiness
+// selection. Empty non-nil is a verified absence; nil means identity unknown.
+func physicalResourceObservation(service string, rows []model.DockerSnapshot) ([]string, bool, bool) {
+	instances := []string{}
+	running := false
+	matched := false
+	known := true
+	for _, row := range rows {
+		if row.Service != service {
+			continue
+		}
+		matched = true
+		running = running || row.State == "running" || row.State == "restarting" || row.State == "paused"
+		if row.ID == "" {
+			if row.State != "absent" {
+				known = false
+			}
+			continue
+		}
+		if row.EndpointIdentity == "" {
+			known = false
+			continue
+		}
+		instances = append(instances, row.EndpointIdentity+":"+row.ID)
+	}
+	if !matched || !known {
+		return nil, running, false
+	}
+	sort.Strings(instances)
+	unique := instances[:0]
+	for _, id := range instances {
+		if len(unique) == 0 || unique[len(unique)-1] != id {
+			unique = append(unique, id)
+		}
+	}
+	return unique, running, true
+}
+func sameResourceInstances(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+func (s *Session) rememberResourceObservation(id model.ServiceID, gen uint64, service string, rows []model.DockerSnapshot, reason string, replace bool) {
+	if reason != "" {
+		return
+	}
+	instances, running, known := physicalResourceObservation(service, rows)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e := s.entries[id]; e.gen == gen {
+		e.resourceRunning = e.resourceRunning || running
+		if !known {
+			return
+		}
+		if replace || e.resourceInstances == nil {
+			e.resourceInstances = instances
+		}
+		e.resourceRunning = running
+		if replace {
+			e.resourceMutation = false
+		}
+	}
 }

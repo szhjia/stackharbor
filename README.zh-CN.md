@@ -82,7 +82,7 @@ npx skills add szhjia/stackharbor
 
 ### 体验自带演示
 
-安装 Go 1.26+、Git 和 Make 后：
+安装 Go 1.26+、Node 26.9.0/npm、Git 和 Make 后：
 
 ```sh
 git clone https://github.com/szhjia/stackharbor.git
@@ -178,11 +178,11 @@ StackHarbor 以当前用户权限运行本地前台进程，不提供安全沙�
 
 Docker 资源指标通过批量 `docker stats` 采样动态刷新。注册的 Compose 资源在总览、工程详情和 Docker 页面显示内存、CPU；外部转发端口在已配置 Compose 范围内唯一匹配运行容器时，工程行也显示该容器指标；采样失败显示未知值和原因。指标口径见 [使用说明](docs/usage.zh-CN.md#docker-依赖)。
 
-当前早期版本不提供 Windows、网页控制台、后台托管、自动重启或热加载。配置校验成功不代表已经验证应用的真实启动和数据库迁移行为。
+当前早期版本不提供 Windows、后台托管、自动重启或热加载。配置校验成功不代表已经验证应用的真实启动和数据库迁移行为。
 
 ## 开发与贡献
 
-从源码构建需要 Go 1.26+ 和 Make：
+从源码构建需要 Go 1.26+、Node 26.9.0/npm 和 Make：
 
 ```sh
 make build
@@ -198,7 +198,7 @@ make run ARGS="--root /path/to/workspace"
 | `make check` | 格式、vet、测试、竞态检测 |
 | `make release VERSION=0.2.0` | 打包四个平台发行包与当前版本发布说明 |
 
-没有 Make 时，执行 `go build -o dist/stackharbor ./cmd/stackharbor`，再运行 `./dist/stackharbor --root /path/to/workspace`。
+没有 Make 时，先执行 `sh scripts/web-build.sh`，再执行 `go build -o dist/stackharbor ./cmd/stackharbor`，然后运行 `./dist/stackharbor --root /path/to/workspace`。
 
 详见 [贡献指南](CONTRIBUTING.md)、[安全政策](SECURITY.md) 和 [变更记录](CHANGELOG.md)。CI 检查 macOS 和 Linux；版本标签通过 GitHub Actions 发布压缩包及校验清单。
 
@@ -211,3 +211,9 @@ make run ARGS="--root /path/to/workspace"
 ## 许可证
 
 [MIT](LICENSE)。第三方许可证见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) 和 `licenses/`。
+
+## 浏览器与现有会话 CLI 控制
+
+在工作区终端保持 StackHarbor 前台运行，再于另一个终端运行 `stackharbor web`。默认仅监听 `127.0.0.1:16800`；`--port 0 --no-open` 分配空闲端口并打印一次性启动链接。停止网关保留应用。`status/start/stop/restart/release/logs/operations/kill` 直接访问会话 Unix socket，不依赖 Web。非交互写操作需要 `--yes`；`--dry-run` 查看真实会话计划。认证过期后再次运行 `stackharbor web`，使用新链接。详见 [Web 与 CLI 控制](docs/web-control.md)。
+
+源码构建新增 Node 26.9.0（`.node-version`）与 npm 要求；`make build/check/release` 安装锁定依赖、构建并核验真实前端。发行二进制包含 UI，运行不需要 Node 或 Go。原始 `go build` 不能证明已有前端产物与源码一致，请使用 Make 路径。

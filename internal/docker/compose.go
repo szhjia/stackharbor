@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/control"
 	"github.com/szhjia/stackharbor/internal/model"
 	"go.yaml.in/yaml/v3"
 	"io"
@@ -135,6 +136,24 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 	if len(names) == 0 {
 		return nil
 	}
+	keys, err := m.LockKeys(ctx, names)
+	if err != nil {
+		return err
+	}
+	locked, release, err := control.WithResourceLocks(ctx, control.ResourceLockNamespace, keys)
+	if err != nil {
+		return err
+	}
+	defer release()
+	ctx = locked
+	// Recheck engine/project identity after waiting for the physical lock.
+	current, err := m.LockKeys(ctx, names)
+	if err != nil {
+		return err
+	}
+	if strings.Join(current, "\x00") != strings.Join(keys, "\x00") {
+		return fmt.Errorf("Docker identity changed while acquiring resource lock")
+	}
 	args := m.args()
 	switch action {
 	case "start":
@@ -152,7 +171,7 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 		return fmt.Errorf("Unknown Docker action")
 	}
 	args = append(args, names...)
-	_, err := m.run(ctx, args...)
+	_, err = m.run(ctx, args...)
 	return err
 }
 
@@ -252,22 +271,32 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	raw, err := m.run(ctx, append(m.args(), "ps", "--all", "--format", "json", "--orphans=false")...)
+	raw, err := m.run(ctx, append(m.args(), "ps", "--all", "--format", "json", "--orphans=false", "--no-trunc")...)
 	if err != nil {
 		return rows, err.Error()
+	}
+	identity, identityErr := m.Identity(ctx)
+	if identityErr == nil {
+		for i := range rows {
+			rows[i].EndpointIdentity = identity.Endpoint
+			rows[i].ComposeProject = identity.Project
+		}
 	}
 	cs, err := parsePS(raw)
 	if err != nil {
 		return rows, "Unable to parse Docker status: " + err.Error()
 	}
+	physical := []model.DockerSnapshot{}
 	for i := range rows {
 		rows[i].State = "absent"
 		instances := 0
+		spec := rows[i]
 		for _, c := range cs {
 			if c.Service != rows[i].Service {
 				continue
 			}
 			instances++
+			rows[i] = spec
 			rows[i].PublishedEndpoints = nil
 			rows[i].Name = c.Name
 			rows[i].ID = c.ID
@@ -288,11 +317,13 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 				}
 			}
 			rows[i].Ports = strings.Join(ps, ", ")
+			physical = append(physical, rows[i])
 		}
-		if instances > 1 {
-			rows[i].PublishedEndpoints = nil
+		if instances == 0 {
+			physical = append(physical, rows[i])
 		}
 	}
+	rows = physical
 	return rows, ""
 }
 

@@ -1,6 +1,6 @@
 # Development and repository layout
 
-StackHarbor is a Go command-line application. Its module root is the repository
+StackHarbor is a Go foreground application with an embedded React/TypeScript/Vite browser console. Source builds need Node 26.9.0/npm (see `.node-version`) and Go 1.26+. Its module root is the repository
 root, and its implementation uses `cmd/` and `internal/`, following the
 [official Go module layout guidance](https://go.dev/doc/modules/layout).
 There is no requirement for a `src/` wrapper or a public `pkg/` directory.
@@ -24,7 +24,10 @@ stackharbor/
 │   ├── process/            # Process inspection
 │   ├── runner/             # Foreground process ownership and cleanup
 │   ├── supervisor/         # Session lifecycle and coordination
+│   ├── control/sessionapi/sessionhost/ # Shared controller and private session transport
+│   ├── inventory/web/      # Physical inventory and authenticated loopback gateway
 │   └── tui/                # Terminal interaction and rendering
+├── web/                   # Locked frontend sources, tests and shadcn/ui components
 ├── tests/                 # Cross-package, CLI, PTY, installer and release tests
 ├── docs/                  # Usage, protocol, development docs and illustrations
 ├── examples/              # Runnable demos and registration examples
@@ -53,11 +56,12 @@ be installed. Run a focused package test while working, then the repository's
 checks before proposing a release:
 
 ```sh
+make web-build
 go test ./internal/docker ./internal/supervisor ./internal/tui -count=1
 make check
 ```
 
-`make check` verifies Go formatting, runs `go vet`, runs the main module's tests
+`make check` installs locked npm dependencies, checks frontend types/tests, builds and validates matching embedded assets/licenses, then verifies Go formatting, runs `go vet`, runs the main module's tests
 and race detector, then tests every example module. Integration tests create
 disposable processes and listeners. Some environment-dependent checks, including
 release archive and PostgreSQL checks, are opt-in; see each test's skip message.
@@ -104,3 +108,9 @@ Do not move the implementation into `src/`: that would add a path layer to
 imports, build targets and integration-test commands without improving the
 existing package boundaries. Add a public package or separate module only when
 there is an actual external consumer.
+
+## Embedded frontend and integration verification
+
+See [Web/CLI control](web-control.md) for source builds and the exact Vite proxy opt-in. `make build/check/release` are supported freshness paths. `node scripts/web-assets.mjs validate` refuses stale source/version/protocol or modified bundle files. `node scripts/frontend-licenses.mjs --check` validates retained texts; regenerate with the same command without `--check` when dependencies change. react-remove-scroll-bar 2.3.8 omits its license from npm: the retained MIT text comes from upstream LICENSE snapshot `8ca9ba5ea52de03308fe8ced94f7b159a44d28ff` (npm release gitHead is unavailable upstream).
+
+`TestWebControlTwoPTYWorkspacesWithoutGateway` runs two real PTYs, CLI control, gateway inventory, plan conflicts, accepted-request disconnect recovery, legacy read-only metadata, gateway-only teardown and terminal restoration. `STACKHARBOR_CAFE_TEST=1` enables original Harbor Café lifecycle on 18281/18282 and refuses occupied ports. `STACKHARBOR_DOCKER_TEST=1` enables a unique Compose Redis fixture, named-volume persistence and container-replacement conflict; only that generated project is removed. Default checks skip those two opt-in environmental integrations. Neither uses existing developer containers or data.

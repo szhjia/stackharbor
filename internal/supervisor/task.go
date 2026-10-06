@@ -396,19 +396,28 @@ func (s *Session) runResource(ctx context.Context, id model.ServiceID, gen uint6
 	r := spec.Resource
 	m := s.resources[id]
 	rows, why := m.Observe(ctx)
+	s.rememberResourceObservation(id, gen, r.Service, rows, why, false)
 	available, identity := resourceAvailable(r, rows)
 	if !available && r.Control == "managed" {
-		if err := m.Action(ctx, "start", []string{r.Service}); err != nil {
-			fail(err)
+		s.mu.Lock()
+		if e := s.entries[id]; e.gen == gen {
+			e.resourceMutation = true
+		}
+		s.mu.Unlock()
+		actionErr := m.Action(ctx, "start", []string{r.Service})
+		rows, why = m.Observe(ctx)
+		s.rememberResourceObservation(id, gen, r.Service, rows, why, true)
+		if actionErr != nil {
+			fail(actionErr)
 			return
 		}
-		rows, why = m.Observe(ctx)
 		available, identity = resourceAvailable(r, rows)
 	}
 	if !available {
 		fail(fmt.Errorf("Resource %s unavailable or health unknown: %s", spec.Name, why))
 		return
 	}
+	s.rememberResourceObservation(id, gen, r.Service, rows, why, true)
 	s.phase(id, gen, "available", "Resource available")
 	s.mu.Lock()
 	if e := s.entries[id]; e.gen == gen {

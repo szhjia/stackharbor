@@ -166,3 +166,11 @@ services:
 ```
 
 本地服务启动前按 Compose 依赖顺序启动这些容器，等待运行或健康。全部启停只包含已注册的本地服务及声明的 Docker 依赖。单个容器启动使用 `up -d --no-deps --no-build --wait`，不会隐式运行其他容器。停止/重启 Docker 依赖时，先停止本会话依赖它的本地服务；重启成功后恢复原运行集合。Docker 操作不会删除容器数据或卷，退出 TUI 不自动停止 Docker。Docker 引擎须已运行，缺少镜像或 Compose 所需环境配置时会报告错误。
+
+## 浏览器及会话控制
+
+保持工作区 TUI 前台打开，在另一终端使用 `stackharbor web`；默认端口 16800，仅绑定 127.0.0.1。`--port 0 --no-open` 分配随机端口、打印一次性链接（60 秒有效）。关闭网关不关闭应用。认证过期或网关重启后，重新运行该命令、打开新链接。
+
+`status --all --json` 聚合当前命名空间；`start/stop/restart --target NODE --root ROOT --dry-run` 获取真实计划，`--yes` 明确执行。`release --target NODE --port PORT` 只释放已声明冲突端口。`logs --target NODE --follow` 读取日志；`operations --id ID` 恢复断线、超时后的操作结果，避免重复执行。`kill --root ROOT --yes` 关闭会话，保留持久 Compose 资源和数据。
+
+所有终端需要相同 `STACKHARBOR_CACHE_DIR`；过期数据、未知指标和旧版只读会话会明确显示。计划 60 秒后过期、节点或容器身份改变返回 409，需要重新确认；日志截断显示缺口。具体命令、认证、命名空间、资源边界和源码前端工具链见 [Web/CLI 完整指南](web-control.md)。

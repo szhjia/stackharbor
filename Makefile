@@ -1,6 +1,9 @@
-.PHONY: build run demo install check release
+.PHONY: web-build build run demo install check release
 
-build:
+web-build:
+	sh scripts/web-build.sh
+
+build: web-build
 	go build -trimpath -o dist/stackharbor ./cmd/stackharbor
 
 run: build

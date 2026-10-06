@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/control"
 	"github.com/szhjia/stackharbor/internal/docker"
 	"github.com/szhjia/stackharbor/internal/graph"
 	"github.com/szhjia/stackharbor/internal/logs"
@@ -17,6 +18,10 @@ import (
 )
 
 type entry struct {
+	resourceInstances                        []string
+	resourceRunning                          bool
+	resourceMutation                         bool
+	processSamples                           []model.ProcessSample
 	spec                                     model.Service
 	state, reason                            string
 	observedState, observedReason            string
@@ -37,6 +42,7 @@ type entry struct {
 	observed                                 []model.ProcessIdentity
 }
 type Session struct {
+	observedAt   time.Time
 	startMu      sync.Mutex
 	mu           sync.Mutex
 	docker       *docker.Manager
@@ -198,7 +204,7 @@ func (s *Session) Start(ctx context.Context, ids []model.ServiceID) error {
 			e.readyClosed = false
 			e.startErr = nil
 			e.exit = nil
-			runctx, cancel := context.WithCancel(s.ctx)
+			runctx, cancel := context.WithCancel(control.InheritResourceLocks(s.ctx, ctx))
 			e.cancel = cancel
 			gen := e.gen
 			s.workers.Add(1)
@@ -537,11 +543,40 @@ func (s *Session) stopOne(ctx context.Context, id model.ServiceID) error {
 			return errors.New("Read-only resources cannot be stopped")
 		}
 		m := s.resources[id]
+		keys, err := m.LockKeys(ctx, []string{r.Service})
+		if err != nil {
+			return err
+		}
+		locked, release, err := control.WithResourceLocks(ctx, control.ResourceLockNamespace, keys)
+		if err != nil {
+			return err
+		}
+		defer release()
+		ctx = locked
+		s.mu.Lock()
+		closing, expected := s.closed, append([]string(nil), node.resourceInstances...)
+		expectedKnown := node.resourceInstances != nil
+		s.mu.Unlock()
+		if closing {
+			if !expectedKnown {
+				return fmt.Errorf("Resource instance identities unavailable; cleanup refused")
+			}
+			rows, reason := m.Observe(ctx)
+			if reason != "" {
+				return fmt.Errorf("Resource identity unavailable during cleanup")
+			}
+			current, _, known := physicalResourceObservation(r.Service, rows)
+			if !known || !sameResourceInstances(current, expected) {
+				return fmt.Errorf("Resource instance set changed; cleanup refused")
+			}
+		}
 		if err := m.Action(ctx, "stop", []string{r.Service}); err != nil {
 			return err
 		}
 		s.mu.Lock()
 		node.state = "stopped"
+		node.resourceRunning = false
+		node.resourceMutation = false
 		s.mu.Unlock()
 		return nil
 	}
@@ -617,17 +652,30 @@ func (s *Session) Restart(ctx context.Context, ids []model.ServiceID) error {
 	}
 	return s.Start(ctx, set)
 }
-func (s *Session) Shutdown(ctx context.Context) error {
+
+// cleanupTargetsLocked is shared by cleanup and its plan disclosure. The caller
+// holds s.mu; persistent and observe-only resources retain their own lifetime.
+func (s *Session) cleanupTargetsLocked() []model.ServiceID {
+	ids := []model.ServiceID{}
+	for id, e := range s.entries {
+		if e.spec.Control == "observe" || e.spec.Resource != nil && (e.spec.Resource.Lifetime == "persistent" || e.spec.Resource.Control == "observe") {
+			continue
+		}
+		if e.spec.Resource != nil && !e.resourceRunning && !e.resourceMutation && e.state != "waiting" && e.state != "starting" && e.state != "stopping" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// Cleanup stops owned ephemeral resources and drains workers while retaining the
+// session lock. A host can durably publish its final record before ReleaseLock.
+func (s *Session) Cleanup(ctx context.Context) error {
 	s.shutdownOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
-		ids := []model.ServiceID{}
-		for id, e := range s.entries {
-			if e.spec.Control == "observe" || e.spec.Resource != nil && (e.spec.Resource.Lifetime == "persistent" || e.spec.Resource.Control == "observe") {
-				continue
-			}
-			ids = append(ids, id)
-		}
+		ids := s.cleanupTargetsLocked()
 		s.mu.Unlock()
 		s.cancel()
 		budget, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -640,9 +688,21 @@ func (s *Session) Shutdown(ctx context.Context) error {
 			s.shutdownErr = errors.Join(s.shutdownErr, budget.Err())
 		case <-done:
 		}
-		s.shutdownErr = errors.Join(s.shutdownErr, s.lock.Close())
 		close(s.shutdownDone)
 	})
 	<-s.shutdownDone
 	return s.shutdownErr
 }
+
+// ReleaseLock finalizes ownership only after Cleanup completed.
+func (s *Session) ReleaseLock() error {
+	<-s.shutdownDone
+	return s.lock.Close()
+}
+func (s *Session) Shutdown(ctx context.Context) error {
+	return errors.Join(s.Cleanup(ctx), s.ReleaseLock())
+}
+
+// SessionInfo returns a copied advisory identity for host registration.
+func (s *Session) SessionInfo() SessionInfo                { return s.lock.Info() }
+func (s *Session) PublishEndpoint(endpoint Endpoint) error { return s.lock.PublishEndpoint(endpoint) }

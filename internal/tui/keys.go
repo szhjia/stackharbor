@@ -44,11 +44,26 @@ type allController interface {
 	AllAction(context.Context, string) error
 }
 
+func (m Model) preview(action string, ids []model.ServiceID, docker []string, confirm bool, status string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		p, err := m.controller.(planningController).PlanAction(ctx, action, ids, docker)
+		return previewMsg{plan: p, action: action, ids: ids, docker: docker, confirm: confirm, status: status, err: err}
+	}
+}
 func (m Model) command(action string, ids []model.ServiceID) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 900*time.Second)
 		defer cancel()
 		var err error
+		if c, ok := m.controller.(planningController); ok && action != "quit" {
+			if m.planned == nil {
+				return actionMsg{err: fmt.Errorf("Missing confirmation plan; preview action again")}
+			}
+			err = c.ExecuteAction(ctx, *m.planned)
+			return actionMsg{err: err}
+		}
 		if (action == "start" || action == "restart" || action == "all-start" || action == "all-restart") && len(m.conflicts) == 0 {
 			if c, ok := m.controller.(takeoverController); ok {
 				targets, e := c.Conflicts(ctx, ids)
@@ -119,6 +134,7 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		m.help, m.confirm = false, false
 		m.conflicts = nil
+		m.planned = nil
 		m.status = "Stopping processes started in this session…"
 		return m, m.command("quit", nil)
 	}
@@ -131,6 +147,7 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		m.details = false
 		m.status = ""
 		m.conflicts = nil
+		m.planned = nil
 		return m, nil
 	}
 	if m.confirm {
@@ -151,6 +168,7 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 			m.confirm = false
 			m.status = ""
 			m.conflicts = nil
+			m.planned = nil
 		}
 		return m, nil
 	}
@@ -284,6 +302,11 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 			m.confirm = true
 			m.confirmOffset = 0
 			m.status = "Docker services: " + m.pendingDocker[0] + " · container data preserved"
+			if _, ok := m.controller.(planningController); ok {
+				m.confirm = false
+				m.busy = true
+				return m, m.preview(m.action, nil, m.pendingDocker, true, m.status)
+			}
 			return m, nil
 		}
 		if m.selected == 0 && (k == "s" || k == "x" || k == "r") {
@@ -344,10 +367,18 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+			if _, ok := m.controller.(planningController); ok {
+				m.confirm = false
+				m.busy = true
+				return m, m.preview(action, ids, nil, true, m.status)
+			}
 			return m, nil
 		}
 		m.busy = true
 		m.status = "Operation in progress…"
+		if _, ok := m.controller.(planningController); ok {
+			return m, m.preview(action, ids, nil, false, m.status)
+		}
 		return m, m.command(action, ids)
 	case "o":
 		if m.busy {

@@ -15,17 +15,20 @@ type Entry struct {
 	Stream, Text string
 }
 type Store struct {
-	mu      sync.Mutex
-	all     *list.List
-	by      map[model.ServiceID][]*list.Element
-	bytes   map[model.ServiceID]int
-	total   int
-	dropped map[model.ServiceID]uint64
-	version uint64
+	mu                sync.Mutex
+	all               *list.List
+	by                map[model.ServiceID][]*list.Element
+	bytes             map[model.ServiceID]int
+	total             int
+	dropped           map[model.ServiceID]uint64
+	version           uint64
+	lastEvicted       map[model.ServiceID]uint64
+	lastGlobalEvicted uint64
+	totalDropped      uint64
 }
 
 func NewStore() *Store {
-	return &Store{all: list.New(), by: map[model.ServiceID][]*list.Element{}, bytes: map[model.ServiceID]int{}, dropped: map[model.ServiceID]uint64{}}
+	return &Store{all: list.New(), by: map[model.ServiceID][]*list.Element{}, bytes: map[model.ServiceID]int{}, dropped: map[model.ServiceID]uint64{}, lastEvicted: map[model.ServiceID]uint64{}}
 }
 func (s *Store) remove(e *list.Element) {
 	v := e.Value.(Entry)
@@ -35,6 +38,13 @@ func (s *Store) remove(e *list.Element) {
 	s.bytes[v.ServiceID] -= n
 	s.by[v.ServiceID] = s.by[v.ServiceID][1:]
 	s.dropped[v.ServiceID]++
+	s.totalDropped++
+	if v.Sequence > s.lastEvicted[v.ServiceID] {
+		s.lastEvicted[v.ServiceID] = v.Sequence
+	}
+	if v.Sequence > s.lastGlobalEvicted {
+		s.lastGlobalEvicted = v.Sequence
+	}
 }
 func (s *Store) Append(e Entry) {
 	s.mu.Lock()
@@ -80,3 +90,45 @@ func (s *Store) Dropped(id model.ServiceID) uint64 {
 	return s.dropped[id]
 }
 func (s *Store) Version() uint64 { s.mu.Lock(); defer s.mu.Unlock(); return s.version }
+
+// Page is read atomically with the store eviction metadata.
+type Page struct {
+	Entries    []Entry
+	NextCursor uint64
+	Gap        bool
+	Dropped    uint64
+}
+
+// ReadPage distinguishes actual eviction from sequence skips caused by target
+// filtering. When a page exhausts matching entries its cursor advances to the
+// current store version, avoiding repeated scans of unrelated targets.
+func (s *Store) ReadPage(target model.ServiceID, after uint64, limit int) Page {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+	out := Page{Entries: []Entry{}, NextCursor: after}
+	if target == "" {
+		out.Gap = s.lastGlobalEvicted > after
+		out.Dropped = s.totalDropped
+	} else {
+		out.Gap = s.lastEvicted[target] > after
+		out.Dropped = s.dropped[target]
+	}
+	for e := s.all.Front(); e != nil; e = e.Next() {
+		entry := e.Value.(Entry)
+		if entry.Sequence <= after || target != "" && entry.ServiceID != target {
+			continue
+		}
+		if len(out.Entries) == limit {
+			return out
+		}
+		out.Entries = append(out.Entries, entry)
+		out.NextCursor = entry.Sequence
+	}
+	if s.version > out.NextCursor {
+		out.NextCursor = s.version
+	}
+	return out
+}

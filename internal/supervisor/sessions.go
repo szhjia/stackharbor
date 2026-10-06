@@ -22,6 +22,13 @@ import (
 
 // Metadata is advisory. An occupied OS lock and the process birth time establish liveness.
 type SessionInfo struct {
+	WorkspaceID          string    `json:"workspace_id,omitempty"`
+	NamespaceID          string    `json:"namespace_id,omitempty"`
+	SessionID            string    `json:"session_id,omitempty"`
+	CacheDir             string    `json:"cache_dir,omitempty"`
+	SocketPath           string    `json:"socket_path,omitempty"`
+	ProtocolVersion      int       `json:"protocol_version,omitempty"`
+	Capabilities         []string  `json:"capabilities,omitempty"`
 	Root                 string    `json:"root"`
 	PID                  int       `json:"pid"`
 	TTY                  string    `json:"tty,omitempty"`
@@ -98,17 +105,40 @@ func normalizeTTY(value string) string {
 	return value
 }
 
-func writeSessionInfo(f *os.File, info SessionInfo) error {
-	if err := f.Chmod(0600); err != nil {
+// This narrow writer boundary lets regression tests pause the same locked-file
+// publication used in production without replacing its inode.
+type metadataWriter interface {
+	Chmod(os.FileMode) error
+	WriteAt([]byte, int64) (int, error)
+	Truncate(int64) error
+	Sync() error
+}
+
+func writeSessionInfo(f metadataWriter, info SessionInfo) error {
+	data, err := json.Marshal(info)
+	if err != nil {
 		return err
 	}
-	if err := f.Truncate(0); err != nil {
+	data = append(data, '\n')
+	if len(data) > 16*1024 {
+		return fmt.Errorf("session metadata exceeds 16 KiB")
+	}
+	if err = f.Chmod(0600); err != nil {
 		return err
 	}
-	if _, err := f.Seek(0, 0); err != nil {
+	// Keep old metadata nonempty until the replacement bytes have been written.
+	// Partial writes remain malformed/unavailable, never an empty legacy record.
+	n, err := f.WriteAt(data, 0)
+	if err != nil {
 		return err
 	}
-	return json.NewEncoder(f).Encode(info)
+	if n != len(data) {
+		return io.ErrShortWrite
+	}
+	if err = f.Truncate(int64(len(data))); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 func readSessionInfo(f *os.File) SessionInfo {
@@ -181,6 +211,20 @@ func ListSessions() ([]SessionInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ListSessionsIn(cache)
+}
+
+// ListSessionsIn discovers a specific cache namespace without changing process environment.
+func ListSessionsIn(cache string) ([]SessionInfo, error) {
+	if _, err := os.Lstat(cache); err != nil {
+		if os.IsNotExist(err) {
+			return []SessionInfo{}, nil
+		}
+		return nil, err
+	}
+	if err := ensureSessionCache(cache); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(cache)
 	if os.IsNotExist(err) {
 		return []SessionInfo{}, nil
@@ -223,7 +267,7 @@ func activeSession(path string) (SessionInfo, bool, error) {
 	}
 	f := os.NewFile(uintptr(fd), path)
 	st, err := f.Stat()
-	if err != nil || !st.Mode().IsRegular() {
+	if err != nil || !st.Mode().IsRegular() || !ownedPrivateFile(st, 0600) {
 		f.Close()
 		return SessionInfo{}, false, fmt.Errorf("Invalid session lock file: %s", path)
 	}
@@ -236,11 +280,25 @@ func activeSession(path string) (SessionInfo, bool, error) {
 		f.Close()
 		return SessionInfo{}, false, err
 	}
-	info := readSessionInfo(f)
+	info := readOccupiedSessionInfo(f, path)
 	f.Close()
-	if !validSessionInfo(info, path) {
-		info = legacySessionInfo(path)
-	}
 	info.lockPath = path
 	return info, true, nil
+}
+
+// Open readers may observe a publication on the held inode between truncate and
+// write. A nonempty malformed record remains unavailable, never a legacy owner.
+func readOccupiedSessionInfo(f *os.File, path string) SessionInfo {
+	info := readSessionInfo(f)
+	for attempt := 0; attempt < 3 && !validSessionInfo(info, path); attempt++ {
+		time.Sleep(10 * time.Millisecond)
+		info = readSessionInfo(f)
+	}
+	if validSessionInfo(info, path) {
+		return info
+	}
+	if st, err := f.Stat(); err == nil && st.Size() == 0 {
+		return legacySessionInfo(path)
+	}
+	return SessionInfo{}
 }

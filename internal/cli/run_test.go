@@ -136,7 +136,7 @@ func TestSessionsListFilterAndFocusValidation(t *testing.T) {
 func TestKillWithoutSessionDoesNotRequireTerminal(t *testing.T) {
 	t.Setenv("STACKHARBOR_CACHE_DIR", filepath.Join(t.TempDir(), "missing-cache"))
 	var out, errs bytes.Buffer
-	code := Run(context.Background(), []string{"kill", "--root", t.TempDir()}, strings.NewReader(""), &out, &errs)
+	code := Run(context.Background(), []string{"kill", "--root", t.TempDir(), "--yes"}, strings.NewReader(""), &out, &errs)
 	if code != 0 || !strings.Contains(out.String(), "No active StackHarbor session") {
 		t.Fatalf("kill: code=%d out=%q err=%q", code, out.String(), errs.String())
 	}
@@ -163,7 +163,7 @@ func TestKillResolvesWorkspaceRootDespiteInvalidServiceConfig(t *testing.T) {
 	}
 	t.Chdir(selected)
 	var out, errs bytes.Buffer
-	code := Run(context.Background(), []string{"kill"}, strings.NewReader(""), &out, &errs)
+	code := Run(context.Background(), []string{"kill", "--yes"}, strings.NewReader(""), &out, &errs)
 	// A self-owned lock is refused, proving resolution reached the selected workspace.
 	if code != 1 || !strings.Contains(out.String(), root) || !strings.Contains(errs.String(), "current process") {
 		t.Fatalf("workspace scope: code=%d out=%q err=%q", code, out.String(), errs.String())

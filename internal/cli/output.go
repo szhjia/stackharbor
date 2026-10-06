@@ -3,8 +3,11 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/control"
+	"github.com/szhjia/stackharbor/internal/inventory"
 	"github.com/szhjia/stackharbor/internal/model"
 	"io"
+	"time"
 )
 
 func WriteDiscovery(out io.Writer, w model.Workspace, jsonMode bool) error {
@@ -82,6 +85,96 @@ func WriteDiscovery(out io.Writer, w model.Workspace, jsonMode bool) error {
 	}
 	for _, d := range w.Diagnostics {
 		fmt.Fprintf(out, "%s: %s [%s] %s\n", d.Severity, d.File, d.Field, d.Message)
+	}
+	return nil
+}
+
+func encodeControl(out io.Writer, value any) int {
+	if e := json.NewEncoder(out).Encode(value); e != nil {
+		return 1
+	}
+	return 0
+}
+func writePlan(out, errOut io.Writer, p control.Plan) int {
+	if _, e := fmt.Fprintf(out, "Plan %s: %s targets=%v affected=%v expires=%s\n", p.ID, p.Action, p.Targets, p.Affected, p.ExpiresAt.Format(time.RFC3339Nano)); e != nil {
+		return controlFailure(errOut, e)
+	}
+	for _, warning := range p.Warnings {
+		if _, e := fmt.Fprintln(out, "Warning:", warning); e != nil {
+			return controlFailure(errOut, e)
+		}
+	}
+	return 0
+}
+func writeOperationValue(out io.Writer, op control.Operation, jsonMode bool) int {
+	if jsonMode {
+		return encodeControl(out, op)
+	}
+	if _, e := fmt.Fprintf(out, "Operation %s: %s %s\n", op.ID, op.Action, op.State); e != nil {
+		return 1
+	}
+	for _, r := range op.Results {
+		detail := ""
+		if r.Error != nil {
+			detail = " — " + r.Error.Message
+		}
+		if _, e := fmt.Fprintf(out, "  %s: %s%s\n", r.Target, r.State, detail); e != nil {
+			return 1
+		}
+	}
+	return 0
+}
+func writeOperation(out, errOut io.Writer, op control.Operation, jsonMode bool) int {
+	if code := writeOperationValue(out, op, jsonMode); code != 0 {
+		return code
+	}
+	if !operationTerminal(op.State) {
+		return 3
+	}
+	if op.Error != nil {
+		fmt.Fprintln(errOut, op.Error)
+	}
+	if op.State == "succeeded" {
+		return 0
+	}
+	return 1
+}
+func writeSnapshot(out, errOut io.Writer, s control.Snapshot, jsonMode bool) int {
+	if jsonMode {
+		return encodeControl(out, s)
+	}
+	fmt.Fprintf(out, "Session %s observed %s\n", s.Identity.SessionID, s.ObservedAt.Format(time.RFC3339Nano))
+	for _, n := range s.Nodes {
+		if _, e := fmt.Fprintf(out, "%s: %s (%s) %s\n", n.ID, n.State, n.Ownership, n.Reason); e != nil {
+			return controlFailure(errOut, e)
+		}
+	}
+	return 0
+}
+func writeInventory(out io.Writer, inv inventory.Inventory, jsonMode bool) error {
+	if jsonMode {
+		return json.NewEncoder(out).Encode(inv)
+	}
+	if inv.Partial {
+		if _, e := fmt.Fprintln(out, "Coverage partial: some sessions are unreachable."); e != nil {
+			return e
+		}
+	}
+	for _, s := range inv.Sessions {
+		if _, e := fmt.Fprintf(out, "%q session=%s available=%t\n", s.Root, s.Identity.SessionID, s.Available); e != nil {
+			return e
+		}
+		if s.Snapshot != nil {
+			for _, n := range s.Snapshot.Nodes {
+				if _, e := fmt.Fprintf(out, "  %s: %s\n", n.ID, n.State); e != nil {
+					return e
+				}
+			}
+		} else if s.Error != nil {
+			if _, e := fmt.Fprintln(out, " ", s.Error); e != nil {
+				return e
+			}
+		}
 	}
 	return nil
 }

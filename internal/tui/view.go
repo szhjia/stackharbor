@@ -319,6 +319,10 @@ func (m Model) render() string {
 		if len(m.conflicts) > 0 {
 			lines = []string{heading("Release conflicting ports · " + label), "", "These processes will be terminated before starting selected services:"}
 			capacity := max(1, height-5)
+			if m.planned != nil {
+				lines = append(lines, "Launch scope: "+plain(fmt.Sprint(m.planned.Affected)))
+				capacity = max(1, height-6)
+			}
 			page := min(m.confirmOffset, (len(m.conflicts)-1)/capacity)
 			start := page * capacity
 			end := min(len(m.conflicts), start+capacity)

@@ -175,3 +175,17 @@ func TestExternalListenerIncludesDescendantsAndReservesManagedProcesses(t *testi
 		}
 	}
 }
+
+func TestPhysicalSamplesKeepOwnMetricsAndSharedIdentity(t *testing.T) {
+	sampler := NewSampler(metricTreeReader{})
+	ports := map[model.ServiceID][]model.PortObservation{"outside": {{Port: 8100, Status: "external", Listeners: []model.Listener{{PID: 10, Command: "node"}}}}}
+	metrics, _, _, samples := sampler.SampleServicesDetailed(context.Background(), nil, ports, model.ProcessIdentity{PID: 99, CreatedMillis: 100})
+	if metrics["outside"].RSS != 3*4096 || len(samples["outside"]) != 3 {
+		t.Fatal(metrics, samples)
+	}
+	for _, sample := range samples["outside"] {
+		if sample.Metric.RSS != 4096 || sample.Metric.SampledAt.IsZero() {
+			t.Fatal("aggregate copied to physical process", sample)
+		}
+	}
+}

@@ -6,7 +6,12 @@ type ProcessIdentity struct {
 	PID           int32
 	CreatedMillis int64
 }
+type ProcessSample struct {
+	Identity ProcessIdentity
+	Metric   Metric
+}
 type ServiceSnapshot struct {
+	Processes                     []ProcessSample
 	Spec                          Service
 	State, Reason                 string
 	ObservedState, ObservedReason string
@@ -26,6 +31,8 @@ type Event struct {
 	AttemptID     string `json:"attempt_id,omitempty"`
 }
 type DockerSnapshot struct {
+	EndpointIdentity                            string
+	ComposeProject                              string
 	ID                                          string
 	Service, Name, Image, State, Health, Reason string
 	Ports                                       string
@@ -35,6 +42,7 @@ type DockerSnapshot struct {
 }
 
 type Snapshot struct {
+	ObservedAt              time.Time
 	Docker                  []DockerSnapshot
 	DockerFile, DockerError string
 	Root                    string

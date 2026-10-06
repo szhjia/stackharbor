@@ -8,7 +8,7 @@ import (
 func (s *Session) Snapshot() model.Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := model.Snapshot{Docker: s.dockerRows, DockerFile: s.docker.File, DockerError: s.dockerError, Root: s.workspace.Root, Projects: s.workspace.Projects, Candidates: s.workspace.Candidates, Diagnostics: s.workspace.Diagnostics, Tool: s.tool, Events: s.events}
+	out := model.Snapshot{ObservedAt: s.observedAt, Docker: s.dockerRows, DockerFile: s.docker.File, DockerError: s.dockerError, Root: s.workspace.Root, Projects: s.workspace.Projects, Candidates: s.workspace.Candidates, Diagnostics: s.workspace.Diagnostics, Tool: s.tool, Events: s.events}
 	if len(s.resources) > 0 {
 		for _, n := range s.workspace.Services() {
 			if n.Resource != nil {
@@ -19,7 +19,7 @@ func (s *Session) Snapshot() model.Snapshot {
 	}
 	for _, spec := range s.workspace.Services() {
 		e := s.entries[spec.ID]
-		v := model.ServiceSnapshot{Spec: e.spec, State: e.state, Reason: e.reason, ObservedState: e.observedState, ObservedReason: e.observedReason, ExitCode: e.exit, Metric: e.metric, MetricSource: e.metricSource, MetricError: e.metricError, Ports: e.ports, ReadinessChecked: e.checked}
+		v := model.ServiceSnapshot{Processes: e.processSamples, Spec: e.spec, State: e.state, Reason: e.reason, ObservedState: e.observedState, ObservedReason: e.observedReason, ExitCode: e.exit, Metric: e.metric, MetricSource: e.metricSource, MetricError: e.metricError, Ports: e.ports, ReadinessChecked: e.checked}
 		if e.handle != nil {
 			v.Owned = e.handle.Identities()
 		}

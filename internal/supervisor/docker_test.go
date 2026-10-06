@@ -15,7 +15,7 @@ func TestDockerDependenciesAndAllActions(t *testing.T) {
 	calls := filepath.Join(root, "docker-calls")
 	bin := filepath.Join(root, "bin")
 	os.Mkdir(bin, 0700)
-	os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$SH_DOCKER_CALLS\"\ncase \"$*\" in *' ps '*) printf '[]';; esac\n"), 0700)
+	os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\ncase \"$1\" in info) printf '\"fixture-daemon\"'; exit;; esac\ncase \"$*\" in *' config '*) printf '{\"name\":\"fixture-project\"}';exit;; esac\nprintf '%s\\n' \"$*\" >> \"$SH_DOCKER_CALLS\"\ncase \"$*\" in *' ps '*) printf '[]';; esac\n"), 0700)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("SH_DOCKER_CALLS", calls)
 	t.Setenv("STACKHARBOR_CACHE_DIR", t.TempDir())

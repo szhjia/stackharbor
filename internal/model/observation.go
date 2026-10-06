@@ -3,6 +3,7 @@ package model
 import "time"
 
 type Metric struct {
+	SampledAt      time.Time
 	Known, Partial bool
 	RSS            uint64
 	CPUPercent     *float64

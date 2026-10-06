@@ -174,7 +174,7 @@ func TestPTYKillOnlyCurrentWorkspaceAndCleanOwnedServices(t *testing.T) {
 	wait(t, func() bool { _, err := os.Stat(pidfile); return err == nil })
 	pidData, _ := os.ReadFile(pidfile)
 	servicePID, _ := strconv.Atoi(string(pidData))
-	kill := exec.Command(binary, "kill")
+	kill := exec.Command(binary, "kill", "--yes")
 	kill.Dir = rootA // The simple command must infer scope from the current project.
 	kill.Env = a.Env
 	// Even another real StackHarbor PID in the metadata must not authorize signaling it.
@@ -209,7 +209,7 @@ func TestPTYKillOnlyCurrentWorkspaceAndCleanOwnedServices(t *testing.T) {
 	if err := os.WriteFile(lockPath, dataForged, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := kill.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("no signal sent")) {
+	if output, err := kill.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("session process or endpoint identity changed")) {
 		t.Fatalf("wrong lock owner accepted: %s %v", output, err)
 	}
 	if syscall.Kill(a.Process.Pid, 0) != nil || syscall.Kill(b.Process.Pid, 0) != nil {
@@ -218,11 +218,18 @@ func TestPTYKillOnlyCurrentWorkspaceAndCleanOwnedServices(t *testing.T) {
 	if err := os.WriteFile(lockPath, original, 0600); err != nil {
 		t.Fatal(err)
 	}
-	kill = exec.Command(binary, "kill")
+	kill = exec.Command(binary, "kill", "--yes", "--json")
 	kill.Dir, kill.Env = rootA, a.Env
-	output, err := kill.CombinedOutput()
-	if err != nil || !strings.Contains(string(output), "Closed session PID "+strconv.Itoa(a.Process.Pid)) {
-		t.Fatalf("kill failed: %s %v", output, err)
+	var closeErrors bytes.Buffer
+	kill.Stderr = &closeErrors
+	output, err := kill.Output()
+	var completion struct {
+		Action    string `json:"action"`
+		State     string `json:"state"`
+		SessionID string `json:"session_id"`
+	}
+	if err != nil || json.Unmarshal(output, &completion) != nil || completion.Action != "close" || completion.State != "succeeded" || completion.SessionID == "" {
+		t.Fatalf("kill failed: %s stderr=%s %v", output, closeErrors.String(), err)
 	}
 	if err := a.Wait(); err != nil {
 		t.Fatal("session did not finish its normal shutdown", err)
@@ -239,7 +246,7 @@ func TestPTYKillOnlyCurrentWorkspaceAndCleanOwnedServices(t *testing.T) {
 	if err != nil || json.Unmarshal(data, &remaining) != nil || len(remaining) != 1 || remaining[0].PID != b.Process.Pid {
 		t.Fatalf("kill affected another workspace: %s %v", data, err)
 	}
-	noop := exec.Command(binary, "kill")
+	noop := exec.Command(binary, "kill", "--yes")
 	noop.Dir, noop.Env = rootA, a.Env
 	if output, err := noop.CombinedOutput(); err != nil || !bytes.Contains(output, []byte("No active StackHarbor session")) {
 		t.Fatalf("repeated kill should succeed without a session: %s %v", output, err)

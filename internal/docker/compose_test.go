@@ -17,7 +17,16 @@ func TestComposeDiscoveryAndScopedControl(t *testing.T) {
 		t.Fatal(m.Specs())
 	}
 	var args []string
-	m.run = func(_ context.Context, a ...string) ([]byte, error) { args = a; return []byte{}, nil }
+	m.run = func(_ context.Context, a ...string) ([]byte, error) {
+		if a[0] == "info" {
+			return []byte(`"fixture-daemon"`), nil
+		}
+		if a[len(a)-3] == "config" {
+			return []byte(`{"name":"fixture"}`), nil
+		}
+		args = a
+		return []byte{}, nil
+	}
 	if err := m.Action(context.Background(), "start", []string{"db"}); err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +60,12 @@ func TestEnsureDependencyOrderWithoutUnrelatedMigrations(t *testing.T) {
 	}
 	calls := []string{}
 	m.run = func(_ context.Context, args ...string) ([]byte, error) {
+		if args[0] == "info" {
+			return []byte(`"fixture-daemon"`), nil
+		}
+		if args[len(args)-3] == "config" {
+			return []byte(`{"name":"fixture"}`), nil
+		}
 		calls = append(calls, args[len(args)-1])
 		return nil, nil
 	}
@@ -77,7 +92,20 @@ func TestReplicatedServiceDoesNotAttributeOneInstancesPortToAnother(t *testing.T
 		return []byte(`[{"ID":"api-first","Service":"api","State":"running","Publishers":[{"URL":"127.0.0.1","PublishedPort":6210,"Protocol":"tcp"}]},{"ID":"api-second","Service":"api","State":"running","Publishers":[{"URL":"127.0.0.1","PublishedPort":6214,"Protocol":"tcp"}]}]`), nil
 	}}
 	rows, reason := m.Observe(context.Background())
-	if reason != "" || len(rows) != 1 || len(rows[0].PublishedEndpoints) != 0 {
+	if reason != "" || len(rows) != 2 || rows[0].ID != "api-first" || rows[1].ID != "api-second" || len(rows[0].PublishedEndpoints) != 1 || rows[0].PublishedEndpoints[0].Port != 6210 || len(rows[1].PublishedEndpoints) != 1 || rows[1].PublishedEndpoints[0].Port != 6214 {
 		t.Fatal("replica ports attributed to one instance", rows, reason)
+	}
+}
+
+func TestObserveProjectsEveryPhysicalContainerInstance(t *testing.T) {
+	m := &Manager{File: "compose.yaml", Project: "fixture", specs: []model.DockerSnapshot{{Service: "api"}}, run: func(_ context.Context, args ...string) ([]byte, error) {
+		if args[0] == "info" {
+			return []byte(`"full-daemon"`), nil
+		}
+		return []byte(`[{"ID":"one","Service":"api","State":"running"},{"ID":"two","Service":"api","State":"running"}]`), nil
+	}}
+	rows, reason := m.Observe(context.Background())
+	if reason != "" || len(rows) != 2 || rows[0].ID == rows[1].ID || rows[0].EndpointIdentity == "" {
+		t.Fatal("physical replicas collapsed", rows, reason)
 	}
 }

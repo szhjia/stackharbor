@@ -12,9 +12,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/graph"
 	"github.com/szhjia/stackharbor/internal/logs"
 	"github.com/szhjia/stackharbor/internal/model"
-	"github.com/szhjia/stackharbor/internal/observe"
-	"github.com/szhjia/stackharbor/internal/process"
-	"github.com/szhjia/stackharbor/internal/runner"
+	"github.com/szhjia/stackharbor/internal/sessionhost"
 	"github.com/szhjia/stackharbor/internal/supervisor"
 	"github.com/szhjia/stackharbor/internal/tui"
 	"io"
@@ -24,7 +22,9 @@ import (
 )
 
 const usage = `StackHarbor — terminal console for monorepos
-Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|kill] [options]
+Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web] [options]
+  web [--port PORT] [--no-open]           Loopback gateway (16800; 0 chooses a free port)
+  web --dev-origin http://127.0.0.1:5173  Explicit Vite proxy development mode
   --root PATH          Project root (default: current directory)
   --workspace FILE     Explicit workspace YAML
   --json               Machine-readable discover/validate/plan/sessions output
@@ -34,7 +34,13 @@ Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions
   history                                Read redacted action and task history (JSON)
   sessions [--json]                       List active workspace sessions
   sessions --focus PID                    Locate an existing macOS Terminal tab
-  kill                                   Close this workspace's existing session
+  status [--all] [--json]                 Query existing sessions
+  start|stop|restart --target NODE        Control an existing workspace session
+  release --target NODE --port PORT      Release declared conflicts without starting
+  logs --target NODE [--follow]           Read redacted session logs
+  operations [--id ID] [--json]           Query operation results
+  --dry-run / --yes / --timeout 10m       Mutation plan / confirmation / wait budget
+  kill                                   Close existing session (noninteractive: --yes)
   --version            Show version
   init --dry-run       Preview candidate registration drafts
   init --write         Write unambiguous drafts without overwriting files
@@ -43,6 +49,13 @@ Services do not start automatically. Interactive mode: s start, x stop, ? help, 
 `
 
 func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
+	commandName, controlArgs := extractCommand(args)
+	if commandName == "web" {
+		return runWeb(ctx, controlArgs, out, errOut)
+	}
+	if controlCommand(commandName) {
+		return runControl(ctx, commandName, controlArgs, in, out, errOut)
+	}
 	fs := flag.NewFlagSet("stackharbor", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	root := fs.String("root", "", "root")
@@ -105,7 +118,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprint(out, usage)
 		return 0
 	}
-	if command != "kill" && command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
+	if command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
 		fmt.Fprintln(errOut, "Unknown command:", command)
 		return 2
 	}
@@ -134,22 +147,11 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		}
 		return runSessions(ctx, *root, *jsonMode, *focus, out, errOut)
 	}
-	if command == "kill" && (*jsonMode || *target != "") {
-		fmt.Fprintln(errOut, "kill accepts --root and --workspace")
-		return 2
-	}
 	if command == "run" && (!terminal(in) || !terminal(out)) {
 		fmt.Fprintln(errOut, "Interactive mode requires a terminal; use stackharbor discover or validate.")
 		return 2
 	}
 	w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})
-	if command == "kill" {
-		if w.Root == "" {
-			_ = WriteDiscovery(errOut, w, false)
-			return 2
-		}
-		return runKill(ctx, w.Root, out, errOut)
-	}
 	_, ds := graph.Build(w.Services())
 	w.Diagnostics = append(w.Diagnostics, ds...)
 	if command == "history" {
@@ -178,21 +180,20 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 			fmt.Fprintln(errOut, "Target is not a registered task")
 			return 2
 		}
-		reader := process.NewReader()
-		s, e := supervisor.New(w, runner.NewLocal(reader), observe.NewPortProbe(), observe.NewSampler(reader))
+		host, e := sessionhost.New(ctx, w)
 		if e != nil {
 			fmt.Fprintln(errOut, e)
 			return 1
 		}
-		e = s.Start(ctx, []model.ServiceID{model.ServiceID(*target)})
-		for _, v := range s.Snapshot().Services {
+		e = host.Controller().Start(ctx, []model.ServiceID{model.ServiceID(*target)})
+		for _, v := range host.Controller().Snapshot().Services {
 			if string(v.Spec.ID) == *target {
 				_ = json.NewEncoder(out).Encode(map[string]any{"id": v.Spec.ID, "state": v.State, "reason": supervisor.Redact(v.Spec, v.Reason)})
 			}
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		shutdown := s.Shutdown(cleanup)
+		shutdown := host.Close(cleanup)
 		if e != nil || shutdown != nil {
 			fmt.Fprintln(errOut, errors.Join(e, shutdown))
 			return 1
@@ -295,8 +296,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		}
 		return 2
 	}
-	reader := process.NewReader()
-	session, e := supervisor.New(w, runner.NewLocal(reader), observe.NewPortProbe(), observe.NewSampler(reader))
+	host, e := sessionhost.New(ctx, w)
 	if e != nil {
 		var conflict *supervisor.SessionConflict
 		if errors.As(e, &conflict) {
@@ -305,7 +305,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprintln(errOut, e)
 		return 1
 	}
-	if e = tui.Run(ctx, session, in, out); e != nil {
+	if e = tui.Run(ctx, host.Controller(), in, out); e != nil {
 		fmt.Fprintln(errOut, e)
 		return 1
 	}

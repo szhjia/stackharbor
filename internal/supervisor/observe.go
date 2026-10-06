@@ -72,8 +72,9 @@ func (s *Session) sample(ctx context.Context) {
 	metrics := map[model.ServiceID]model.Metric{}
 	tool := model.Metric{}
 	sources := map[model.ServiceID]string{}
+	physical := map[model.ServiceID][]model.ProcessSample{}
 	if s.sampler != nil {
-		metrics, tool, sources = s.sampler.SampleServices(ctx, owned, ports, s.toolID)
+		metrics, tool, sources, physical = s.sampler.SampleServicesDetailed(ctx, owned, ports, s.toolID)
 	}
 	if ctx.Err() != nil {
 		return
@@ -94,6 +95,7 @@ func (s *Session) sample(ctx context.Context) {
 		s.dockerRows, s.dockerError = dockerRows, dockerError
 	}
 	s.tool = tool
+	s.observedAt = time.Now().UTC()
 	resourceMetrics := map[model.ServiceID]model.DockerSnapshot{}
 	for _, row := range s.dockerRows {
 		resourceMetrics[model.ServiceID(row.Service)] = row
@@ -101,6 +103,7 @@ func (s *Session) sample(ctx context.Context) {
 	for id, e := range s.entries {
 		if e.gen == gens[id] {
 			e.metric = metrics[id]
+			e.processSamples = physical[id]
 			e.metricSource = sources[id]
 			e.metricError = ""
 			e.observedState, e.observedReason = observedStates[id], observedReasons[id]

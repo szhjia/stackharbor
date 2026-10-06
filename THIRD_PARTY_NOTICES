@@ -42,3 +42,6 @@ License texts for pinned Go dependencies are included in licenses/.
 - golang.org/x/sys v0.47.0: licenses/golang.org__x__sys-v0.47.0-LICENSE
 - gopkg.in/yaml.v3 v3.0.1: licenses/gopkg.in__yaml.v3-v3.0.1-LICENSE
 - Go standard library: licenses/Go-LICENSE
+
+Embedded browser console dependencies and copied shadcn/ui component/CSS sources:
+- See licenses/frontend-NOTICES for exact pinned npm versions and license texts.

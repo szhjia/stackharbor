@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/control"
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/process"
 	"os"
@@ -55,6 +56,19 @@ func FindConflicts(ctx context.Context, probe PortProbe, reader process.Reader, 
 	return out, nil
 }
 func ReleaseConflicts(ctx context.Context, probe PortProbe, reader process.Reader, targets []model.PortConflict) error {
+	keys := []string{}
+	for _, target := range targets {
+		if target.Identity.PID <= 0 || target.Identity.CreatedMillis <= 0 {
+			return fmt.Errorf("Process identity unavailable")
+		}
+		keys = append(keys, control.ProcessLockKey(target.Identity))
+	}
+	locked, release, lockErr := control.WithResourceLocks(ctx, control.ResourceLockNamespace, keys)
+	if lockErr != nil {
+		return lockErr
+	}
+	defer release()
+	ctx = locked
 	// Recheck the entire approved plan before sending any signal; a changed PID never inherits consent.
 	ports := []model.Port{}
 	for _, t := range targets {
