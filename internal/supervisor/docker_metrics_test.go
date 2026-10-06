@@ -23,6 +23,7 @@ func TestDockerResourceMetricsReachServiceSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := `#!/bin/sh
+case "$*" in *' config '*) printf '%s' '{"services":{"db":{"image":"postgres"},"redis":{"image":"redis"},"api":{"image":"app"},"unrelated":{"image":"app"}}}';exit;; esac
 printf '%s\n' "$*" >> "$SH_METRIC_CALLS"
 case "$1" in
   compose) printf '%s\n' '[{"ID":"db-id","Service":"db","State":"running","Health":"healthy"},{"ID":"redis-id","Service":"redis","State":"running","Health":"healthy"},{"ID":"other-id","Service":"unrelated","State":"running"}]' ;;

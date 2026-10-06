@@ -142,7 +142,7 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 	services := map[string]map[string]bool{}
 	managers := map[string]*docker.Manager{}
 	for id, m := range s.resources {
-		key := m.File + "\x00" + m.Project
+		key := m.ScopeKey()
 		managers[key] = m
 		if services[key] == nil {
 			services[key] = map[string]bool{}
@@ -182,7 +182,7 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 		}
 	}
 	for id, m := range s.resources {
-		key := m.File + "\x00" + m.Project
+		key := m.ScopeKey()
 		n := s.entries[id].spec
 		available, identity := resourceAvailable(n.Resource, cache[key])
 		reason := reasons[key]
@@ -216,7 +216,7 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 			if n.Resource == nil {
 				continue
 			}
-			key := n.Resource.File + "\x00" + n.Resource.Project
+			key := s.resources[n.ID].ScopeKey()
 			for _, row := range cache[key] {
 				if row.Service == n.Resource.Service {
 					row.Service = string(n.ID)
@@ -232,7 +232,7 @@ func (s *Session) sampleContracts(ctx context.Context, gens map[model.ServiceID]
 	for id, r := range results {
 		e := s.entries[id]
 		manager := s.resources[id]
-		key := manager.File + "\x00" + manager.Project
+		key := manager.ScopeKey()
 		if e.gen == gens[id] && reasons[key] == "" {
 			instances, running, known := physicalResourceObservation(e.spec.Resource.Service, cache[key])
 			// Running evidence remains meaningful even if daemon/container identity is unknown.

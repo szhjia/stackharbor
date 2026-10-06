@@ -174,3 +174,7 @@ services:
 `status --all --json` 聚合当前命名空间；`start/stop/restart --target NODE --root ROOT --dry-run` 获取真实计划，`--yes` 明确执行。`release --target NODE --port PORT` 只释放已声明冲突端口。`logs --target NODE --follow` 读取日志；`operations --id ID` 恢复断线、超时后的操作结果，避免重复执行。`kill --root ROOT --yes` 关闭会话，保留持久 Compose 资源和数据。
 
 所有终端需要相同 `STACKHARBOR_CACHE_DIR`；过期数据、未知指标和旧版只读会话会明确显示。计划 60 秒后过期、节点或容器身份改变返回 409，需要重新确认；日志截断显示缺口。具体命令、认证、命名空间、资源边界和源码前端工具链见 [Web/CLI 完整指南](web-control.md)。
+
+## Compose 多文件资源
+
+协议 v2 支持有序 `files`、可选 `project_directory` 和 `env_files`，兼容原有 `file`（两者不能同时使用）。路径相对 workspace 文件，默认工作目录是首个 Compose 文件所在目录，不自动加入 override。验证使用官方解析器，需要 Docker CLI 与 Compose 插件，解析本身不需要引擎运行。配置变化后容器操作会被拒绝，需重开工作区并重新规划。详见[字段及示例](../skills/stackharbor/references/v2.md#ordered-compose-inputs)。

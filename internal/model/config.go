@@ -33,6 +33,13 @@ type TaskSpec struct {
 	Lock           *TaskLock    `yaml:"lock"`
 }
 type ResourceSpec struct {
+	composeDigest string
+	composeEnv    []string
+
+	Files            []string `yaml:"files"`
+	ProjectDirectory string   `yaml:"project_directory"`
+	EnvFiles         []string `yaml:"env_files"`
+
 	Name      string `yaml:"name"`
 	Adapter   string `yaml:"adapter"`
 	File      string `yaml:"file"`
@@ -113,4 +120,16 @@ func (w Workspace) Invalid() bool {
 		}
 	}
 	return false
+}
+
+// ComposeEvidence carries private validation evidence without serializing environment values.
+func (r *ResourceSpec) SetComposeEvidence(digest string, env []string) {
+	r.composeDigest = digest
+	r.composeEnv = append([]string{}, env...)
+}
+func (r *ResourceSpec) ComposeEvidence() (string, []string) {
+	if r.composeEnv == nil {
+		return r.composeDigest, nil
+	}
+	return r.composeDigest, append([]string{}, r.composeEnv...)
 }

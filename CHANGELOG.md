@@ -6,6 +6,28 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Ordered Compose `files`, `project_directory`, and `env_files` for v2 resources,
+  with backward-compatible single `file` input and a runnable two-file example.
+- Official Compose model validation shared with runtime scope, physical resource
+  locking, and configuration drift checks before container actions.
+
+### Changed
+
+- v2 Compose validation now requires the Docker CLI and Compose plugin, even for
+  single-file resources; parsing does not require a running engine.
+- Compose input or resolved-model changes require reopening the workspace and
+  requesting a new plan. Resolved credentials and raw CLI error output are not
+  included in public diagnostics.
+
+### Compatibility
+
+- This capability is available in source builds; published 0.3.0 binaries do not
+  accept the new fields. The updated skill checks actual tool capabilities.
+- Compose include, profiles, and extends remain unsupported in any input file.
+  Projects whose inputs contain these features still need their existing adapter.
+
 ## [0.3.0] - 2026-10-06
 
 This release restores the intended 0.x version sequence. The previously published

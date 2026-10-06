@@ -2,12 +2,12 @@
 name: stackharbor
 description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or controlling workspace sessions, browser console authentication, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
 ---
 
 # StackHarbor installation and workspace integration
 
-Skill version: **0.3.0**. This skill version is independent of the StackHarbor executable version.
+Skill version: **0.3.1**. This skill version is independent of the StackHarbor executable version.
 
 Generate registrations from the project's actual startup contract. The skill and protocol references are maintained together in the StackHarbor repository. StackHarbor supports local foreground processes on macOS/Linux, with distinct lifecycles for resources, tasks, and services.
 
@@ -93,3 +93,9 @@ Install from the public repository with `npx skills add szhjia/stackharbor --ski
 ## Browser and session CLI control
 
 For existing foreground sessions, follow [control and recovery](references/web-control.md). Verify the actual binary help before using new commands. CLI control goes directly to the session Unix socket. Browser gateway startup is `stackharbor web` (loopback16800; `--port 0 --no-open` for a free port and launch URL), and stopping it preserves applications. Noninteractive mutation requires `--yes` within user-authorized scope; `--dry-run` previews a live60-second plan. Use `operations --id` after timeout or disconnect and never retry an unknown outcome blindly. Keep cache namespace, canonical root, persistence/observe boundaries, plan expiry and shared consumers explicit.
+
+### Compose multi-file registration
+
+Multi-file fields require a supporting source build; the published 0.3.0 binary rejects them. Verify a small validate/plan fixture with the actual executable before updating registrations. If unsupported, report the required tool upgrade rather than emitting unusable YAML.
+
+For v2 resources, register the exact ordered Compose files with `files` (or legacy `file`), plus the actual `project_directory`, optional ordered `env_files`, and explicit `project`. Do not flatten configuration into a generated file merely to support multiple `-f` arguments. Verify the source startup script's order and environment; optional overrides are explicitly included only when present. See [v2 Compose inputs](references/v2.md#ordered-compose-inputs). Existing project-specific generators may still select resources or prepare application startup.

@@ -95,9 +95,23 @@ func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *obser
 	for _, v := range w.Services() {
 		s.entries[v.ID] = &entry{spec: v, state: "stopped"}
 		if v.Resource != nil {
-			key := v.Resource.File + "\x00" + v.Resource.Project
+			scope := docker.ScopeFor(*v.Resource)
+			key := scope.Key()
 			if managers[key] == nil {
-				managers[key] = docker.NewScoped(w.Root, v.Resource.File, v.Resource.Project)
+				digest, env := v.Resource.ComposeEvidence()
+				if env == nil {
+					env = os.Environ()
+				}
+				resolved, err := docker.Resolve(ctx, scope, env)
+				if err != nil || digest != "" && digest != resolved.Digest {
+					cancel()
+					lock.Close()
+					if err != nil {
+						return nil, err
+					}
+					return nil, fmt.Errorf("Compose configuration changed; reload workspace")
+				}
+				managers[key] = docker.NewResolved(scope, env, resolved)
 			}
 			s.resources[v.ID] = managers[key]
 		}

@@ -20,13 +20,17 @@ import (
 )
 
 type Manager struct {
-	mu         sync.Mutex
-	root, File string
-	Project    string
-	specs      []model.DockerSnapshot
-	deps       map[string][]string
-	Error      string
-	run        func(context.Context, ...string) ([]byte, error)
+	scope        *ComposeScope
+	inputDigests map[string][32]byte
+	env          []string
+	resolved     *ResolvedCompose
+	mu           sync.Mutex
+	root, File   string
+	Project      string
+	specs        []model.DockerSnapshot
+	deps         map[string][]string
+	Error        string
+	run          func(context.Context, ...string) ([]byte, error)
 }
 
 func New(root string) *Manager { return NewScoped(root, "", "") }
@@ -154,6 +158,9 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 	if strings.Join(current, "\x00") != strings.Join(keys, "\x00") {
 		return fmt.Errorf("Docker identity changed while acquiring resource lock")
 	}
+	if err := m.CheckResolved(ctx); err != nil {
+		return err
+	}
 	args := m.args()
 	switch action {
 	case "start":
@@ -164,6 +171,9 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 		stop := append(append([]string{}, args...), "stop", "--timeout", "15")
 		stop = append(stop, names...)
 		if _, err := m.run(ctx, stop...); err != nil {
+			return err
+		}
+		if err := m.CheckResolved(ctx); err != nil {
 			return err
 		}
 		args = append(args, "up", "-d", "--no-deps", "--no-build", "--wait", "--wait-timeout", "60")
@@ -328,6 +338,9 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 }
 
 func (m *Manager) args() []string {
+	if m.scope != nil {
+		return m.scope.Args()
+	}
 	a := []string{"compose", "-f", m.File}
 	if m.Project != "" {
 		a = append(a, "-p", m.Project)

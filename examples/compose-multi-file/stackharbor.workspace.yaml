@@ -1,0 +1,13 @@
+version: 2
+root: .
+discover: false
+resources:
+  cache:
+    adapter: compose
+    files: [compose.yaml, compose.local.yaml]
+    project_directory: .
+    project: stackharbor-compose-example
+    service: cache
+    available: healthy
+    control: managed
+    lifetime: persistent

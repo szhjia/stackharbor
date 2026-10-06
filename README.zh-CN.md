@@ -217,3 +217,7 @@ make run ARGS="--root /path/to/workspace"
 在工作区终端保持 StackHarbor 前台运行，再于另一个终端运行 `stackharbor web`。默认仅监听 `127.0.0.1:16800`；`--port 0 --no-open` 分配空闲端口并打印一次性启动链接。停止网关保留应用。`status/start/stop/restart/release/logs/operations/kill` 直接访问会话 Unix socket，不依赖 Web。非交互写操作需要 `--yes`；`--dry-run` 查看真实会话计划。认证过期后再次运行 `stackharbor web`，使用新链接。详见 [Web 与 CLI 控制](docs/web-control.md)。
 
 源码构建新增 Node 26.9.0（`.node-version`）与 npm 要求；`make build/check/release` 安装锁定依赖、构建并核验真实前端。发行二进制包含 UI，运行不需要 Node 或 Go。原始 `go build` 不能证明已有前端产物与源码一致，请使用 Make 路径。
+
+## Compose 多文件资源
+
+协议 v2 支持有序 `files`、可选 `project_directory` 和 `env_files`，兼容原有 `file`（两者不能同时使用）。路径相对 workspace 文件，默认工作目录是首个 Compose 文件所在目录，不自动加入 override。验证使用官方解析器，需要 Docker CLI 与 Compose 插件，解析本身不需要引擎运行。配置变化后容器操作会被拒绝，需重开工作区并重新规划。详见[字段及示例](skills/stackharbor/references/v2.md#ordered-compose-inputs)。

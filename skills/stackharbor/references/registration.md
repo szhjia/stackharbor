@@ -45,3 +45,7 @@ registrations: [tools/custom.yaml]
 Root and registration paths resolve relative to the workspace file. Explicit registrations may live outside the target root, but require cwd inside it. Explicit `--root` must agree with workspace root. Discovery skips symlink directories, `.git`, `node_modules`, caches, build output and Python environments. Config maximum 256 KiB, 1000 projects/services, 10000 directories.
 
 CLI: `discover [--json]`, `validate [--json]`, `init --dry-run`, `init --write`, `run`. All accept `--root` and `--workspace`. `init --project <candidate-directory>` limits the draft. init mode is mandatory; ambiguous candidates remain unwritten. Exit codes: 0 success, 2 configuration/usage error, 1 runtime/internal error. JSON schema_version is 1; environment values are excluded.
+
+## Multiple Compose files (v2)
+
+Use ordered `files` instead of `file`, plus optional `project_directory` and `env_files`. Paths are workspace-relative; missing files are rejected, including optional overrides that were explicitly listed. See [the v2 input contract](v2.md#ordered-compose-inputs). Validation requires the Compose plugin, without requiring the engine. Reopen the workspace after inputs change.

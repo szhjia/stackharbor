@@ -161,7 +161,7 @@ func cleanupResourceFixtureWithIdentity(t *testing.T, rows string, lifetime, own
 	os.WriteFile(data, []byte(rows), 0600)
 	script := `#!/bin/sh
 case "$1" in info) if [ "$SH_CLEANUP_IDENTITY_KNOWN" = "1" ]; then printf '"cleanup-fixture-daemon"';exit; else exit 1; fi;; stats) printf '';exit;; esac
-case "$*" in *' config '*) printf '{"name":"cleanup-fixture"}';exit;; *' ps '*) cat "$SH_CLEANUP_ROWS";exit;; esac
+case "$*" in *' config '*) printf '{"name":"cleanup-fixture","services":{"db":{"image":"postgres"}}}';exit;; *' ps '*) cat "$SH_CLEANUP_ROWS";exit;; esac
 printf '%s\n' "$*" >> "$SH_CLEANUP_CALLS"
 `
 	os.WriteFile(filepath.Join(root, "docker"), []byte(script), 0700)
@@ -235,7 +235,7 @@ func TestCleanupStopsResourceAfterFailedUnhealthyStart(t *testing.T) {
 	script := `#!/bin/sh
 case "$1" in info) printf '"cleanup-fixture-daemon"';exit;; stats) printf '';exit;; esac
 case "$*" in
- *' config '*) printf '{"name":"cleanup-fixture"}';exit;;
+ *' config '*) printf '{"name":"cleanup-fixture","services":{"db":{"image":"postgres"}}}';exit;;
  *' ps '*) cat "$SH_CLEANUP_ROWS";exit;;
  *' up '*) printf '[{"ID":"created-unhealthy","Service":"db","State":"running","Health":"unhealthy"}]' > "$SH_CLEANUP_ROWS";exit 1;;
 esac

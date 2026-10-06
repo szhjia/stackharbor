@@ -29,6 +29,7 @@ func TestExternalDockerEndpointGetsMetricsWithoutOwnership(t *testing.T) {
 	port, _ := strconv.Atoi(strings.Split(server.URL, ":")[2])
 	calls := filepath.Join(root, "calls")
 	script := `#!/bin/sh
+case "$*" in *' config '*) printf '%s' '{"services":{"db":{"image":"postgres"},"redis":{"image":"redis"},"api":{"image":"app"},"unrelated":{"image":"app"}}}';exit;; esac
 printf '%s\n' "$*" >> "$SH_METRIC_CALLS"
 case "$1" in
  compose) printf '%s\n' '[{"ID":"db-id","Service":"db","State":"running","Health":"healthy"},{"ID":"api-id","Service":"api","State":"running","Health":"healthy","Publishers":[{"URL":"127.0.0.1","PublishedPort":` + strconv.Itoa(port) + `,"TargetPort":6210,"Protocol":"tcp"}]},{"ID":"unrelated-id","Service":"unrelated","State":"running"}]' ;;

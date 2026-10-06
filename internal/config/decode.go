@@ -83,6 +83,11 @@ func decode(path string, out any) error {
 	if err = checkNode(&node); err != nil {
 		return err
 	}
+	if _, ok := out.(*WorkspaceConfig); ok {
+		if err := checkComposeFields(&node); err != nil {
+			return err
+		}
+	}
 	var extra yaml.Node
 	if err = d.Decode(&extra); err != io.EOF {
 		return fmt.Errorf("exactly one YAML document required")
@@ -166,4 +171,34 @@ func LoadWorkspace(path string) (WorkspaceConfig, []model.Diagnostic) {
 		}
 	}
 	return w, nil
+}
+
+// Check field presence before decoding: empty/null values still count as declarations.
+func checkComposeFields(doc *yaml.Node) error {
+	if len(doc.Content) == 0 {
+		return nil
+	}
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "resources" {
+			continue
+		}
+		resources := root.Content[i+1]
+		for j := 0; j+1 < len(resources.Content); j += 2 {
+			resource := resources.Content[j+1]
+			file, files := false, false
+			for k := 0; k+1 < len(resource.Content); k += 2 {
+				switch resource.Content[k].Value {
+				case "file":
+					file = true
+				case "files":
+					files = true
+				}
+			}
+			if file && files {
+				return fmt.Errorf("resources.%s: file and files are mutually exclusive", resources.Content[j].Value)
+			}
+		}
+	}
+	return nil
 }

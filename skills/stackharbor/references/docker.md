@@ -42,3 +42,7 @@ Report CLI/Compose availability, intended local context, successful engine probe
 Review scenarios: CLI missing; Compose missing; Desktop installed but stopped; engine slow to start; engine timeout; wrong/remote context; permission denied; engine up but database unhealthy; observed resource unavailable; no Docker dependency. A successful CLI version command must never satisfy these cases by itself.
 
 References: [Docker info](https://docs.docker.com/reference/cli/docker/system/info/), [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/).
+
+## Multiple Compose files (v2)
+
+Use ordered `files` instead of `file`, plus optional `project_directory` and `env_files`. Paths are workspace-relative; missing files are rejected, including optional overrides that were explicitly listed. See [the v2 input contract](v2.md#ordered-compose-inputs). Validation requires the Compose plugin, without requiring the engine. Reopen the workspace after inputs change.

@@ -69,6 +69,12 @@ func (s *Session) resourceEvidence(ctx context.Context, req control.PlanRequest,
 	}
 	keys, bindings := []string{}, []string{}
 	for manager, selected := range groups {
+		if err := manager.CheckResolved(ctx); err != nil {
+			return nil, nil, controlError("plan_conflict", err.Error())
+		}
+		if digest := manager.ConfigDigest(); digest != "" {
+			bindings = append(bindings, manager.ScopeKey()+":"+digest)
+		}
 		names := []string{}
 		for name := range selected {
 			names = append(names, name)
