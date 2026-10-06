@@ -41,7 +41,7 @@ esac
 	t.Setenv("STACKHARBOR_CACHE_DIR", t.TempDir())
 	db := model.Service{ID: "resource/db", ProjectID: "infra", Kind: "resource", Resource: &model.ResourceSpec{File: compose, Project: "wordverse", Service: "db", Available: "healthy", Control: "observe", Lifetime: "persistent"}}
 	api := model.Service{ID: "api/dev", ProjectID: "api", Ports: []model.Port{{Number: port}}, Ready: &model.ReadyProbe{HTTP: server.URL}}
-	s, err := New(model.Workspace{Root: root, Projects: []model.Project{{ID: "infra", Services: []model.Service{db}}, {ID: "api", Services: []model.Service{api}}}}, &fakeRunner{}, externalPorts{port}, nil)
+	s, err := newManuallySampledSession(model.Workspace{Root: root, Projects: []model.Project{{ID: "infra", Services: []model.Service{db}}, {ID: "api", Services: []model.Service{api}}}}, &fakeRunner{}, externalPorts{port}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
