@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router";
 import { it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -76,7 +77,7 @@ it("initial auth and inventory loading are explicit", async () => {
   });
   vi.spyOn(api, "inventory").mockImplementation(() => new Promise(() => {}));
   app();
-  expect(screen.getByText("Authenticating this browser…")).toBeVisible();
+  expect(screen.getByText("Connecting to local control…")).toBeVisible();
   expect(
     await screen.findByText(
       "Waiting for the first successful inventory refresh…",
@@ -125,13 +126,12 @@ it("stale and unsupported sessions cannot be selected for controls", () => {
     root: "/owned/unsupported",
   });
   render(
-    <Workspaces
+    <MemoryRouter><Workspaces
       sessions={[stale, unsupported]}
       selected={new Set()}
       onSelect={() => {}}
-      onOpen={() => {}}
       now={Date.now()}
-    />,
+    /></MemoryRouter>,
   );
   expect(screen.getByText("stale")).toBeVisible();
   expect(screen.getByText("unsupported")).toBeVisible();
@@ -156,7 +156,7 @@ it("client freshness ages out even if inventory transport stops updating", () =>
 });
 it("filters workspace rows using TanStack9", async () => {
   render(
-    <Workspaces
+    <MemoryRouter><Workspaces
       sessions={[
         session(),
         session({
@@ -166,9 +166,8 @@ it("filters workspace rows using TanStack9", async () => {
       ]}
       selected={new Set()}
       onSelect={() => {}}
-      onOpen={() => {}}
       now={Date.now()}
-    />,
+    /></MemoryRouter>,
   );
   fireEvent.change(screen.getByLabelText("Filter workspaces"), {
     target: { value: "fixture" },
@@ -218,8 +217,9 @@ it("bulk requests retain independent outcomes and never call partial success ove
     };
   });
   app();
+  await screen.findByRole("region", {name: "Workspaces"});
+  fireEvent.click(screen.getByRole("link", { name: /^Workspaces$/ }));
   await screen.findByText("/owned/fixture");
-  fireEvent.click(screen.getByRole("button", { name: /^Workspaces$/ }));
   fireEvent.click(
     screen.getByRole("checkbox", { name: "Select /owned/fixture" }),
   );

@@ -13,7 +13,7 @@ import (
 
 func TestEmbeddedActualUIAndSPAFallback(t *testing.T) {
 	h := Assets()
-	for _, path := range []string{"/", "/workspaces/session"} {
+	for _, path := range []string{"/", "/workspaces", "/resources", "/operations", "/workspaces/session", "/workspaces/session/tasks", "/workspaces/session/resources", "/workspaces/session/logs?target=backend%2Fapi"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
 		if w.Code != 200 || !strings.Contains(w.Body.String(), "/assets/") {
@@ -101,7 +101,7 @@ func TestDevelopmentOwnerSameModeAndOmittedFlagReuse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if dev != "" && !strings.HasPrefix(ready, dev+"/#token=") {
+		if dev != "" && ready != dev+"/" {
 			t.Fatal(ready)
 		}
 		if dev == "" && strings.HasPrefix(ready, "http://127.0.0.1:5173/") {

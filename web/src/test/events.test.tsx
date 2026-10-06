@@ -1,3 +1,5 @@
+import { MemoryRouter } from "react-router";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { it, expect, vi } from "vitest";
 import {
@@ -175,6 +177,7 @@ it.each(["inventory", "open"])(
       },
     };
     function Harness() {
+      const [tab, setTab] = useState("services");
       useEvents(true, "global:1", { session: "exact", target: "" }, () => {});
       return (
         <WorkspaceDetail
@@ -184,14 +187,16 @@ it.each(["inventory", "open"])(
           now={Date.now()}
           connected
           onPlan={() => {}}
-          onLogFilter={() => {}}
-          onOpen={() => {}}
+          tab={tab}
+          target=""
+          onTabChange={setTab}
+          onTargetChange={() => {}}
         />
       );
     }
     render(
       <QueryClientProvider client={cache}>
-        <Harness />
+        <MemoryRouter><Harness /></MemoryRouter>
       </QueryClientProvider>,
     );
     await userEvent.click(screen.getByRole("tab", { name: "Logs" }));

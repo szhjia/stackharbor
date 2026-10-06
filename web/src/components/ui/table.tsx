@@ -76,6 +76,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+  // Keep row contents centered by default; opt into other alignment via className.
   return (
     <td
       data-slot="table-cell"

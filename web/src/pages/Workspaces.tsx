@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+import { workspacePath } from "../routes";
 import { useMemo } from "react";
 import type { Session } from "../api/types";
 import { controllable, sessionStale } from "../api/types";
@@ -6,17 +8,18 @@ import { DataList } from "../components/DataList";
 import { Status } from "../components/Status";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
+import { WorkspaceInfo } from "../components/WorkspaceInfo";
+const sessionInfoCell: ListColumn<Session>["cell"] = ({row}) => <WorkspaceInfo session={row.original} kind="session" />;
+const terminalInfoCell: ListColumn<Session>["cell"] = ({row}) => <WorkspaceInfo session={row.original} kind="terminal" />;
 export function Workspaces({
   sessions,
   selected,
   onSelect,
-  onOpen,
   now,
 }: {
   sessions: Session[];
   selected: Set<string>;
   onSelect: (id: string, value: boolean) => void;
-  onOpen: (id: string) => void;
   now: number;
 }) {
   const columns = useMemo<ListColumn<Session>[]>(
@@ -39,23 +42,23 @@ export function Workspaces({
         accessorKey: "root",
         header: "Workspace",
         cell: ({ row }) => (
-          <div className="record">
-            <Button
-              variant="link"
-              onClick={() => onOpen(row.original.identity.session_id)}
-            >
-              {row.original.root}
-            </Button>
-            <span className="caption mono">
-              {row.original.identity.session_id}
-            </span>
-            <span className="caption">
-              {row.original.terminal ?? "Foreground session"} · PID{" "}
-              {row.original.pid}
-              {row.original.tty ? ` · ${row.original.tty}` : ""}
-            </span>
-          </div>
+          <Button variant="link" asChild>
+            <Link className="workspace-root" title={row.original.root} to={workspacePath(row.original.identity.session_id)}>{row.original.root}</Link>
+          </Button>
         ),
+      },
+      {
+        accessorFn: (s) => s.identity.session_id,
+        id: "session",
+        header: "Session",
+        cell: sessionInfoCell,
+      },
+      {accessorKey: "pid", header: "PID", cell: ({row}) => <span className="workspace-pid mono">{row.original.pid}</span>},
+      {
+        id: "terminal",
+        header: "Terminal",
+        accessorFn: (s) => `${s.terminal ?? "Foreground session"} ${s.tty ?? ""}`,
+        cell: terminalInfoCell,
       },
       {
         id: "state",
@@ -96,13 +99,14 @@ export function Workspaces({
         ),
       },
     ],
-    [selected, onSelect, onOpen, now],
+    [selected, onSelect, now],
   );
   return (
     <DataList
       data={sessions}
       columns={columns}
       label="workspaces"
+      layout="workspaces"
       empty="No foreground sessions"
     />
   );

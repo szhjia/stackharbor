@@ -1,12 +1,19 @@
-import { useState, useMemo, useEffect } from "react";
+import { Link } from "react-router";
+import { workspacePath } from "../routes";
+import { createContext, useContext, useState, useMemo } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session, Node, Resource, LogState } from "../api/types";
 import { controllable } from "../api/types";
 import { api, actionableError } from "../api/client";
 import { logKey, mergeLogPage } from "../api/logs";
 import { DataList } from "../components/DataList";
-import { MetricView } from "../components/MetricView";
-import { Status } from "../components/Status";
+import { MetricValue } from "../components/MetricView";
+import { Panel } from "../components/Panel";
+import { DefinitionList } from "../components/DefinitionList";
+import { NodeInfo } from "../components/NodeInfo";
+import { WorkspaceInfo } from "../components/WorkspaceInfo";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem } from "../components/ui/dropdown-menu";
 import { Notice } from "../components/Notice";
 import { LogView } from "../components/LogView";
 import { Resources } from "./Resources";
@@ -18,8 +25,8 @@ import {
 } from "../components/ui/tabs";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
-import { Input } from "../components/ui/input";
 import { Field, FieldLabel } from "../components/ui/field";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "../components/ui/select";
 import type { ListColumn } from "../components/DataList";
 export interface ActionRequest {
   session: Session;
@@ -27,6 +34,23 @@ export interface ActionRequest {
   targets: string[];
   port?: number;
 }
+const NodeActionContext = createContext({sid: "", usable: false, plan: (_action: string, _ids: string[]) => {}});
+function NodeActions({node}: {node: Node}) {
+  const {sid, usable, plan} = useContext(NodeActionContext);
+  const actions = node.allowed_actions.filter(action => action !== "release");
+  return <div className="action-list node-actions">
+    <Button size="sm" variant="ghost" asChild><Link aria-label={`Logs for ${node.id}`} to={workspacePath(sid, "logs", node.id)}>Logs</Link></Button>
+    {actions.length > 0 ? <DropdownMenu><DropdownMenuTrigger asChild>
+      <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${node.id}`} disabled={!usable} data-focus-key={`${sid}/${node.id}/actions`}><MoreHorizontal /></Button>
+    </DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>
+      {actions.map(action => <DropdownMenuItem key={action} data-focus-key={`${sid}/${node.id}/actions`} disabled={!usable} onSelect={() => plan(action, [node.id])}>{action[0].toUpperCase() + action.slice(1)}</DropdownMenuItem>)}
+    </DropdownMenuGroup></DropdownMenuContent></DropdownMenu> : null}
+  </div>;
+}
+const nodeIdentityCell: ListColumn<Node>["cell"] = ({row}) => <NodeInfo node={row.original} kind="identity" />;
+const nodeStateCell: ListColumn<Node>["cell"] = ({row}) => <NodeInfo node={row.original} kind="state" />;
+const nodePortsCell: ListColumn<Node>["cell"] = ({row}) => <NodeInfo node={row.original} kind="ports" />;
+const nodeActionsCell: ListColumn<Node>["cell"] = ({row}) => <NodeActions node={row.original} />;
 export function WorkspaceDetail({
   session,
   resources,
@@ -34,8 +58,10 @@ export function WorkspaceDetail({
   now,
   connected,
   onPlan,
-  onLogFilter,
-  onOpen,
+  tab,
+  target,
+  onTabChange,
+  onTargetChange,
 }: {
   session: Session;
   resources: Resource[];
@@ -43,21 +69,17 @@ export function WorkspaceDetail({
   now: number;
   connected: boolean;
   onPlan: (requests: ActionRequest[]) => void;
-  onLogFilter: (target: string | undefined) => void;
-  onOpen: (id: string) => void;
+  tab: string;
+  target: string;
+  onTabChange: (tab: string) => void;
+  onTargetChange: (target: string) => void;
 }) {
   const cache = useQueryClient();
-  const [tab, setTab] = useState("services");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [target, setTarget] = useState("");
   const [port, setPort] = useState("");
   const sid = session.identity.session_id;
   const usable = controllable(session, now);
   const nodes = session.snapshot?.nodes ?? [];
-  useEffect(() => {
-    onLogFilter(tab === "logs" ? target : undefined);
-    return () => onLogFilter(undefined);
-  }, [tab, target, sid]);
   const logs = useQuery({
     queryKey: logKey(sid, target),
     queryFn: async (): Promise<LogState> => {
@@ -107,82 +129,16 @@ export function WorkspaceDetail({
       },
       {
         accessorKey: "id",
-        header: "Node / ownership",
-        cell: ({ row }) => (
-          <div className="record">
-            <strong>{row.original.name || row.original.id}</strong>
-            <span className="mono caption">{row.original.id}</span>
-            <Status value={row.original.ownership} />
-            {row.original.depends_on?.length ? (
-              <span className="caption">
-                Requires {row.original.depends_on.join(", ")}
-              </span>
-            ) : null}
-            {row.original.resource_refs.length ? (
-              <span className="caption mono">
-                {row.original.resource_refs.join(", ")}
-              </span>
-            ) : null}
-          </div>
-        ),
+        header: tab === "tasks" ? "Task" : "Service",
+        cell: nodeIdentityCell,
       },
-      {
-        accessorKey: "state",
-        header: "State / ports",
-        cell: ({ row }) => (
-          <div className="record">
-            <Status value={row.original.state} />
-            {row.original.reason ? (
-              <span className="caption">{row.original.reason}</span>
-            ) : null}
-            {row.original.ports.map((p) => (
-              <span key={p.port} className="mono caption">
-                :{p.port} · {p.status}
-                {p.reason ? ` · ${p.reason}` : ""}
-              </span>
-            ))}
-          </div>
-        ),
-      },
-      {
-        id: "metrics",
-        header: "CPU / RSS",
-        cell: ({ row }) => <MetricView metric={row.original.metric} />,
-      },
-      {
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <div className="action-list">
-            {row.original.allowed_actions
-              .filter((action) => action !== "release")
-              .map((action) => (
-                <Button
-                  data-focus-key={sid + "/" + row.original.id + "/" + action}
-                  key={action}
-                  size="sm"
-                  variant="outline"
-                  disabled={!usable}
-                  onClick={() => plan(action, [row.original.id])}
-                >
-                  {action}
-                </Button>
-              ))}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setTarget(row.original.id);
-                setTab("logs");
-              }}
-            >
-              Logs
-            </Button>
-          </div>
-        ),
-      },
+      {accessorKey: "state", header: "State", cell: nodeStateCell},
+      {id: "ports", header: "Ports", cell: nodePortsCell},
+      {id: "cpu", header: "CPU", cell: ({row}) => <MetricValue metric={row.original.metric} kind="cpu" />},
+      {id: "memory", header: "Memory", cell: ({row}) => <MetricValue metric={row.original.metric} kind="memory" />},
+      {id: "actions", header: "Actions", cell: nodeActionsCell},
     ],
-    [selected, usable, session, onPlan],
+    [selected, usable, session, onPlan, tab],
   );
   const selectedNodes = nodes.filter((n) => selected.has(n.id));
   const bulkActions = ["start", "stop", "restart"].filter(
@@ -191,21 +147,23 @@ export function WorkspaceDetail({
       selectedNodes.every((n) => n.allowed_actions.includes(a)),
   );
   return (
-    <section className="detail">
-      <div className="detail-title">
-        <div>
-          <h2>{session.root.split("/").filter(Boolean).at(-1)}</h2>
-          <p className="mono caption">{session.root}</p>
-          <p className="mono caption">Session {sid}</p>
+    <NodeActionContext.Provider value={{sid, usable, plan}}>
+    <section className="detail workspace-detail">
+      <Panel className="workspace-summary-card">
+        <div className="workspace-summary-top">
+          <p className="workspace-path mono">{session.root}</p>
+          <div className="workspace-summary-actions">
+            <WorkspaceInfo session={session} kind="session" />
+            <Button size="sm" variant="outline" disabled={!usable} onClick={() => plan("close", [])}>Close session</Button>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          disabled={!usable}
-          onClick={() => plan("close", [])}
-        >
-          Close session
-        </Button>
-      </div>
+        <DefinitionList layout="inline" label="Workspace summary" items={[
+          {label: "Services", value: nodes.filter(n => n.kind !== "task").length},
+          {label: "Running", value: nodes.filter(n => n.kind !== "task" && n.state === "running").length},
+          {label: "Tasks", value: nodes.filter(n => n.kind === "task").length},
+          {label: "Resources", value: resources.filter(r => r.references.some(ref => ref.session_id === sid)).length},
+        ]} />
+      </Panel>
       {!usable ? (
         <Notice
           title={
@@ -222,7 +180,7 @@ export function WorkspaceDetail({
           {d.message}
         </Notice>
       ))}
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={onTabChange}>
         <TabsList className="detail-tabs">
           <TabsTrigger value="services">Services</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
@@ -231,8 +189,8 @@ export function WorkspaceDetail({
         </TabsList>
         {["services", "tasks"].map((t) => (
           <TabsContent value={t} key={t}>
-            <div className="toolbar">
-              <span>{selectedNodes.length} selected</span>
+            {selectedNodes.length > 0 ? <div className="toolbar node-toolbar">
+              {selectedNodes.length > 0 ? <span>{selectedNodes.length} selected</span> : null}
               <div className="action-list">
                 {bulkActions.map((a) => (
                   <Button
@@ -250,33 +208,35 @@ export function WorkspaceDetail({
                   </Button>
                 ))}
               </div>
-            </div>
-            <DataList
+            </div> : null}
+              <DataList
               data={nodes.filter((n) =>
                 t === "tasks" ? n.kind === "task" : n.kind !== "task",
               )}
               columns={columns}
               label={t}
-            />
+              layout="nodes"
+              empty={t === "tasks" ? "No tasks in this workspace" : "No services in this workspace"}
+              emptyDescription="Nodes declared by this workspace appear here."
+              />
             {selectedNodes.length === 1 &&
             selectedNodes[0].allowed_actions.includes("release") ? (
               <Field>
                 <FieldLabel htmlFor="port">Port to resolve</FieldLabel>
                 <div className="action-list">
-                  <select
-                    id="port"
-                    value={port}
-                    onChange={(e) => setPort(e.target.value)}
-                  >
-                    <option value="">Choose external declared port</option>
+                  <Select value={port || "none"} onValueChange={value => setPort(value === "none" ? "" : value)}>
+                    <SelectTrigger id="port" className="port-select"><SelectValue /></SelectTrigger>
+                    <SelectContent position="popper"><SelectGroup>
+                    <SelectItem value="none">Choose external declared port</SelectItem>
                     {selectedNodes[0].ports
                       .filter((p) => p.status === "external")
                       .map((p) => (
-                        <option key={p.port} value={p.port}>
+                        <SelectItem key={p.port} value={String(p.port)}>
                           {p.port} · {p.reason || p.status}
-                        </option>
+                        </SelectItem>
                       ))}
-                  </select>
+                    </SelectGroup></SelectContent>
+                  </Select>
                   <Button
                     disabled={
                       !usable ||
@@ -301,24 +261,23 @@ export function WorkspaceDetail({
               r.references.some((ref) => ref.session_id === sid),
             )}
             sessions={sessions}
-            onOpen={onOpen}
           />
         </TabsContent>
         <TabsContent value="logs">
           <Field className="filter-field">
             <FieldLabel htmlFor="log-target">Log target</FieldLabel>
-            <select
-              id="log-target"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="">All nodes</option>
+            <Select value={target ? `node:${target}` : "all"} onValueChange={value => onTargetChange(value === "all" ? "" : value.slice(5))}>
+              <SelectTrigger id="log-target" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent position="popper"><SelectGroup>
+              <SelectItem value="all">All nodes</SelectItem>
+              {target && !nodes.some((n) => n.id === target) ? <SelectItem value={`node:${target}`}>{target} (not currently observed)</SelectItem> : null}
               {nodes.map((n) => (
-                <option key={n.id} value={n.id}>
+                <SelectItem key={n.id} value={`node:${n.id}`}>
                   {n.id}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectGroup></SelectContent>
+            </Select>
           </Field>
           {logs.error ? (
             <Notice title="Logs unavailable">
@@ -334,5 +293,6 @@ export function WorkspaceDetail({
         </TabsContent>
       </Tabs>
     </section>
+    </NodeActionContext.Provider>
   );
 }

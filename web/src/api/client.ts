@@ -10,8 +10,9 @@ export class ApiFailure extends Error {
 }
 export class ApiClient {
   private csrf = "";
+  private connecting?: Promise<{ csrf: string; expires_at: string }>;
   constructor(private fetcher: typeof fetch = fetch.bind(globalThis)) {}
-  async request<T>(path: string, body?: unknown): Promise<T> {
+  async request<T>(path: string, body?: unknown, recoverSession = true): Promise<T> {
     let response: Response;
     let envelope: { data?: T; error?: { code: string; message: string } };
     try {
@@ -42,6 +43,12 @@ export class ApiClient {
       );
     }
     if (!response.ok || envelope.error) {
+      // A rejected unauthenticated request has not been accepted for execution.
+      // Renew local request protection once; never retry unknown outcomes.
+      if (response.status === 401 && path !== "auth/session" && recoverSession) {
+        await this.session();
+        return this.request<T>(path, body, false);
+      }
       const e = envelope.error;
       throw new ApiFailure(
         response.status,
@@ -51,34 +58,23 @@ export class ApiClient {
     }
     return envelope.data as T;
   }
-  async session() {
-    const s = await this.request<{ csrf: string; expires_at: string }>(
-      "auth/session",
-    );
-    this.csrf = s.csrf;
-    return s;
+  session() {
+    if (!this.connecting) {
+      this.connecting = this.request<{ csrf: string; expires_at: string }>(
+        "auth/session",
+      ).then((s) => {
+        this.csrf = s.csrf;
+        return s;
+      }).finally(() => {
+        this.connecting = undefined;
+      });
+    }
+    return this.connecting;
   }
   async bootstrap(url: URL, replace: (path: string) => void) {
     const token = new URLSearchParams(url.hash.slice(1)).get("token");
     if (token) {
       replace(url.pathname + url.search);
-      try {
-        const s = await this.request<{ csrf: string; expires_at: string }>(
-          "auth/exchange",
-          { token },
-        );
-        this.csrf = s.csrf;
-        return s;
-      } catch (error) {
-        if (error instanceof ApiFailure && error.status === 401) {
-          try {
-            return await this.session();
-          } catch {
-            throw error;
-          }
-        }
-        throw error;
-      }
     }
     return this.session();
   }

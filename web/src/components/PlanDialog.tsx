@@ -10,6 +10,7 @@ import {
   DialogFooter,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
+import { Panel } from "./Panel";
 import { Notice } from "./Notice";
 export type Planned = { root: string; plan: Plan };
 export function PlanDialog({
@@ -76,7 +77,7 @@ export function PlanDialog({
         </DialogHeader>
         <div className="plan-scroll">
           {plans.map(({ root, plan }) => (
-            <section key={plan.id} className="plan-section">
+            <Panel as="section" radius="compact" key={plan.id} className="plan-section">
               <h3>{root}</h3>
               <small className="mono">Session {plan.session_id}</small>
               <p>Requested targets</p>
@@ -108,7 +109,7 @@ export function PlanDialog({
                 )}
                 s remaining
               </p>
-            </section>
+            </Panel>
           ))}
         </div>
         {expired ? (

@@ -90,25 +90,22 @@ describe("browser contracts", () => {
     await client.bootstrap(new URL("http://127.0.0.1/"), vi.fn());
     expect(fetcher.mock.calls[0][0]).toBe("/api/v1/auth/session");
   });
-  it("clears fragment even on failed exchange and preserves rerun guidance", async () => {
+  it("ignores old launch credentials and connects using the ordinary local session", async () => {
     const replace = vi.fn();
-    const client = new ApiClient(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            error: {
-              code: "unauthenticated",
-              message: "run stackharbor web again",
-            },
-          }),
-          { status: 401 },
-        ),
-      ),
-    );
-    await expect(
-      client.bootstrap(new URL("http://127.0.0.1/#token=secret"), replace),
-    ).rejects.toThrow("run stackharbor web again");
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { csrf: "local", expires_at: "2099" } })));
+    await new ApiClient(fetcher).bootstrap(new URL("http://127.0.0.1/#token=expired"), replace);
     expect(replace).toHaveBeenCalledWith("/");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toBe("/api/v1/auth/session");
+  });
+  it("renews an expired local session once before retrying a rejected request", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "unauthenticated", message: "expired" } }), { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { csrf: "renewed", expires_at: "2099" } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: "plan" } })));
+    await new ApiClient(fetcher).request("sessions/s/plans", {});
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual(["/api/v1/sessions/s/plans", "/api/v1/auth/session", "/api/v1/sessions/s/plans"]);
+    expect(fetcher.mock.calls[2][1].headers["X-CSRF-Token"]).toBe("renewed");
   });
   it("deduplicates gap and log pages by sequence within exact filter", () => {
     const entry = {

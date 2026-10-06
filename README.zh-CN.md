@@ -214,7 +214,7 @@ make run ARGS="--root /path/to/workspace"
 
 ## 浏览器与现有会话 CLI 控制
 
-在工作区终端保持 StackHarbor 前台运行，再于另一个终端运行 `stackharbor web`。默认仅监听 `127.0.0.1:16800`；`--port 0 --no-open` 分配空闲端口并打印一次性启动链接。停止网关保留应用。`status/start/stop/restart/release/logs/operations/kill` 直接访问会话 Unix socket，不依赖 Web。非交互写操作需要 `--yes`；`--dry-run` 查看真实会话计划。认证过期后再次运行 `stackharbor web`，使用新链接。详见 [Web 与 CLI 控制](docs/web-control.md)。
+在工作区终端保持 StackHarbor 前台运行，再于另一个终端运行 `stackharbor web`。默认仅监听 `127.0.0.1:16800`；`--port 0 --no-open` 分配空闲端口并打印普通访问地址。停止网关保留应用。`status/start/stop/restart/release/logs/operations/kill` 直接访问会话 Unix socket，不依赖 Web。非交互写操作需要 `--yes`；`--dry-run` 查看真实会话计划。本机任意浏览器可直接打开该地址，无需单独认证；连接保护会话自动建立和恢复。详见 [Web 与 CLI 控制](docs/web-control.md)。
 
 源码构建新增 Node 26.9.0（`.node-version`）与 npm 要求；`make build/check/release` 安装锁定依赖、构建并核验真实前端。发行二进制包含 UI，运行不需要 Node 或 Go。原始 `go build` 不能证明已有前端产物与源码一致，请使用 Make 路径。
 

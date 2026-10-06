@@ -354,15 +354,12 @@ func reuse(ctx context.Context, file *os.File, cache string, o Options) (string,
 	if o.DevelopmentOrigin != "" && o.DevelopmentOrigin != info.DevelopmentOrigin {
 		return "", apiError("endpoint_conflict", "existing gateway has a different development origin; stop it and restart with --dev-origin")
 	}
-	var credential struct {
-		Token string `json:"token"`
-	}
-	if err = rpc("POST", "/v1/credential", info, &credential); err != nil {
-		return "", err
-	}
-	return bootstrapURL(info.Port, credential.Token), nil
+	return bootstrapURL(info.Port, ""), nil
 }
 func bootstrapURL(port int, token string) string {
+	if token == "" {
+		return "http://127.0.0.1:" + strconv.Itoa(port) + "/"
+	}
 	return "http://127.0.0.1:" + strconv.Itoa(port) + "/#token=" + token
 }
 func openBrowser(url string) error {
@@ -377,7 +374,10 @@ func openBrowser(url string) error {
 func show(o Options, url string) {
 	if o.DevelopmentOrigin != "" {
 		if parsed, err := urlpkg.Parse(url); err == nil {
-			url = o.DevelopmentOrigin + "/#" + parsed.Fragment
+			url = o.DevelopmentOrigin + "/"
+			if parsed.Fragment != "" {
+				url += "#" + parsed.Fragment
+			}
 		}
 	}
 	if o.Out != nil {
@@ -446,12 +446,7 @@ func Run(ctx context.Context, o Options) error {
 		server.Close()
 		return err
 	}
-	token, err := g.auth.issue()
-	if err != nil {
-		server.Close()
-		return err
-	}
-	show(o, bootstrapURL(i.info.Port, token))
+	show(o, bootstrapURL(i.info.Port, ""))
 	var serveErr error
 	select {
 	case <-ctx.Done():

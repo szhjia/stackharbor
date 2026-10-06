@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/sessionapi"
@@ -62,7 +61,7 @@ func TestWebPortDefaultExplicitZeroAndConflict(t *testing.T) {
 	}
 	s, _, _ := launch(t, Options{Namespace: namespace(t), PortExplicit: true, Port: 0, NoOpen: true})
 	u, _ := url.Parse(s)
-	if !strings.HasPrefix(u.Host, "127.0.0.1:") || u.Fragment == "" || u.RawQuery != "" {
+	if !strings.HasPrefix(u.Host, "127.0.0.1:") || u.Fragment != "" || u.RawQuery != "" {
 		t.Fatalf("url %s", s)
 	}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -91,7 +90,7 @@ func TestWebReuseAndExplicitMismatch(t *testing.T) {
 			t.Fatal(err)
 		}
 		v, _ := url.Parse(reused)
-		if v.Host != u.Host || v.Fragment == u.Fragment {
+		if v.Host != u.Host || v.Fragment != "" {
 			t.Fatalf("reuse %s %s", s, reused)
 		}
 	}
@@ -153,13 +152,9 @@ func TestWebNamespacesKeepIndependentBrowserCookies(t *testing.T) {
 	exchange := func(value string) {
 		t.Helper()
 		u, _ := url.Parse(value)
-		fragment, _ := url.ParseQuery(u.Fragment)
 		u.Fragment = ""
-		u.Path = "/api/v1/auth/exchange"
-		body, _ := json.Marshal(map[string]string{"token": fragment.Get("token")})
-		req, _ := http.NewRequest("POST", u.String(), strings.NewReader(string(body)))
-		req.Header.Set("Origin", "http://"+u.Host)
-		req.Header.Set("Content-Type", "application/json")
+		u.Path = "/api/v1/auth/session"
+		req, _ := http.NewRequest("GET", u.String(), nil)
 		response, err := client.Do(req)
 		if err != nil {
 			t.Fatal(err)

@@ -1,43 +1,65 @@
-import { useMemo } from "react";
+import { Link } from "react-router";
+import { workspacePath } from "../routes";
+import { createContext, useContext, useId, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Resource, Session } from "../api/types";
 import type { ListColumn } from "../components/DataList";
 import { DataList } from "../components/DataList";
-import { MetricView } from "../components/MetricView";
+import { MetricValue } from "../components/MetricView";
+import { ResourceInfo } from "../components/ResourceInfo";
 import { Status } from "../components/Status";
 import { Button } from "../components/ui/button";
+const resourceInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo resource={row.original} kind="identity" />;
+const sampleInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo resource={row.original} kind="sample" />;
+const OwnershipExpansion = createContext<{expanded: Set<string>; toggle: (key: string) => void}>({expanded: new Set(), toggle: () => {}});
+function Ownership({resourceID, reference, root}: {resourceID: string; reference: Resource["references"][number]; root: string}) {
+  const {expanded, toggle} = useContext(OwnershipExpansion);
+  const key = JSON.stringify([resourceID, reference.session_id]);
+  const open = expanded.has(key);
+  const contentID = useId();
+  const nodes = reference.nodes;
+  return <div className="ownership">
+    <div className="ownership-heading">
+      <Button variant="link" asChild><Link title={root} to={workspacePath(reference.session_id)}>{root}</Link></Button>
+      <Button variant="ghost" size="sm" className="ownership-toggle" aria-expanded={open} aria-controls={contentID}
+        aria-label={`${open ? "Hide" : "Show"} ${nodes.length} ${nodes.length === 1 ? "node" : "nodes"} for ${root}`} onClick={() => toggle(key)}>
+        {nodes.length} {nodes.length === 1 ? "node" : "nodes"}{open ? <ChevronDown /> : <ChevronRight />}
+      </Button>
+    </div>
+    <div id={contentID} hidden={!open} className="ownership-nodes">
+      {nodes.length === 0 ? <span className="caption">No node details available</span> : nodes.map((n) => <span key={n.id} className="ownership-node">
+        <span className="mono">{n.id}</span><Status value={n.role} />
+        <span className="caption">{n.ownership} · {n.state}</span>
+      </span>)}
+    </div>
+  </div>;
+}
 export function Resources({
   resources,
   sessions,
-  onOpen,
 }: {
   resources: Resource[];
   sessions: Session[];
-  onOpen: (sid: string) => void;
 }) {
   const roots = new Map(sessions.map((s) => [s.identity.session_id, s.root]));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggle = (key: string) => setExpanded((previous) => {
+    const next = new Set(previous);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   const columns = useMemo<ListColumn<Resource>[]>(
     () => [
+      {accessorKey: "kind", header: "Type", cell: ({row}) => <span>{row.original.kind === "process" ? "Process" : row.original.kind === "container" ? "Container" : row.original.kind}</span>},
       {
-        accessorKey: "id",
-        header: "Physical resource",
-        cell: ({ row }) => (
-          <div className="record">
-            <strong>
-              {row.original.kind === "process"
-                ? `PID ${row.original.pid ?? "unknown"}`
-                : row.original.container_id?.slice(0, 12) ||
-                  "Unknown container"}
-            </strong>
-            <span className="mono caption">{row.original.id}</span>
-            {!row.original.identity_known ? (
-              <Status value="identity unknown" />
-            ) : null}
-          </div>
-        ),
+        id: "identity",
+        accessorFn: (r) => `${r.id} ${r.pid ?? ""} ${r.container_id ?? ""}`,
+        header: "PID / ID",
+        cell: resourceInfoCell,
       },
       {
         id: "ownership",
-        header: "Workspace → node ownership",
+        header: "Workspace / Nodes",
         accessorFn: (r) =>
           r.references
             .map(
@@ -47,38 +69,26 @@ export function Resources({
         cell: ({ row }) => (
           <div className="ownership-list">
             {row.original.references.map((ref) => (
-              <div className="ownership" key={ref.session_id}>
-                <Button variant="link" onClick={() => onOpen(ref.session_id)}>
-                  {roots.get(ref.session_id) ?? ref.workspace_id}
-                </Button>
-                {ref.nodes.map((n) => (
-                  <span key={n.id} className="ownership-node">
-                    <span className="mono">{n.id}</span>
-                    <Status value={n.role} />
-                    <span className="caption">
-                      {n.ownership} · {n.state}
-                    </span>
-                  </span>
-                ))}
-              </div>
+              <Ownership key={ref.session_id} resourceID={row.original.id} reference={ref} root={roots.get(ref.session_id) ?? ref.workspace_id} />
             ))}
           </div>
         ),
       },
-      {
-        id: "metrics",
-        header: "Observation",
-        cell: ({ row }) => <MetricView metric={row.original.metric} />,
-      },
+      {id: "cpu", header: "CPU", cell: ({row}) => <MetricValue metric={row.original.metric} kind="cpu" />},
+      {id: "memory", header: "Memory", cell: ({row}) => <MetricValue metric={row.original.metric} kind="memory" />},
+      {id: "sample", header: "Sample", cell: sampleInfoCell},
     ],
-    [sessions, onOpen],
+    [sessions],
   );
   return (
+    <OwnershipExpansion.Provider value={{expanded, toggle}}>
     <DataList
       data={resources}
       columns={columns}
       label="resources"
+      layout="resources"
       empty="No observed resources"
     />
+    </OwnershipExpansion.Provider>
   );
 }

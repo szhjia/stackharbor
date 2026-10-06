@@ -208,14 +208,13 @@ func TestWebControlTwoPTYWorkspacesWithoutGateway(t *testing.T) {
 		for _, line := range strings.Split(output.text(), "\n") {
 			if strings.HasPrefix(line, "http://127.0.0.1:") {
 				u, _ = url.Parse(line)
-				return u != nil && u.Fragment != ""
+				return u != nil && u.Fragment == "" && u.Host != ""
 			}
 		}
 		return false
 	})
 	origin := "http://" + u.Host
-	token := strings.TrimPrefix(u.Fragment, "token=")
-	req, _ := http.NewRequest("POST", origin+"/api/v1/auth/exchange", strings.NewReader(`{"token":"`+token+`"}`))
+	req, _ := http.NewRequest("GET", origin+"/api/v1/auth/session", nil)
 	req.Header.Set("Origin", origin)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)

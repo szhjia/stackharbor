@@ -1,0 +1,109 @@
+# Web design system
+
+## Source of truth
+
+`src/styles/tokens.css` owns colors, typography, spacing, radii, borders, shadows,
+layout dimensions, overlay layers, motion and responsive boundaries. `index.css`
+only imports the framework, tokens and application styles. `src/styles/app.css`
+contains reusable layout rules and consumes tokens; it must not define raw visual
+values. Tailwind semantic utilities and application CSS resolve to the same token
+values. The former generated light palette and later application override have
+been consolidated; `.dark` overrides semantic colors in the same file.
+
+The migration keeps the current page structure and most application dimensions.
+The shared spacing unit is now 4px; Tailwind controls previously inherited a
+3.5px unit from the 14px root font. Utility controls now use the same spacing
+scale as application layouts. Small utility typography also uses the existing
+caption/label/body roles instead of a separate rem-based font scale.
+
+| Change | Token family / example |
+| --- | --- |
+| Brand, surfaces, text, borders, status | `--primary`, `--card`, `--muted-foreground`, `--destructive` |
+| Font sizes, weight, tracking | `--type-caption`, `--type-body`, `--font-weight-heading`, `--tracking-table` |
+| Padding and gaps | `--spacing`, `--space-3`, `--space-6` |
+| Card/control shape | `--radius`, `--radius-panel`, `--control-radius-sm` |
+| Shell, tables and overlays | `--sidebar-expanded-width`, `--info-popover-width`, `--dialog-max-width` |
+| Layering, shadows, animation | `--z-overlay`, `--shadow-md`, `--motion-fast`, `--motion-layout` |
+| Responsive boundaries | `mobile` / `desktop` (640px), `summary-stack` (760px), `compact` (900px) |
+
+Spacing aliases derive from `--spacing` (e.g. `--space-3 = 3 × --spacing`).
+Quarter steps preserve existing fine spacing without repeating numbers in pages.
+Use an existing role first; add a new role only when it has a distinct purpose.
+Structural values such as `0`, `100%`, `1fr`, flex/grid counts and Radix runtime
+geometry remain structural CSS. Media queries cannot consume CSS custom
+properties, so Tailwind custom variants define their boundaries in the token
+file; layouts use `@variant mobile` etc.
+
+## Shared components and coverage
+
+| Component | Responsibility | Consumers |
+| --- | --- | --- |
+| `Panel` | Surface, border and card radius; compact radius variant | Summary cards, workspace summary, all data lists, plan review sections |
+| `SummaryCard` | Named section, total, link, metrics and explanation | Overview workspace/resource summaries |
+| `DefinitionList` | Semantic `dt`/`dd` entries; details/grid/inline layouts | All entity popovers and summary metrics |
+| `InfoPopover` | Trigger, accessibility label, hover timing and portal surface | `WorkspaceInfo`, `ResourceInfo`, `NodeInfo` |
+| `DataList` | Filtering, empty states, responsive table; layout variants | Workspaces, resources, services/tasks, operations |
+| `MetricValue` | Consistent CPU/memory cells, including unknown values | Resource and node tables |
+| Existing UI primitives | Buttons, statuses, alerts, tabs, selects, menus, dialog | All routes and connection/loading/error states |
+
+Entity components keep their own data fields and business labels. Pages choose a
+`DataList` layout (`workspaces`, `resources`, `nodes`, default) rather than wrapping
+it in page-specific styling containers. Resource data is reused in both the global
+Resources page and the workspace Resources tab. The shared shell still provides
+navigation, breadcrumbs, connection status and refresh on every route.
+
+The three entity popovers share interaction timing in `InfoPopover`; these are
+Radix behavior settings, distinct from CSS transition duration tokens. API polling,
+expiry and stale-state timings are business behavior and are not design tokens.
+
+## Adding or changing a page
+
+1. Use existing UI primitives and shared components before creating new markup.
+2. Use semantic color utilities (`bg-card`, `text-muted-foreground`, `border-border`)
+   and token-backed spacing/type utilities. Application CSS uses `var(--...)`.
+3. Put a genuinely new visual value in `tokens.css`; do not add hex colors,
+   numeric inline styles or arbitrary pixel/rem utilities to a page.
+4. Change shared table density, popover presentation or card layout in the shared
+   component/style rather than patching individual routes.
+5. Run the checks below. The architecture test rejects raw CSS visual dimensions,
+   raw JSX palette/arbitrary size utilities and unresolved application variables.
+
+## Verification
+
+From `web/`:
+
+```sh
+rtk npm run typecheck
+rtk npm test -- --run
+rtk npm run build
+rtk node ../scripts/web-assets.mjs validate
+```
+
+The browser check uses intercepted fixture API responses and rejects unexpected
+mutations. It does not operate on live workspace services. Start a Vite dev or
+preview server, then run:
+
+```sh
+rtk npm exec -- vite --host 127.0.0.1 --port 5174
+rtk node src/test/design-system.browser.mjs /tmp/stackharbor-design-system
+```
+
+Set `DESIGN_SYSTEM_URL` to check a different local URL. The script checks eight
+routes (Overview, Workspaces, Resources, Operations and four workspace tabs) at
+1440/900/760/640/390/320px, saves desktop/mobile screenshots, checks document
+overflow and runtime errors, and exercises shared popovers, action menus, review
+dialogs, focus return and sidebar toggles. It also mutates spacing, typography,
+primary color and radius tokens to prove propagation through both application
+CSS and utility components, and checks dark surface separation.
+
+The existing React tests continue to cover connection recovery, routing, stale
+state, unknown metrics, ownership, log targets and confirmation safeguards. The
+browser fixture check is presentation/interaction verification; real session or
+backend operations are outside this refactor.
+
+Node action menu items carry the initiating button's focus key. A review may open
+before the menu's closing animation ends; the focused menu item then disappears.
+Sharing the key lets `PlanDialog` return focus to the current action button after
+close, including after a data refresh. The browser check reproduces this path
+with screenshots and waits for focus restoration rather than assuming it is
+synchronous.

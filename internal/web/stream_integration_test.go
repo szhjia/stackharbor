@@ -24,12 +24,11 @@ func liveBrowser(t *testing.T, ns string) (*http.Client, string, context.CancelF
 	t.Helper()
 	s, cancel, done := launch(t, Options{Namespace: ns, PortExplicit: true, Port: 0, NoOpen: true})
 	u, _ := url.Parse(s)
-	f, _ := url.ParseQuery(u.Fragment)
 	u.Fragment = ""
 	base := "http://" + u.Host
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Jar: jar}
-	req, _ := http.NewRequest("POST", base+"/api/v1/auth/exchange", strings.NewReader(`{"token":"`+f.Get("token")+`"}`))
+	req, _ := http.NewRequest("GET", base+"/api/v1/auth/session", nil)
 	req.Header.Set("Origin", base)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)

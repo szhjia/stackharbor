@@ -80,7 +80,7 @@ func TestAuthExchangeExpiryAndReplay(t *testing.T) {
 		t.Fatalf("replay %d", w.Code)
 	}
 	now = now.Add(8 * time.Hour)
-	if w := request(g, "GET", "/api/v1/auth/session", "", g.host, "", cookie, ""); w.Code != 401 {
+	if w := request(g, "GET", "/api/v1/inventory", "", g.host, "", cookie, ""); w.Code != 401 {
 		t.Fatalf("idle expiry %d", w.Code)
 	}
 }
@@ -155,7 +155,7 @@ func TestAuthenticatedReadsExtendServerIdleExpiry(t *testing.T) {
 	// The original cookie remains usable after fourteen active hours; exactly
 	// eight hours without another authenticated request expires server authority.
 	now = now.Add(sessionIdle)
-	if w := request(g, "GET", "/api/v1/auth/session", "", g.host, "", cookie, ""); w.Code != http.StatusUnauthorized {
+	if w := request(g, "GET", "/api/v1/inventory", "", g.host, "", cookie, ""); w.Code != http.StatusUnauthorized {
 		t.Fatalf("idle session remained valid %d", w.Code)
 	}
 }
@@ -190,7 +190,7 @@ func TestAuthRestartInvalidatesAllCredentials(t *testing.T) {
 	if restarted.auth.cookieName != old.auth.cookieName {
 		t.Fatal("unstable cookie identity")
 	}
-	if w := request(restarted, "GET", "/api/v1/auth/session", "", restarted.host, "", cookie, ""); w.Code != 401 {
+	if w := request(restarted, "GET", "/api/v1/inventory", "", restarted.host, "", cookie, ""); w.Code != 401 {
 		t.Fatalf("old cookie survived %d", w.Code)
 	}
 	if w := request(restarted, "POST", "/api/v1/auth/exchange", `{"token":"`+token+`"}`, restarted.host, "http://"+restarted.host, "", ""); w.Code != 401 {
@@ -210,7 +210,7 @@ func TestLaunchExchangeReplacesSameBrowserAtomically(t *testing.T) {
 		}
 		c := w.Result().Cookies()[0]
 		cookie = c.Name + "=" + c.Value
-		if w := request(g, "GET", "/api/v1/auth/session", "", g.host, "", old, ""); w.Code != 401 {
+		if w := request(g, "GET", "/api/v1/inventory", "", g.host, "", old, ""); w.Code != 401 {
 			t.Fatal("old session survived replacement", w.Code)
 		}
 		if len(g.auth.sessions) != 1 {
@@ -293,7 +293,7 @@ func TestLaunchExchangeInFlightResponsePreservesRotatedCookie(t *testing.T) {
 	if len(earlier.Result().Cookies()) != 0 || current[0].Value != rotated[0].Value {
 		t.Fatal("ordinary response changed the rotated browser cookie")
 	}
-	if w := request(g, "GET", "/api/v1/auth/session", "", g.host, "", cookie, ""); w.Code != http.StatusUnauthorized {
+	if w := request(g, "GET", "/api/v1/inventory", "", g.host, "", cookie, ""); w.Code != http.StatusUnauthorized {
 		t.Fatalf("old session survived rotation %d", w.Code)
 	}
 }

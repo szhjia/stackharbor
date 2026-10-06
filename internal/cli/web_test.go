@@ -46,7 +46,7 @@ func TestWebCLIStartsWithoutWorkspaceDiscovery(t *testing.T) {
 		done <- Run(ctx, []string{"web", "--port", "0", "--no-open"}, strings.NewReader(""), writer, &errs)
 	}()
 	line, err := bufio.NewReader(reader).ReadString('\n')
-	if err != nil || !strings.HasPrefix(line, "http://127.0.0.1:") || !strings.Contains(line, "/#token=") {
+	if err != nil || !strings.HasPrefix(line, "http://127.0.0.1:") || !strings.HasSuffix(line, "/\n") || strings.Contains(line, "#") {
 		cancel()
 		t.Fatalf("startup %q %v", line, err)
 	}

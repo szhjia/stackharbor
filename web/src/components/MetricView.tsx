@@ -16,3 +16,7 @@ export function MetricView({ metric }: { metric: Metric }) {
     </div>
   );
 }
+
+export function MetricValue({metric, kind}: {metric: Metric; kind: "cpu" | "memory"}) {
+  return <span className="resource-metric mono">{kind === "cpu" ? cpu(metric.cpu_percent) : metric.known ? memory(metric.rss_bytes) : "Unknown"}</span>;
+}

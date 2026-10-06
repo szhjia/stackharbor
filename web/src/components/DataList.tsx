@@ -18,6 +18,7 @@ import {
   TableRow,
   TableCell,
 } from "./ui/table";
+import { Panel } from "./Panel";
 import { Input } from "./ui/input";
 import { Field, FieldLabel } from "./ui/field";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "./ui/empty";
@@ -33,12 +34,16 @@ export function DataList<T extends RowData>({
   data,
   columns,
   label,
+  layout = "default",
   empty = "No matching records",
+  emptyDescription = "Start a foreground workspace with stackharbor to see its live session.",
 }: {
   data: T[];
   columns: ListColumn<T>[];
   label: string;
+  layout?: "default" | "workspaces" | "resources" | "nodes";
   empty?: string;
+  emptyDescription?: string;
 }) {
   const [filter, setFilter] = useState("");
   const cols = useMemo(() => columns, [columns]);
@@ -51,7 +56,7 @@ export function DataList<T extends RowData>({
     onGlobalFilterChange: setFilter,
   });
   return (
-    <div className="data-list">
+    <Panel radius="compact" className="data-list" data-layout={layout}>
       <Field className="filter-field">
         <FieldLabel htmlFor={`filter-${label}`}>Filter {label}</FieldLabel>
         <Input
@@ -95,15 +100,15 @@ export function DataList<T extends RowData>({
       {table.getRowModel().rows.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{empty}</EmptyTitle>
+            <EmptyTitle>{filter ? "No matching records" : empty}</EmptyTitle>
             <EmptyDescription>
               {filter
                 ? "Try another filter."
-                : "Start a foreground workspace with stackharbor to see its live session."}
+                : emptyDescription}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}
-    </div>
+    </Panel>
   );
 }

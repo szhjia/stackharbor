@@ -139,6 +139,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, apiError("forbidden", "unexpected Host header"))
 		return
 	}
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		fail(w, apiError("forbidden", "cross-site request rejected"))
+		return
+	}
 	origin := r.Header.Get("Origin")
 	allowedOrigin := origin == "http://"+g.host || validDevelopmentOrigin(g.options.DevelopmentOrigin) && origin == g.options.DevelopmentOrigin
 	if origin != "" && !allowedOrigin {
@@ -158,6 +162,30 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		g.options.Static.ServeHTTP(w, r)
+		return
+	}
+	// Local browsers establish their request-protection session automatically.
+	// Host, Origin and Fetch Metadata checks above still apply to this endpoint.
+	if r.URL.Path == "/api/v1/auth/session" {
+		if !method(w, r, "GET") {
+			return
+		}
+		session, err := g.auth.authenticate(r, false)
+		if err != nil {
+			token, issueErr := g.auth.issue()
+			if issueErr != nil {
+				fail(w, issueErr)
+				return
+			}
+			cookie, fresh, exchangeErr := g.auth.exchange(token)
+			if exchangeErr != nil {
+				fail(w, exchangeErr)
+				return
+			}
+			g.setSessionCookie(w, cookie)
+			session = fresh
+		}
+		writeJSON(w, 200, authDTO(session), nil)
 		return
 	}
 	if r.URL.Path == "/api/v1/auth/exchange" {
@@ -184,7 +212,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, authDTO(session), nil)
 		return
 	}
-	session, err := g.auth.authenticate(r, r.Method != "GET" && r.Method != "HEAD")
+	_, err := g.auth.authenticate(r, r.Method != "GET" && r.Method != "HEAD")
 	if err != nil {
 		fail(w, err)
 		return
@@ -205,10 +233,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx)
 	switch r.URL.Path {
-	case "/api/v1/auth/session":
-		if method(w, r, "GET") {
-			writeJSON(w, 200, authDTO(session), nil)
-		}
 	case "/api/v1/inventory":
 		if method(w, r, "GET") {
 			cursor := g.hub.Cursor()
@@ -227,7 +251,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Only launch exchange writes this browser-session cookie. Ordinary responses must
+// Only session bootstrap or legacy launch exchange writes this cookie. Ordinary responses must
 // not overwrite a credential rotated while an earlier request was in flight.
 func (g *Gateway) setSessionCookie(w http.ResponseWriter, value string) {
 	http.SetCookie(w, &http.Cookie{Name: g.auth.cookieName, Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})

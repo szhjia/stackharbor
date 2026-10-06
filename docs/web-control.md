@@ -55,19 +55,17 @@ The gateway binds only `127.0.0.1`, default port **16800**. `--port` accepts
 per discovery namespace is reused after owner/endpoint verification. A different
 explicit occupied instance port is refused. `--no-open` prints the URL instead
 of opening a browser. The process that starts a gateway stays in the foreground;
-a reuse invocation prints a fresh URL and exits. Ctrl-C in its owning terminal
+a reuse invocation prints the same gateway URL and exits. Ctrl-C in its owning terminal
 stops the gateway and leaves independent workspace sessions/applications running.
 
-The printed URL carries a one-use credential in its fragment, valid for 60
-seconds. The UI removes the fragment before exchanging it for an HttpOnly,
-SameSite=Strict cookie; write requests require the browser's CSRF token. Reopening
-replaces that browser's previous session atomically. The cookie lasts for the
-browser session and may be dropped when the browser closes. The server expires
-a session after eight idle hours; authenticated requests extend that idle window
-without changing the cookie. Gateway restart invalidates all credentials. Run
-`stackharbor web` and open its new URL to recover after browser closure, expiry
-or 401. Tokens are absent from normal
-URL queries and storage; do not share a launch URL.
+Open the ordinary printed URL in any browser on this machine. No one-use
+launch link or manual browser authentication is required. The UI automatically
+establishes an HttpOnly, SameSite=Strict session and obtains a CSRF token for
+write requests. Idle or restarted browser sessions reconnect automatically;
+unknown submission outcomes are never automatically retried. Exact Host/Origin
+checks and rejection of cross-site Fetch Metadata remain enforced. Other local
+users and programs can access this local control surface; it is not an
+OS-user authentication boundary.
 
 Overview, Workspaces, Resources and Operations show actual session snapshots.
 Metrics with no measurement show Unknown. Browser data refreshes every second;
@@ -135,7 +133,7 @@ STACKHARBOR_WEB_PROXY=http://127.0.0.1:GATEWAY_PORT npm --prefix web run dev
 
 For a convenient known port, use `--port 16800` and
 `STACKHARBOR_WEB_PROXY=http://127.0.0.1:16800`. Vite binds 127.0.0.1:5173 with a
-strict fixed port. Open the fragment URL printed by the opt-in gateway. Vite
+strict fixed port. Open the ordinary URL printed by the opt-in gateway. Vite
 proxies `/api` to that exact backend; browser Origin is preserved. Only an exact
 `http://127.0.0.1:PORT` development origin is accepted. An existing gateway with a
 different explicit development origin refuses reuse; stop its owning process and
@@ -148,3 +146,15 @@ reported zero production npm advisories and seven high build-tool paths; these
 counts are dated verification evidence, not a promise about future advisories.
 No forced major downgrade was applied. Inspect `npm --prefix web audit` and
 `npm --prefix web audit --omit=dev` when updating the lockfile.
+
+## Browser navigation
+
+The console uses browser routes: `/` (Overview), `/workspaces`, `/resources`,
+and `/operations`. An exact foreground session has its own address at
+`/workspaces/:sessionId`, with `/tasks`, `/resources`, and `/logs` subpages.
+The log target is stored in the `target` query parameter. Menu and workspace
+links support bookmarks, direct loading, and opening in another tab. Reloading
+and browser Back/Forward restore the page from the URL. Ended session links
+show an explicit unavailable state rather than selecting another session.
+Unknown console paths show a page-not-found message; API and asset paths retain
+their existing error responses.
