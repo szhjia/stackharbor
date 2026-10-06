@@ -6,6 +6,8 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-06
+
 ### Added
 
 - Ordered Compose `files`, `project_directory`, and `env_files` for v2 resources,
@@ -23,8 +25,8 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ### Compatibility
 
-- This capability is available in source builds; published 0.3.0 binaries do not
-  accept the new fields. The updated skill checks actual tool capabilities.
+- Upgrade the binary and skill together. Published 0.3.0 binaries do not accept
+  the new fields; 0.4.0 supports them. The skill checks actual tool capabilities.
 - Compose include, profiles, and extends remain unsupported in any input file.
   Projects whose inputs contain these features still need their existing adapter.
 
@@ -184,7 +186,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/szhjia/stackharbor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/szhjia/stackharbor/compare/v0.2.0...v0.3.0
 [2.0.1]: https://github.com/szhjia/stackharbor/commit/4b690f938c3cf4aab52f9cd6e7bce562d50dae90
 [0.2.0]: https://github.com/szhjia/stackharbor/compare/v0.1.0...v0.2.0

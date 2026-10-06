@@ -2,12 +2,12 @@
 name: stackharbor
 description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or controlling workspace sessions, browser console authentication, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
 metadata:
-  version: "0.3.1"
+  version: "0.4.0"
 ---
 
 # StackHarbor installation and workspace integration
 
-Skill version: **0.3.1**. This skill version is independent of the StackHarbor executable version.
+Skill version: **0.4.0**. This skill version is independent of the StackHarbor executable version.
 
 Generate registrations from the project's actual startup contract. The skill and protocol references are maintained together in the StackHarbor repository. StackHarbor supports local foreground processes on macOS/Linux, with distinct lifecycles for resources, tasks, and services.
 
@@ -96,6 +96,6 @@ For existing foreground sessions, follow [control and recovery](references/web-c
 
 ### Compose multi-file registration
 
-Multi-file fields require a supporting source build; the published 0.3.0 binary rejects them. Verify a small validate/plan fixture with the actual executable before updating registrations. If unsupported, report the required tool upgrade rather than emitting unusable YAML.
+Multi-file fields require StackHarbor 0.4.0 or newer; the 0.3.0 binary rejects them. Verify a small validate/plan fixture with the actual executable before updating registrations. If unsupported, report the required tool upgrade rather than emitting unusable YAML.
 
 For v2 resources, register the exact ordered Compose files with `files` (or legacy `file`), plus the actual `project_directory`, optional ordered `env_files`, and explicit `project`. Do not flatten configuration into a generated file merely to support multiple `-f` arguments. Verify the source startup script's order and environment; optional overrides are explicitly included only when present. See [v2 Compose inputs](references/v2.md#ordered-compose-inputs). Existing project-specific generators may still select resources or prepare application startup.
