@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/szhjia/stackharbor/internal/model"
+	"github.com/szhjia/stackharbor/internal/observe"
+	"github.com/szhjia/stackharbor/internal/runner"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -55,6 +57,38 @@ func TestReviewHealthRecheckedAfterSuccess(t *testing.T) {
 	}
 }
 
+// manualSamplePorts gives fixture sampling one owner. New still starts its real
+// observer, but this test probe holds that exact session context until shutdown;
+// explicit samples use their own context and proceed normally. The ready barrier
+// binds the session before either path can read the probe's configuration.
+type manualSamplePorts struct {
+	probe      observe.PortProbe
+	background context.Context
+	ready      chan struct{}
+}
+
+func (p *manualSamplePorts) Observe(ctx context.Context, ports []model.Port, owned []model.ProcessIdentity) []model.PortObservation {
+	<-p.ready
+	if ctx == p.background {
+		<-ctx.Done()
+		return nil
+	}
+	return p.probe.Observe(ctx, ports, owned)
+}
+func (p *manualSamplePorts) CheckStart(ctx context.Context, ports []model.Port) error {
+	return p.probe.CheckStart(ctx, ports)
+}
+func newManuallySampledSession(w model.Workspace, r runner.Runner, ports observe.PortProbe, sampler *observe.Sampler) (*Session, error) {
+	probe := &manualSamplePorts{probe: ports, ready: make(chan struct{})}
+	s, err := New(w, r, probe, sampler)
+	if err != nil {
+		return nil, err
+	}
+	probe.background = s.ctx
+	close(probe.ready)
+	return s, nil
+}
+
 type countingPorts struct{ calls int }
 
 func (p *countingPorts) Observe(context.Context, []model.Port, []model.ProcessIdentity) []model.PortObservation {
@@ -70,7 +104,7 @@ func TestObservationUsesOneWorkspaceProbe(t *testing.T) {
 		specs = append(specs, service(fmt.Sprintf("app/service%d", i)))
 	}
 	w := model.Workspace{Root: t.TempDir(), Projects: []model.Project{{ID: "app", Services: specs}}}
-	s, e := New(w, &fakeRunner{}, ports, nil)
+	s, e := newManuallySampledSession(w, &fakeRunner{}, ports, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -123,5 +157,32 @@ func TestHealthRecoveryGatesNewDownstream(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("dependency recovery did not release downstream")
+	}
+}
+
+func TestManualSamplePortsSkipsAndDrainsBackgroundObserver(t *testing.T) {
+	background, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ports := &countingPorts{}
+	probe := &manualSamplePorts{probe: ports, background: background, ready: make(chan struct{})}
+	close(probe.ready)
+	probe.Observe(context.Background(), nil, nil)
+	done := make(chan struct{})
+	go func() {
+		probe.Observe(background, nil, nil)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("background observation did not drain after cancellation")
+	}
+	if ports.calls != 1 {
+		t.Fatalf("background observation touched manually owned fixture: calls=%d", ports.calls)
+	}
+	probe.Observe(context.Background(), nil, nil)
+	if ports.calls != 2 {
+		t.Fatal("background cancellation disabled explicit sampling", ports.calls)
 	}
 }

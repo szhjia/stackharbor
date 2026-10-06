@@ -175,7 +175,7 @@ printf '%s\n' "$*" >> "$SH_CLEANUP_CALLS"
 	}
 	t.Setenv("STACKHARBOR_CACHE_DIR", t.TempDir())
 	node := model.Service{ID: "infra/db", ProjectID: "infra", Kind: "resource", Name: "db", Resource: &model.ResourceSpec{File: compose, Project: "cleanup-fixture", Service: "db", Available: "healthy", Lifetime: lifetime, Control: ownership}}
-	s, err := New(model.Workspace{Root: root, Version: 2, Projects: []model.Project{{ID: "infra", Services: []model.Service{node}}}}, &fakeRunner{}, &countingPorts{}, nil)
+	s, err := newManuallySampledSession(model.Workspace{Root: root, Version: 2, Projects: []model.Project{{ID: "infra", Services: []model.Service{node}}}}, &fakeRunner{}, &countingPorts{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

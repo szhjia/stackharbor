@@ -40,7 +40,7 @@ esac
 	for _, name := range []string{"db", "redis"} {
 		nodes = append(nodes, model.Service{ID: model.ServiceID("resource/" + name), ProjectID: "infra", Kind: "resource", Name: name, Resource: &model.ResourceSpec{File: compose, Project: "wordverse", Service: name, Available: "healthy", Control: "observe", Lifetime: "persistent"}})
 	}
-	s, err := New(model.Workspace{Root: root, Projects: []model.Project{{ID: "infra", Services: nodes}}}, &fakeRunner{}, &countingPorts{}, nil)
+	s, err := newManuallySampledSession(model.Workspace{Root: root, Projects: []model.Project{{ID: "infra", Services: nodes}}}, &fakeRunner{}, &countingPorts{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
