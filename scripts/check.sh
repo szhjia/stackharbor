@@ -4,6 +4,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$root"
 if [ "${1:-}" = "--print-root" ]; then printf '%s\n' "$root"; exit 0; fi
 sh scripts/web-build.sh --check
+node --test scripts/clean-dist.test.mjs
 files=$(find cmd internal tests examples -type f -name '*.go')
 unformatted=$(gofmt -l $files)
 if [ -n "$unformatted" ]; then printf 'Unformatted Go files:\n%s\n' "$unformatted"; exit 1; fi

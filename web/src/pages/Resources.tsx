@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { Link } from "react-router";
 import { workspacePath } from "../routes";
 import { createContext, useContext, useId, useMemo, useState } from "react";
@@ -13,6 +14,7 @@ const resourceInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo 
 const sampleInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo resource={row.original} kind="sample" />;
 const OwnershipExpansion = createContext<{expanded: Set<string>; toggle: (key: string) => void}>({expanded: new Set(), toggle: () => {}});
 function Ownership({resourceID, reference, root}: {resourceID: string; reference: Resource["references"][number]; root: string}) {
+  const {t: tr} = usePreferences();
   const {expanded, toggle} = useContext(OwnershipExpansion);
   const key = JSON.stringify([resourceID, reference.session_id]);
   const open = expanded.has(key);
@@ -22,14 +24,14 @@ function Ownership({resourceID, reference, root}: {resourceID: string; reference
     <div className="ownership-heading">
       <Button variant="link" asChild><Link title={root} to={workspacePath(reference.session_id)}>{root}</Link></Button>
       <Button variant="ghost" size="sm" className="ownership-toggle" aria-expanded={open} aria-controls={contentID}
-        aria-label={`${open ? "Hide" : "Show"} ${nodes.length} ${nodes.length === 1 ? "node" : "nodes"} for ${root}`} onClick={() => toggle(key)}>
-        {nodes.length} {nodes.length === 1 ? "node" : "nodes"}{open ? <ChevronDown /> : <ChevronRight />}
+        aria-label={tr("{action} {count} nodes for {root}", {action: tr(open ? "Hide" : "Show"), count: nodes.length, root})} onClick={() => toggle(key)}>
+        {nodes.length} {nodes.length === 1 ? tr("node") : tr("nodes")}{open ? <ChevronDown /> : <ChevronRight />}
       </Button>
     </div>
     <div id={contentID} hidden={!open} className="ownership-nodes">
-      {nodes.length === 0 ? <span className="caption">No node details available</span> : nodes.map((n) => <span key={n.id} className="ownership-node">
+      {nodes.length === 0 ? <span className="caption">{tr("No node details available")}</span> : nodes.map((n) => <span key={n.id} className="ownership-node">
         <span className="mono">{n.id}</span><Status value={n.role} />
-        <span className="caption">{n.ownership} · {n.state}</span>
+        <span className="caption">{tr(n.ownership)} · {tr(n.state)}</span>
       </span>)}
     </div>
   </div>;
@@ -41,6 +43,7 @@ export function Resources({
   resources: Resource[];
   sessions: Session[];
 }) {
+  const {t: tr} = usePreferences();
   const roots = new Map(sessions.map((s) => [s.identity.session_id, s.root]));
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const toggle = (key: string) => setExpanded((previous) => {
@@ -50,16 +53,16 @@ export function Resources({
   });
   const columns = useMemo<ListColumn<Resource>[]>(
     () => [
-      {accessorKey: "kind", header: "Type", cell: ({row}) => <span>{row.original.kind === "process" ? "Process" : row.original.kind === "container" ? "Container" : row.original.kind}</span>},
+      {accessorKey: "kind", header: tr("Type"), cell: ({row}) => <span>{row.original.kind === "process" ? tr("Process") : row.original.kind === "container" ? tr("Container") : row.original.kind}</span>},
       {
         id: "identity",
         accessorFn: (r) => `${r.id} ${r.pid ?? ""} ${r.container_id ?? ""}`,
-        header: "PID / ID",
+        header: tr("PID / ID"),
         cell: resourceInfoCell,
       },
       {
         id: "ownership",
-        header: "Workspace / Nodes",
+        header: tr("Workspace / Nodes"),
         accessorFn: (r) =>
           r.references
             .map(
@@ -75,10 +78,10 @@ export function Resources({
         ),
       },
       {id: "cpu", header: "CPU", cell: ({row}) => <MetricValue metric={row.original.metric} kind="cpu" />},
-      {id: "memory", header: "Memory", cell: ({row}) => <MetricValue metric={row.original.metric} kind="memory" />},
-      {id: "sample", header: "Sample", cell: sampleInfoCell},
+      {id: "memory", header: tr("Memory"), cell: ({row}) => <MetricValue metric={row.original.metric} kind="memory" />},
+      {id: "sample", header: tr("Sample"), cell: sampleInfoCell},
     ],
-    [sessions],
+    [sessions, tr],
   );
   return (
     <OwnershipExpansion.Provider value={{expanded, toggle}}>
@@ -87,7 +90,7 @@ export function Resources({
       columns={columns}
       label="resources"
       layout="resources"
-      empty="No observed resources"
+      empty={tr("No observed resources")}
     />
     </OwnershipExpansion.Provider>
   );

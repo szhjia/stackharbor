@@ -10,16 +10,31 @@ values. Tailwind semantic utilities and application CSS resolve to the same toke
 values. The former generated light palette and later application override have
 been consolidated; `.dark` overrides semantic colors in the same file.
 
-The migration keeps the current page structure and most application dimensions.
-The shared spacing unit is now 4px; Tailwind controls previously inherited a
-3.5px unit from the 14px root font. Utility controls now use the same spacing
-scale as application layouts. Small utility typography also uses the existing
-caption/label/body roles instead of a separate rem-based font scale.
+The shared spacing unit is 4px. Typography has three everyday sizes and two
+exceptions for headings and key numbers. The default body is `sm` (12px); users
+can choose `md` (13px) or `lg` (14px) in Settings. The choice is saved as
+`stackharbor.font-size` and applied to `html[data-font-size]` before React renders.
+Tailwind utilities and application CSS consume `--type-body` and
+`--leading-body`, so ordinary text changes together. The compact table rows,
+navigation, header and page gutters leave more room for data.
+
+| Use | Token | Size / line height |
+| --- | --- | --- |
+| Auxiliary text, table labels, badges, small controls | `--type-sm` / `text-xs` | 12px / 18px |
+| Body, table values, menus, ordinary buttons | `--type-body` / `text-sm` | 12, 13 or 14px / 18, 20 or 22px |
+| Emphasized text, mobile input text | `--type-lg` / `text-base` | 14px / 22px |
+| Section headings and brand | `--type-heading` | 18px |
+| Page headings and key statistics | `--type-page`, `--type-stat` | 24px |
+
+Keep ordinary content in the first three sizes. Use color and weight before
+introducing another size. Headings and statistics are the only larger exceptions.
+This follows Ant Design's guidance to keep non-display typography to 3–5 sizes,
+while choosing a denser 12px default for this data-heavy console.
 
 | Change | Token family / example |
 | --- | --- |
 | Brand, surfaces, text, borders, status | `--primary`, `--card`, `--muted-foreground`, `--destructive` |
-| Font sizes, weight, tracking | `--type-caption`, `--type-body`, `--font-weight-heading`, `--tracking-table` |
+| Font sizes, weight, tracking | `--type-sm`, `--type-body`, `--type-lg`, `--font-weight-heading`, `--tracking-table` |
 | Padding and gaps | `--spacing`, `--space-3`, `--space-6` |
 | Card/control shape | `--radius`, `--radius-panel`, `--control-radius-sm` |
 | Shell, tables and overlays | `--sidebar-expanded-width`, `--info-popover-width`, `--dialog-max-width` |
@@ -28,7 +43,7 @@ caption/label/body roles instead of a separate rem-based font scale.
 
 Spacing aliases derive from `--spacing` (e.g. `--space-3 = 3 × --spacing`).
 Quarter steps preserve existing fine spacing without repeating numbers in pages.
-Use an existing role first; add a new role only when it has a distinct purpose.
+Use an existing size first; add a new size only when it has a distinct purpose.
 Structural values such as `0`, `100%`, `1fr`, flex/grid counts and Radix runtime
 geometry remain structural CSS. Media queries cannot consume CSS custom
 properties, so Tailwind custom variants define their boundaries in the token
@@ -88,8 +103,8 @@ rtk npm exec -- vite --host 127.0.0.1 --port 5174
 rtk node src/test/design-system.browser.mjs /tmp/stackharbor-design-system
 ```
 
-Set `DESIGN_SYSTEM_URL` to check a different local URL. The script checks eight
-routes (Overview, Workspaces, Resources, Operations and four workspace tabs) at
+Set `DESIGN_SYSTEM_URL` to check a different local URL. The script checks nine
+routes (Overview, Workspaces, Resources, Operations, Settings and four workspace tabs) at
 1440/900/760/640/390/320px, saves desktop/mobile screenshots, checks document
 overflow and runtime errors, and exercises shared popovers, action menus, review
 dialogs, focus return and sidebar toggles. It also mutates spacing, typography,
@@ -107,3 +122,21 @@ Sharing the key lets `PlanDialog` return focus to the current action button afte
 close, including after a data refresh. The browser check reproduces this path
 with screenshots and waits for focus restoration rather than assuming it is
 synchronous.
+
+## Console preferences
+
+The sidebar footer links to `/settings`, including in the collapsed desktop
+layout and mobile navigation. `PreferencesProvider` owns English/Chinese,
+system/light/dark appearance and text-size choices, saved under `stackharbor.language`,
+`stackharbor.theme` and `stackharbor.font-size`.
+System appearance is the default when no valid choice is stored; it follows
+`prefers-color-scheme` changes while selected. Explicit light/dark choices
+ignore system changes. Changes apply immediately; unavailable storage still
+permits in-session changes.
+`lib/translations.ts` holds Chinese interface text. Translate labels at render
+boundaries and keep route keys, protocol values, workspace identities and log
+content unchanged. Date formatting follows the selected language.
+
+The settings route can render before inventory discovery completes. The browser
+check also covers its footer placement, keyboard input, reload persistence and
+light/dark layouts at desktop and mobile sizes.

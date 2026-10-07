@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { useQueries } from "@tanstack/react-query";
 import { api, actionableError } from "../api/client";
 import type { Session, Operation } from "../api/types";
@@ -20,6 +21,7 @@ export function Operations({
   tracked: Tracked[];
   onError: (s: string) => void;
 }) {
+  const {t: tr} = usePreferences();
   const lists = useQueries({
     queries: sessions.map((s) => ({
       queryKey: ["operations", s.identity.session_id],
@@ -47,30 +49,29 @@ export function Operations({
   const columns: ListColumn<Operation>[] = [
     {
       accessorKey: "id",
-      header: "Operation",
+      header: tr("Operation"),
       cell: ({ row }) => (
         <div className="record">
-          <strong>{row.original.action}</strong>
+          <strong>{tr(row.original.action)}</strong>
           <span className="mono caption">{row.original.id}</span>
-          <span className="mono caption">
-            Session {row.original.session_id}
+          <span className="mono caption">{tr("Session")}{" "}{row.original.session_id}
           </span>
         </div>
       ),
     },
     {
       accessorKey: "state",
-      header: "Result",
+      header: tr("Result"),
       cell: ({ row }) => <Status value={row.original.state} />,
     },
     {
       id: "results",
-      header: "Per-target outcomes",
+      header: tr("Per-target outcomes"),
       cell: ({ row }) => (
         <div className="record">
           {row.original.results.map((r) => (
             <span key={r.target}>
-              <span className="mono">{r.target}</span> · {r.state}
+              <span className="mono">{r.target}</span> · {tr(r.state)}
               {r.error ? ` · ${r.error.message}` : ""}
             </span>
           ))}
@@ -82,7 +83,7 @@ export function Operations({
     },
     {
       id: "cancel",
-      header: "Control",
+      header: tr("Control"),
       cell: ({ row }) =>
         !terminalStates.has(row.original.state) ? (
           <Button
@@ -92,18 +93,14 @@ export function Operations({
                 .cancel(row.original.session_id, row.original.id)
                 .catch((e) => onError(actionableError(e)))
             }
-          >
-            Cancel operation
-          </Button>
+          >{tr("Cancel operation")}{" "}</Button>
         ) : null,
     },
   ];
   return (
     <>
       {[...lists, ...exact].some((q) => q.error) ? (
-        <Notice title="Some operation outcomes are unavailable">
-          Reconnect to the exact session. Missing results do not imply success.
-        </Notice>
+        <Notice title={tr("Some operation outcomes are unavailable")}>{tr("Reconnect to the exact session. Missing results do not imply success.")}{" "}</Notice>
       ) : null}
       <DataList
         data={[...rows.values()].sort((a, b) =>
@@ -111,7 +108,7 @@ export function Operations({
         )}
         columns={columns}
         label="operations"
-        empty="No recorded operations"
+        empty={tr("No recorded operations")}
       />
     </>
   );

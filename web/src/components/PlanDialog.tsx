@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { useRef, useState, useEffect } from "react";
 import type { Plan } from "../api/types";
 import { actionableError } from "../api/client";
@@ -22,6 +23,7 @@ export function PlanDialog({
   onSubmit: () => Promise<void>;
   onClose: () => void;
 }) {
+  const {t: tr, language} = usePreferences();
   const previousFocus = useRef(document.activeElement as HTMLElement | null);
   const focusKey = useRef(previousFocus.current?.dataset.focusKey);
   const locked = useRef(false);
@@ -68,19 +70,16 @@ export function PlanDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Review {action}</DialogTitle>
+          <DialogTitle>{tr("Review {action}", {action: tr(action)})}</DialogTitle>
           <DialogDescription>
-            {plans.length} independent session{" "}
-            {plans.length === 1 ? "plan" : "plans"}. Review every affected node
-            before confirming.
-          </DialogDescription>
+            {tr("{count} independent session plans. Review every affected node before confirming.", {count: plans.length})}</DialogDescription>
         </DialogHeader>
         <div className="plan-scroll">
           {plans.map(({ root, plan }) => (
             <Panel as="section" radius="compact" key={plan.id} className="plan-section">
               <h3>{root}</h3>
-              <small className="mono">Session {plan.session_id}</small>
-              <p>Requested targets</p>
+              <small className="mono">{tr("Session")}{" "}{plan.session_id}</small>
+              <p>{tr("Requested targets")}</p>
               <ul>
                 {plan.targets.map((id) => (
                   <li key={id} className="mono">
@@ -88,7 +87,7 @@ export function PlanDialog({
                   </li>
                 ))}
               </ul>
-              <p>Full affected set</p>
+              <p>{tr("Full affected set")}</p>
               <ul>
                 {plan.affected.map((id) => (
                   <li key={id} className="mono">
@@ -97,37 +96,32 @@ export function PlanDialog({
                 ))}
               </ul>
               {plan.warnings.map((w, i) => (
-                <Notice key={i} title="Caution">
+                <Notice key={i} title={tr("Caution")}>
                   {w}
                 </Notice>
               ))}
-              <p className="caption">
-                Expires {new Date(plan.expires_at).toLocaleTimeString()} ·{" "}
+              <p className="caption">{tr("Expires")}{" "}{new Date(plan.expires_at).toLocaleTimeString(language)} ·{" "}
                 {Math.max(
                   0,
                   Math.ceil((Date.parse(plan.expires_at) - now) / 1000),
-                )}
-                s remaining
-              </p>
+                )}{tr("s remaining")}{" "}</p>
             </Panel>
           ))}
         </div>
         {expired ? (
-          <Notice title="Plan expired">
-            Close this review and plan again.
-          </Notice>
+          <Notice title={tr("Plan expired")}>{tr("Close this review and plan again.")}{" "}</Notice>
         ) : null}
         {error ? (
-          <Notice title="Action requires attention" danger>
+          <Notice title={tr("Action requires attention")} danger>
             {error}
           </Notice>
         ) : null}
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={onClose}>
-            {error ? "Close" : "Cancel"}
+            {error ? tr("Close") : tr("Cancel")}
           </Button>
           <Button disabled={busy || expired || Boolean(error)} onClick={submit}>
-            {busy ? "Submitting…" : `Confirm ${action}`}
+            {busy ? tr("Submitting…") : tr("Confirm {action}", {action: tr(action)})}
           </Button>
         </DialogFooter>
       </DialogContent>

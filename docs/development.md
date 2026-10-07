@@ -91,6 +91,12 @@ The visible checkout can contain more directories than the tracked repository:
 | `docs/verification/` | Local verification evidence | Ignored |
 | `docs/superpowers/` | Agent design and implementation notes | Ignored |
 
+`make build` prunes old rollback binaries in the root `dist/` while keeping the
+newest one. `make release` removes other version archives after a complete new
+release is packaged. Use `make clean` to remove the entire root `dist/` when
+none of its generated files are needed; it does not remove the embedded frontend
+bundle under `internal/web/dist/` or the installed command.
+
 Keep generated files in `dist/` and session state in the OS user-cache location
 (or `STACKHARBOR_CACHE_DIR`). Local verification artifacts should converge on one
 ignored directory, such as `.cache/verification/`, when their owners and

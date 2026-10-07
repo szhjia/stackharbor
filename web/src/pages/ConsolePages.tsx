@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { Link } from "react-router";
 import { useConsole } from "../layout/AppShell";
 import { controllable } from "../api/types";
@@ -11,6 +12,7 @@ import { Button } from "../components/ui/button";
 import { memory, cpu } from "../components/MetricView";
 
 export function OverviewPage() {
+  const {t: tr, language} = usePreferences();
   const {data, sessions, now} = useConsole();
   const fresh = sessions.filter((s) => controllable(s, now)).length;
   const unavailable = sessions.filter((s) => !s.available).length;
@@ -22,57 +24,58 @@ export function OverviewPage() {
   return <section className="route-page">
     <section className="observation-summary">
       <div>
-        <span className="caption">SESSION COVERAGE</span>
+        <span className="caption">{tr("SESSION COVERAGE")}</span>
         <strong>
           {fresh}
-          <small> / {sessions.length} fresh</small>
+          <small> / {sessions.length}{" "}{tr("fresh")}</small>
         </strong>
         <p>
-          {data.partial ? "Partial inventory" : "Current inventory"}
+          {data.partial ? tr("Partial inventory") : tr("Current inventory")}
         </p>
       </div>
       {(["processes", "containers"] as const).map((kind) => (
         <div key={kind}>
           <span className="caption">
             {kind === "processes"
-              ? "PROCESS RSS"
-              : "CONTAINER WORKING SET"}
+              ? tr("PROCESS RSS")
+              : tr("CONTAINER WORKING SET")}
           </span>
-          <strong>{memory(data.totals[kind].memory_bytes)}</strong>
+          <strong>{tr(memory(data.totals[kind].memory_bytes))}</strong>
           <p>
-            {data.totals[kind].count} {kind} · CPU{" "}
-            {cpu(data.totals[kind].cpu_percent)}
-            {data.totals[kind].partial ? " · partial" : ""}
+            {data.totals[kind].count} {tr(kind)}{" "}{tr("· CPU")}{" "}
+            {tr(cpu(data.totals[kind].cpu_percent))}
+            {data.totals[kind].partial ? tr(" · partial") : ""}
           </p>
         </div>
       ))}
     </section>
     <div className="overview-summaries">
-      <SummaryCard id="workspace-summary-title" title="Workspaces" href="/workspaces" total={workspaceCount}
-        unit={`${workspaceCount === 1 ? "workspace" : "workspaces"} · ${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`}
+      <SummaryCard id="workspace-summary-title" title={tr("Workspaces")} href="/workspaces" total={workspaceCount}
+        unit={`${tr(workspaceCount === 1 ? "workspace" : "workspaces")} · ${sessions.length} ${tr(sessions.length === 1 ? "session" : "sessions")}`}
         items={[
-          {label: "Fresh sessions", value: fresh},
-          {label: "Needs attention", value: sessions.length - fresh - unavailable},
-          {label: "Unavailable", value: unavailable},
+          {label: tr("Fresh sessions"), value: fresh},
+          {label: tr("Needs attention"), value: sessions.length - fresh - unavailable},
+          {label: tr("Unavailable"), value: unavailable},
         ]}
-        description={sessions.length === 0 ? "No foreground sessions" : "Needs attention includes stale snapshots and unsupported protocols."} />
-      <SummaryCard id="resource-summary-title" title="Resources" href="/resources" total={resources.length} unit="physical resources"
+        description={sessions.length === 0 ? tr("No foreground sessions") : tr("Needs attention includes stale snapshots and unsupported protocols.")} />
+      <SummaryCard id="resource-summary-title" title={tr("Resources")} href="/resources" total={resources.length} unit={tr("physical resources")}
         items={[
-          {label: "Processes", value: resources.filter(r => r.kind === "process").length},
-          {label: "Containers", value: resources.filter(r => r.kind === "container").length},
-          {label: "Shared", value: shared},
-          {label: "Unknown identity", value: resources.filter(r => !r.identity_known).length},
+          {label: tr("Processes"), value: resources.filter(r => r.kind === "process").length},
+          {label: tr("Containers"), value: resources.filter(r => r.kind === "container").length},
+          {label: tr("Shared"), value: shared},
+          {label: tr("Unknown identity"), value: resources.filter(r => !r.identity_known).length},
         ]}
-        description={resources.length === 0 ? "No observed resources" : "Each physical resource is counted once. Shared resources serve multiple nodes."} />
+        description={resources.length === 0 ? tr("No observed resources") : tr("Each physical resource is counted once. Shared resources serve multiple nodes.")} />
     </div>
-    <p className="caption">Observed {new Date(data.collected_at).toLocaleTimeString()}{data.partial ? " · Partial inventory; retained observations may be stale." : ""}</p>
+    <p className="caption">{tr("Observed")}{" "}{new Date(data.collected_at).toLocaleTimeString(language)}{data.partial ? tr(" · Partial inventory; retained observations may be stale.") : ""}</p>
   </section>;
 }
 export function WorkspacesPage() {
+  const {t: tr, language} = usePreferences();
   const {sessions, selected, select, now, planning, requestPlans} = useConsole();
   return <section className="route-page">
     <div className="toolbar">
-      <span>{selected.size} sessions selected</span>
+      <span>{tr("{count} sessions selected", {count: selected.size})}</span>
       <Button
         variant="outline"
         disabled={
@@ -94,7 +97,7 @@ export function WorkspacesPage() {
           )
         }
       >
-        {planning ? "Planning…" : "Review close selected"}
+        {planning ? tr("Planning…") : tr("Review close selected")}
       </Button>
     </div>
     <Workspaces
@@ -106,6 +109,7 @@ export function WorkspacesPage() {
   </section>;
 }
 export function WorkspacePage() {
+  const {t: tr, language} = usePreferences();
   const {current, sessionID, data, sessions, now, status, requestPlans, tab, logTarget, onTabChange, onTargetChange} = useConsole();
   return (
     <section className="route-page">
@@ -124,10 +128,7 @@ export function WorkspacePage() {
           onTargetChange={onTargetChange}
         />
       ) : (
-        <Notice title="This session ended or disappeared">
-          Session {sessionID} is no longer discovered. Select a current
-          session explicitly; old operation outcomes remain in Operations.
-        </Notice>
+        <Notice title={tr("This session ended or disappeared")}>{tr("Session")}{" "}{sessionID}{" "}{tr("is no longer discovered. Select a current session explicitly; old operation outcomes remain in Operations.")}{" "}</Notice>
       )}
     </section>
   );
@@ -142,5 +143,6 @@ export function OperationsPage() {
   return <Operations sessions={sessions} tracked={tracked} onError={setError} />;
 }
 export function NotFoundPage() {
-  return <Notice title="Page not found">This address does not match a console page. <Link to="/">Go to Overview</Link></Notice>;
+  const {t: tr, language} = usePreferences();
+  return <Notice title={tr("Page not found")}>{tr("This address does not match a console page.")}{" "}<Link to="/">{tr("Go to Overview")}</Link></Notice>;
 }

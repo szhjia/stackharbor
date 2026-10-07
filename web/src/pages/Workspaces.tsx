@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { Link } from "react-router";
 import { workspacePath } from "../routes";
 import { useMemo } from "react";
@@ -22,14 +23,15 @@ export function Workspaces({
   onSelect: (id: string, value: boolean) => void;
   now: number;
 }) {
+  const {t: tr, language} = usePreferences();
   const columns = useMemo<ListColumn<Session>[]>(
     () => [
       {
         id: "select",
-        header: "Select",
+        header: tr("Select"),
         cell: ({ row }) => (
           <Checkbox
-            aria-label={`Select ${row.original.root}`}
+            aria-label={tr("Select {name}", {name: row.original.root})}
             disabled={!controllable(row.original, now)}
             checked={selected.has(row.original.identity.session_id)}
             onCheckedChange={(v) =>
@@ -40,7 +42,7 @@ export function Workspaces({
       },
       {
         accessorKey: "root",
-        header: "Workspace",
+        header: tr("Workspace"),
         cell: ({ row }) => (
           <Button variant="link" asChild>
             <Link className="workspace-root" title={row.original.root} to={workspacePath(row.original.identity.session_id)}>{row.original.root}</Link>
@@ -50,19 +52,19 @@ export function Workspaces({
       {
         accessorFn: (s) => s.identity.session_id,
         id: "session",
-        header: "Session",
+        header: tr("Session"),
         cell: sessionInfoCell,
       },
       {accessorKey: "pid", header: "PID", cell: ({row}) => <span className="workspace-pid mono">{row.original.pid}</span>},
       {
         id: "terminal",
-        header: "Terminal",
-        accessorFn: (s) => `${s.terminal ?? "Foreground session"} ${s.tty ?? ""}`,
+        header: tr("Terminal"),
+        accessorFn: (s) => `${s.terminal ?? tr("Foreground session")} ${s.tty ?? ""}`,
         cell: terminalInfoCell,
       },
       {
         id: "state",
-        header: "Connection",
+        header: tr("Connection"),
         cell: ({ row }) => (
           <div className="record">
             <Status
@@ -84,22 +86,22 @@ export function Workspaces({
       },
       {
         id: "nodes",
-        header: "Nodes",
-        accessorFn: (s) => s.snapshot?.nodes.length ?? "Unknown",
+        header: tr("Nodes"),
+        accessorFn: (s) => s.snapshot?.nodes.length ?? tr("Unknown"),
       },
       {
         id: "observed",
-        header: "Last observation",
+        header: tr("Last observation"),
         cell: ({ row }) => (
           <span className="caption">
             {row.original.snapshot
-              ? new Date(row.original.snapshot.observed_at).toLocaleTimeString()
-              : "Unknown"}
+              ? new Date(row.original.snapshot.observed_at).toLocaleTimeString(language)
+              : tr("Unknown")}
           </span>
         ),
       },
     ],
-    [selected, onSelect, now],
+    [selected, onSelect, now, tr, language],
   );
   return (
     <DataList
@@ -107,7 +109,7 @@ export function Workspaces({
       columns={columns}
       label="workspaces"
       layout="workspaces"
-      empty="No foreground sessions"
+      empty={tr("No foreground sessions")}
     />
   );
 }

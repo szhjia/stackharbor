@@ -26,7 +26,7 @@ await page.route('**/api/v1/**',async route=>{
 const results=[];
 for(const width of [1440,900,760,640,390,320]) {
  await page.setViewportSize({width,height:900});
- for(const path of ['/', '/workspaces','/resources','/operations','/workspaces/design-qa','/workspaces/design-qa/tasks','/workspaces/design-qa/resources','/workspaces/design-qa/logs']) {
+ for(const path of ['/', '/workspaces','/resources','/operations','/settings','/workspaces/design-qa','/workspaces/design-qa/tasks','/workspaces/design-qa/resources','/workspaces/design-qa/logs']) {
  await page.goto(baseURL+path); await page.getByRole('button',{name:'Refresh',exact:true}).waitFor();
  await page.locator('.app-content').getByText(/Waiting for the first/).waitFor({state:'hidden'});
  const geometry=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth,content:document.querySelector('.app-content').getBoundingClientRect().width}));
@@ -40,15 +40,33 @@ await page.setViewportSize({width:1440,height:900});
 await page.goto(baseURL);
 await page.locator('.overview-summary').first().waitFor();
 await page.addStyleTag({content:"*, *::before, *::after { transition: none !important; animation: none !important; }"});
+const baseType = await page.evaluate(() => {
+  const size = selector => getComputedStyle(document.querySelector(selector)).fontSize;
+  return {body: size('body'), nav: size('.console-nav [data-slot="navigation-menu-link"]'), caption: size('.caption'), heading: size('.overview-summary h2'), stat: size('.overview-summary-total strong')};
+});
+if (JSON.stringify(baseType) !== JSON.stringify({body:'12px', nav:'12px', caption:'12px', heading:'18px', stat:'24px'})) throw new Error(`Unexpected overview type scale: ${JSON.stringify(baseType)}`);
+await page.goto(baseURL+'/resources');
+await page.locator('.data-list [data-slot="table-cell"]').first().waitFor();
+const tableType = await page.evaluate(() => {
+  const size = selector => getComputedStyle(document.querySelector(selector)).fontSize;
+  return {head: size('.data-list [data-slot="table-head"]'), cell: size('.data-list [data-slot="table-cell"]'), input: size('.filter-field input'), button: size('.connection [data-slot="button"]')};
+});
+if (JSON.stringify(tableType) !== JSON.stringify({head:'12px', cell:'12px', input:'12px', button:'12px'})) throw new Error(`Unexpected data type scale: ${JSON.stringify(tableType)}`);
+await page.goto(baseURL);
+await page.locator('.overview-summary').first().waitFor();
+await page.addStyleTag({content:"*, *::before, *::after { transition: none !important; animation: none !important; }"});
 const tokenChecks = await page.evaluate(() => {
   const root = document.documentElement;
   const css = (selector, property) => { const element=document.querySelector(selector); if(!element) throw new Error(`Missing token check element: ${selector}`); return getComputedStyle(element)[property]; };
   root.style.setProperty('--spacing', '5px');
   const spacing = {panel: css('.overview-summary','paddingLeft'), button: css('.sidebar-toggle','height')};
   root.style.removeProperty('--spacing');
-  root.style.setProperty('--type-caption', '16px');
-  const typography = {caption: css('.caption','fontSize'), button: css('.connection [data-slot="button"]','fontSize')};
-  root.style.removeProperty('--type-caption');
+  root.style.setProperty('--type-sm', '16px');
+  const typography = {caption: css('.caption','fontSize'), badge: css('.connection [data-slot="badge"]','fontSize')};
+  root.style.removeProperty('--type-sm');
+  root.style.setProperty('--type-body', '16px');
+  typography.button = css('.connection [data-slot="button"]','fontSize');
+  root.style.removeProperty('--type-body');
   root.style.setProperty('--primary', 'rgb(128, 40, 150)');
   const color = {link: css('.overview-summary a','color'), marker: css('.observation-summary > div','borderLeftColor')};
   root.style.removeProperty('--primary');
@@ -60,7 +78,7 @@ const tokenChecks = await page.evaluate(() => {
   root.classList.remove('dark');
   return {spacing, typography, color, radius, dark};
 });
-if(tokenChecks.spacing.panel !== '30px' || tokenChecks.spacing.button !== '40px') throw new Error(`Spacing token did not propagate: ${JSON.stringify(tokenChecks)}`);
+if(tokenChecks.spacing.panel !== '25px' || tokenChecks.spacing.button !== '40px') throw new Error(`Spacing token did not propagate: ${JSON.stringify(tokenChecks)}`);
 if(Object.values(tokenChecks.typography).some(value=>value!=='16px')) throw new Error('Typography token did not propagate');
 if(Object.values(tokenChecks.color).some(value=>value!=='rgb(128, 40, 150)')) throw new Error('Color token did not propagate');
 if(tokenChecks.radius !== '14px' || tokenChecks.dark.card === tokenChecks.dark.page) throw new Error('Surface tokens did not propagate');
@@ -89,6 +107,82 @@ for(const width of [1440,390]) {
   await page.getByRole('button',{name:'Expand sidebar'}).waitFor();
   await page.getByRole('button',{name:'Expand sidebar'}).click();
 }
+async function choosePreference(name, option) {
+  await page.getByRole('combobox',{name,exact:true}).click();
+  await page.getByRole('option',{name:option,exact:true}).click();
+}
+// Preferences are presentation-only: exercise navigation, persistence and keyboard controls.
+for (const width of [1440,390,320]) {
+  await page.setViewportSize({width,height:900});
+  await page.goto(baseURL);
+  const settingsLink = page.locator('.sidebar-footer').getByRole('link',{name:'Settings',exact:true});
+  if (width === 1440) {
+    const footer = await page.locator('.sidebar-footer').boundingBox();
+    if (footer.y + footer.height < 898) throw new Error('Settings footer is not at the bottom of the sidebar');
+    await page.getByRole('button',{name:'Collapse sidebar'}).click();
+    await expect(settingsLink).toHaveAttribute('title','Settings');
+  }
+  await settingsLink.click();
+  if (width === 1440) await expect(page.getByRole('combobox',{name:'Appearance',exact:true})).toHaveText('Follow system');
+  await expect(page.locator('html')).toHaveAttribute('data-font-size','sm');
+  await choosePreference('Text size','Medium (13px)');
+  await expect.poll(() => page.locator('body').evaluate(element => getComputedStyle(element).fontSize)).toBe('13px');
+  await choosePreference('Text size','Large (14px)');
+  await expect.poll(() => page.locator('body').evaluate(element => getComputedStyle(element).fontSize)).toBe('14px');
+  await page.goto(baseURL+'/resources');
+  await page.locator('.data-list [data-slot="table-cell"]').first().waitFor();
+  const largeType = await page.evaluate(() => ({
+    cell: getComputedStyle(document.querySelector('.data-list [data-slot="table-cell"]')).fontSize,
+    nav: getComputedStyle(document.querySelector('.console-nav [data-slot="navigation-menu-link"]')).fontSize,
+    body: getComputedStyle(document.body).fontSize,
+    fontSize: document.documentElement.dataset.fontSize,
+    bodyToken: getComputedStyle(document.documentElement).getPropertyValue('--type-body').trim(),
+    scroll: document.documentElement.scrollWidth,
+  }));
+  if (largeType.cell !== '14px' || largeType.nav !== '14px' || largeType.scroll > width) throw new Error(`Large text did not reach resources at ${width}px: ${JSON.stringify(largeType)}`);
+  await page.goto(baseURL+'/settings');
+  await page.reload();
+  await expect(page.getByRole('combobox',{name:'Text size',exact:true})).toHaveText('Large (14px)');
+  await choosePreference('Text size','Small (12px)');
+  await expect.poll(() => page.locator('body').evaluate(element => getComputedStyle(element).fontSize)).toBe('12px');
+  await choosePreference('Interface language','中文');
+  await choosePreference('外观','深色');
+  await expect(page.getByRole('heading',{name:'设置',exact:true,level:1})).toBeVisible();
+  await expect(page.locator('html')).toHaveClass('dark');
+  await expect(page.locator('html')).toHaveAttribute('lang','zh-CN');
+  await page.reload();
+  await expect(page.getByRole('combobox',{name:'界面语言',exact:true})).toHaveText('中文');
+  await expect(page.getByRole('combobox',{name:'外观',exact:true})).toHaveText('深色');
+  await expect(page.getByRole('combobox',{name:'文字大小',exact:true})).toHaveText('小（12px）');
+  const geometry = await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,card:getComputedStyle(document.querySelector('.settings-panel')).backgroundColor,page:getComputedStyle(document.body).backgroundColor}));
+  if(geometry.scroll > width || geometry.card === geometry.page) throw new Error(`Invalid settings layout: ${JSON.stringify(geometry)}`);
+  await page.screenshot({path:`${out}/${width}-settings-zh-dark.png`,fullPage:true,animations:'disabled'});
+  await page.getByRole('combobox',{name:'外观',exact:true}).focus();
+  await page.keyboard.press('Space');
+  await page.getByRole('option',{name:'深色',exact:true}).waitFor();
+  await expect(page.getByRole('option',{name:'深色',exact:true})).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('option',{name:'跟随系统',exact:true})).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('option',{name:'浅色',exact:true})).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).not.toHaveClass('dark');
+  await choosePreference('界面语言','English');
+  await page.emulateMedia({colorScheme:'dark'});
+  await choosePreference('Appearance','Follow system');
+  await expect(page.locator('html')).toHaveClass('dark');
+  await expect.poll(() => page.locator('html').evaluate(element => element.style.colorScheme)).toBe('dark');
+  await page.emulateMedia({colorScheme:'light'});
+  await expect(page.locator('html')).not.toHaveClass('dark');
+  await page.reload();
+  await expect(page.getByRole('combobox',{name:'Appearance',exact:true})).toHaveText('Follow system');
+  await choosePreference('Appearance','Dark');
+  await expect(page.locator('html')).toHaveClass('dark');
+  await choosePreference('Appearance','Light');
+  await expect(page.locator('html')).not.toHaveClass('dark');
+  if(width===1440) await page.getByRole('button',{name:'Expand sidebar'}).click();
+  await page.screenshot({path:`${out}/${width}-settings-en-light.png`,fullPage:true,animations:'disabled'});
+}
 if(errors.length) throw new Error(`Browser errors: ${errors.join('; ')}`);
-await writeFile(out+'/result.json',JSON.stringify({errors,results,tokenChecks,interactions:['hover card','action menu','review dialog','focus return','sidebar toggle']},null,2));
-console.log(JSON.stringify({errors,pages:results.length,tokenChecks,out})); await browser.close();
+await writeFile(out+'/result.json',JSON.stringify({errors,results,baseType,tableType,tokenChecks,interactions:['hover card','action menu','review dialog','focus return','sidebar toggle','settings footer','system appearance changes','language and theme','text size switching','preference persistence','keyboard theme selection']},null,2));
+console.log(JSON.stringify({errors,pages:results.length,baseType,tableType,tokenChecks,out})); await browser.close();

@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { matchRoutes, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ export function useConsole() {
   return useOutletContext<ConsoleContext>();
 }
 export function AppShell() {
+  const {t: tr} = usePreferences();
   const navigate = useNavigate();
   const route = useLocation();
   const matched = matchRoutes(consoleRoutes, route)?.at(-1);
@@ -119,9 +121,9 @@ export function AppShell() {
   }, [page, sessionID]);
   useEffect(() => {
     const workspace = current?.root.split("/").filter(Boolean).at(-1);
-    const section = tab === "services" ? "" : `${tab[0].toUpperCase() + tab.slice(1)} · `;
-    document.title = `${workspace ? section + workspace : page} · StackHarbor`;
-  }, [page, current?.root, tab]);
+    const section = tab === "services" ? "" : `${tr(tab[0].toUpperCase() + tab.slice(1))} · `;
+    document.title = `${workspace ? section + workspace : tr(page)} · StackHarbor`;
+  }, [page, current?.root, tab, tr]);
   useEffect(() => {
     document.getElementById("main")?.scrollIntoView?.({block: "start"});
   }, [route.pathname]);
@@ -205,25 +207,23 @@ export function AppShell() {
     return (
       <main className="auth-page">
         <img src={brandMark} alt="" className="auth-mark" />
-        <h1>StackHarbor</h1>
+        <h1>{tr("StackHarbor")}</h1>
         {auth === "pending" ? (
           <>
-            <p>Connecting to local control…</p>
+            <p>{tr("Connecting to local control…")}</p>
             <Skeleton className="h-8 w-64" />
           </>
         ) : (
-          <Notice title="Local connection unavailable" danger>
-            <p>{authError}</p>
-            <p>
-              Keep <code>stackharbor web</code> running in your terminal.
-            </p>
+          <Notice title={tr("Local connection unavailable")} danger>
+            <p>{tr(authError)}</p>
+            <p>{tr("Keep")}{" "}<code>stackharbor web</code>{" "}{tr("running in your terminal.")}{" "}</p>
             <Button onClick={() => {
               setAuth("pending");
               void api.session().then(() => setAuth("ready")).catch((e) => {
                 setAuthError(actionableError(e));
                 setAuth("expired");
               });
-            }}>Connect again</Button>
+            }}>{tr("Connect again")}</Button>
           </Notice>
         )}
       </main>
@@ -236,46 +236,40 @@ export function AppShell() {
   } : undefined;
   return (
     <div className={sidebarCollapsed ? "console sidebar-collapsed" : "console"}>
-      <a className="skip-link" href="#app-content">Skip to content</a>
+      <a className="skip-link" href="#app-content">{tr("Skip to content")}</a>
       <Sidebar page={page} sessionCount={sessions.length} collapsed={sidebarCollapsed} />
       <main id="main" className="main">
         <AppHeader sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} page={page} sessionID={sessionID} workspace={current?.root.split("/").filter(Boolean).at(-1)} tab={tab} status={status} refreshing={inventory.isFetching} onRefresh={() => void inventory.refetch()} />
         <AppContent>
         {error ? (
-          <Notice title="Request requires attention" danger>
+          <Notice title={tr("Request requires attention")} danger>
             {error}
           </Notice>
         ) : null}
         {results.length ? (
-          <Notice title="Per-session requests">
+          <Notice title={tr("Per-session requests")}>
             {results.map((r, i) => (
               <p key={i}>{r}</p>
             ))}
           </Notice>
         ) : null}
         {data?.collection_error ? (
-          <Notice title="Inventory discovery unavailable">
-            {data.collection_error.message}. Retained records and totals may be
-            incomplete.
-          </Notice>
+          <Notice title={tr("Inventory discovery unavailable")}>
+            {data.collection_error.message}{tr(". Retained records and totals may be incomplete.")}{" "}</Notice>
         ) : data?.partial ? (
-          <Notice title="Partial observation">
-            Some sessions or metrics are unavailable. Retained observations may
-            be stale.
-          </Notice>
+          <Notice title={tr("Partial observation")}>{tr("Some sessions or metrics are unavailable. Retained observations may be stale.")}{" "}</Notice>
         ) : null}
         {inventory.error ? (
-          <Notice title="Inventory unavailable">
-            {actionableError(inventory.error)}. Retrying discovery.
-          </Notice>
+          <Notice title={tr("Inventory unavailable")}>
+            {actionableError(inventory.error)}{tr(". Retrying discovery.")}{" "}</Notice>
         ) : null}
-          {!context ? (
-            <section aria-label="Loading inventory">
+          {page === "Settings" ? <Outlet /> : !context ? (
+            <section aria-label={tr("Loading inventory")}>
               <Skeleton className="h-20 w-full" />
-              <p>Waiting for the first successful inventory refresh…</p>
+              <p>{tr("Waiting for the first successful inventory refresh…")}</p>
             </section>
           ) : <Outlet context={context} />}
-          {planning ? <p role="status">Planning against current session identities…</p> : null}
+          {planning ? <p role="status">{tr("Planning against current session identities…")}</p> : null}
         </AppContent>
         {plans ? <PlanDialog plans={plans} onSubmit={submit} onClose={() => setPlans(undefined)} /> : null}
       </main>

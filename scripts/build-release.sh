@@ -30,3 +30,4 @@ for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
   if [ "$goos" = "$(go env GOOS)" ] && [ "$goarch" = "$(go env GOARCH)" ]; then native=$(mktemp dist/.stackharbor.XXXXXXXX); cp "$stage/stackharbor" "$native"; chmod 755 "$native"; mv -f "$native" dist/stackharbor; fi
 done
 (cd dist; if command -v sha256sum >/dev/null 2>&1; then sha256sum "stackharbor_${version}_"*.tar.gz > SHA256SUMS; else shasum -a 256 "stackharbor_${version}_"*.tar.gz > SHA256SUMS; fi)
+node scripts/clean-dist.mjs release "$version"

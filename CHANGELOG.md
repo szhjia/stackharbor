@@ -6,6 +6,28 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-07
+
+### Added
+
+- Console settings for English or Chinese, three text sizes (12px, 13px and
+  14px), and light, dark or system-following appearance. Browser preferences
+  persist across reloads; compact 12px text is the default.
+- `make clean` for generated root `dist/` output.
+
+### Changed
+
+- Consolidated everyday console typography into three sizes and tightened
+  navigation, table rows and page spacing to show more data.
+- Successful builds keep only the newest rollback binary in `dist/`.
+  Successful releases remove archives from other versions after packaging.
+
+### Upgrade notes
+
+- Existing registrations and session protocols remain compatible. Replace and
+  restart the installed binary to use the new console; preferences are stored
+  locally in each browser. The bundled skill remains at version 0.4.0.
+
 ## [0.5.0] - 2026-10-07
 
 ### Added
@@ -218,7 +240,9 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/szhjia/stackharbor/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/szhjia/stackharbor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/szhjia/stackharbor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/szhjia/stackharbor/compare/v0.2.0...v0.3.0
 [2.0.1]: https://github.com/szhjia/stackharbor/commit/4b690f938c3cf4aab52f9cd6e7bce562d50dae90

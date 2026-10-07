@@ -1,3 +1,4 @@
+import { usePreferences } from "../lib/preferences";
 import { useMemo, useState } from "react";
 import {
   useTable,
@@ -45,6 +46,7 @@ export function DataList<T extends RowData>({
   empty?: string;
   emptyDescription?: string;
 }) {
+  const {t: tr} = usePreferences();
   const [filter, setFilter] = useState("");
   const cols = useMemo(() => columns, [columns]);
   const table = useTable({
@@ -58,12 +60,12 @@ export function DataList<T extends RowData>({
   return (
     <Panel radius="compact" className="data-list" data-layout={layout}>
       <Field className="filter-field">
-        <FieldLabel htmlFor={`filter-${label}`}>Filter {label}</FieldLabel>
+        <FieldLabel htmlFor={`filter-${label}`}>{tr("Filter {label}", {label: tr(label)})}</FieldLabel>
         <Input
           id={`filter-${label}`}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder={`Find ${label}…`}
+          placeholder={tr("Find {label}…", {label: tr(label)})}
         />
       </Field>
       <Table>
@@ -100,11 +102,11 @@ export function DataList<T extends RowData>({
       {table.getRowModel().rows.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{filter ? "No matching records" : empty}</EmptyTitle>
+            <EmptyTitle>{filter ? tr("No matching records") : tr(empty)}</EmptyTitle>
             <EmptyDescription>
               {filter
-                ? "Try another filter."
-                : emptyDescription}
+                ? tr("Try another filter.")
+                : tr(emptyDescription)}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

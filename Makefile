@@ -1,10 +1,11 @@
-.PHONY: web-build build run demo install check release
+.PHONY: web-build build run demo install check release clean
 
 web-build:
 	sh scripts/web-build.sh
 
 build: web-build
 	go build -trimpath -o dist/stackharbor ./cmd/stackharbor
+	node scripts/clean-dist.mjs prune
 
 run: build
 	./dist/stackharbor $(ARGS)
@@ -20,3 +21,6 @@ check:
 
 release:
 	sh scripts/build-release.sh $(VERSION)
+
+clean:
+	node scripts/clean-dist.mjs all

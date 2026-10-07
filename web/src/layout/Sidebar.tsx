@@ -1,5 +1,6 @@
+import { usePreferences } from "../lib/preferences";
 import { Link } from "react-router";
-import { Layers, Network, Activity, LayoutDashboard } from "lucide-react";
+import { Layers, Network, Activity, LayoutDashboard, Settings } from "lucide-react";
 import brandMark from "../assets/stackharbor-mark.png";
 import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink } from "../components/ui/navigation-menu";
 const navigation = [
@@ -9,13 +10,13 @@ const navigation = [
   {name: "Operations", path: "/operations", icon: Activity},
 ];
 export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionCount: number; collapsed: boolean}) {
+  const {t: tr} = usePreferences();
   return (
       <aside id="app-sidebar" className="sidebar">
         <header className="sidebar-header">
-        <Link to="/" className="brand" aria-label="StackHarbor home" title={collapsed ? "StackHarbor" : undefined}>
+        <Link to="/" className="brand" aria-label={tr("StackHarbor home")} title={collapsed ? "StackHarbor" : undefined}>
           <img src={brandMark} alt="" />
-          <span>
-            StackHarbor<small>LOCAL CONTROL</small>
+          <span>{tr("StackHarbor")}<small>{tr("LOCAL CONTROL")}</small>
           </span>
         </Link>
         </header>
@@ -26,12 +27,12 @@ export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionC
                 <NavigationMenuLink asChild>
                   <Link
                     to={item.path}
-                    aria-label={item.name}
-                    title={collapsed ? item.name : undefined}
+                    aria-label={tr(item.name)}
+                    title={collapsed ? tr(item.name) : undefined}
                     aria-current={page === item.name ? "page" : undefined}
                   >
                     <item.icon />
-                    <span>{item.name}</span>
+                    <span>{tr(item.name)}</span>
                     {item.name === "Workspaces" ? (
                       <small>{sessionCount}</small>
                     ) : null}
@@ -41,6 +42,15 @@ export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionC
             ))}
           </NavigationMenuList>
         </NavigationMenu>
+        <footer className="sidebar-footer">
+          <NavigationMenu viewport={false} className="console-nav" aria-label={tr("Settings")}>
+            <NavigationMenuList><NavigationMenuItem><NavigationMenuLink asChild>
+              <Link to="/settings" aria-label={tr("Settings")} title={collapsed ? tr("Settings") : undefined} aria-current={page === "Settings" ? "page" : undefined}>
+                <Settings /><span>{tr("Settings")}</span>
+              </Link>
+            </NavigationMenuLink></NavigationMenuItem></NavigationMenuList>
+          </NavigationMenu>
+        </footer>
       </aside>
   );
 }

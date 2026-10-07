@@ -192,11 +192,14 @@ make run ARGS="--root /path/to/workspace"
 | Command | Purpose |
 | --- | --- |
 | `make build` | Build `dist/stackharbor` |
+| `make clean` | Remove the generated root `dist/` directory |
 | `make run ARGS="--root /path/to/workspace"` | Build and open your workspace |
 | `make demo` | Build and open the portable demo |
 | `make install` | Build and install to `~/.local/bin` |
 | `make check` | Frontend types/tests/build, Go formatting/vet/tests/race and examples |
 | `make release VERSION=0.2.0` | Package all four platform targets and version-specific release notes |
+
+Successful builds keep only the newest `dist/stackharbor.previous-*` rollback copy. Successful releases also remove archives from other versions after all four new archives and checksums are present. `make clean` removes everything in the root `dist/`; it does not affect the installed command or the frontend bundle under `internal/web/dist/`.
 
 Without Make: `sh scripts/web-build.sh`, then `go build -o dist/stackharbor ./cmd/stackharbor`. Supported delivery paths rebuild and validate the embedded frontend; raw Go builds do not prove bundle freshness.
 
