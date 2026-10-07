@@ -6,6 +6,26 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-07
+
+### Fixed
+
+- `plan` and `task run` accept global options before positional subcommands.
+- Environment file loading stops after the configured 1 MiB limit instead of
+  reading an entire oversized file into memory.
+- Session logs and history redact short secrets, API keys, overlapping secret
+  values, and passwords printed separately from their connection URLs.
+
+### Added
+
+- Repository-local Go development skills for layout, CLI, testing, concurrency,
+  and security reviews.
+
+### Upgrade notes
+
+- Existing registrations and session protocols remain compatible. Restart
+  running StackHarbor processes to use the updated binary.
+
 ## [0.6.0] - 2026-10-07
 
 ### Added
@@ -240,7 +260,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/szhjia/stackharbor/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/szhjia/stackharbor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/szhjia/stackharbor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/szhjia/stackharbor/compare/v0.3.0...v0.4.0
