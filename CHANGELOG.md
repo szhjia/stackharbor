@@ -6,6 +6,38 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
+### Added
+
+- Bookmarkable console routes for Overview, Workspaces, Resources, Operations
+  and workspace tabs, with browser Back/Forward and persistent log targets.
+- Shared design tokens and reusable cards, metric lists, entity details,
+  responsive tables and console layout, with design-system maintenance guidance.
+- StackHarbor brand assets and favicon in the embedded browser console.
+
+### Changed
+
+- Local browsers open the ordinary gateway URL without a one-use launch link.
+  Request-protection sessions and CSRF tokens are established and renewed
+  automatically; uncertain operation submissions are never automatically retried.
+- Workspace and resource tables use compact rows with expandable ownership and
+  shared detail popovers. Node actions use menus and retain plan confirmation.
+
+### Fixed
+
+- Closing a node action review restores focus to its initiating action button,
+  including when the action menu closes while the review opens.
+
+### Upgrade notes
+
+- Exact Host/Origin checks, cross-site Fetch Metadata rejection and CSRF checks
+  remain enforced. The local control gateway is accessible to other local users
+  and programs; it does not provide an OS-user authentication boundary.
+- Existing YAML registrations and session protocols remain supported. Replace
+  the binary to use the new console; running processes retain their loaded
+  version until restarted. The bundled skill remains at version 0.4.0.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added
