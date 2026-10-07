@@ -3,12 +3,28 @@ package config
 import (
 	"fmt"
 	"github.com/szhjia/stackharbor/internal/model"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
+
+const maxEnvFileBytes = 1 << 20
+
+func readEnvData(r io.Reader) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(r, maxEnvFileBytes+1))
+}
+
+func readEnvFile(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return readEnvData(f)
+}
 
 func validateV2(path, root string, f projectFile) (model.Project, []model.Diagnostic) {
 	p := model.Project{ID: f.Project.ID, Name: f.Project.Name, SourceFile: path}
@@ -32,8 +48,8 @@ func validateV2(path, root string, f projectFile) (model.Project, []model.Diagno
 			bad("context.env_files", "missing file or path outside root")
 			continue
 		}
-		b, e := os.ReadFile(real)
-		if e != nil || len(b) > 1048576 {
+		b, e := readEnvFile(real)
+		if e != nil || len(b) > maxEnvFileBytes {
 			bad("context.env_files", "cannot read bounded env file")
 			continue
 		}

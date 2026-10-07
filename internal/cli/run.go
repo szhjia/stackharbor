@@ -17,7 +17,6 @@ import (
 	"github.com/szhjia/stackharbor/internal/tui"
 	"io"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -56,6 +55,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	if controlCommand(commandName) {
 		return runControl(ctx, commandName, controlArgs, in, out, errOut)
 	}
+	args = controlArgs
 	fs := flag.NewFlagSet("stackharbor", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	root := fs.String("root", "", "root")
@@ -69,41 +69,25 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	write := fs.Bool("write", false, "write")
 	target := fs.String("target", "", "node target")
 	planAction := "start"
-	if len(args) >= 3 && args[0] == "task" && args[1] == "run" && !strings.HasPrefix(args[2], "-") {
-		args = append([]string{"task", "--target", args[2]}, args[3:]...)
-	} else if len(args) > 0 && args[0] == "task" {
-		fmt.Fprintln(errOut, "Usage: stackharbor task run <task-id> [--root/--workspace]")
-		return 2
+	if commandName == "task" {
+		action, remaining := extractCommand(args)
+		id, rest := extractCommand(remaining)
+		if len(remaining) == len(args) || action != "run" || len(rest) == len(remaining) {
+			fmt.Fprintln(errOut, "Usage: stackharbor task run <task-id> [--root/--workspace]")
+			return 2
+		}
+		args = append(rest, "--target", id)
 	}
-	if len(args) > 0 && args[0] == "plan" {
-		if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
-			planAction = args[1]
-			args = append([]string{args[0]}, args[2:]...)
+	if commandName == "plan" {
+		action, remaining := extractCommand(args)
+		if len(remaining) != len(args) {
+			planAction = action
+			args = remaining
 		}
 	}
 	project := fs.String("project", "", "project")
-	command := "run"
-	filtered := []string{}
-	valueFlag, foundCommand := false, false
-	for _, a := range args {
-		if valueFlag {
-			filtered = append(filtered, a)
-			valueFlag = false
-			continue
-		}
-		if a == "--focus" || a == "-focus" || a == "--target" || a == "--root" || a == "--workspace" || a == "--project" || a == "-root" || a == "-workspace" || a == "-project" {
-			filtered = append(filtered, a)
-			valueFlag = true
-			continue
-		}
-		if !strings.HasPrefix(a, "-") && !foundCommand {
-			command = a
-			foundCommand = true
-			continue
-		}
-		filtered = append(filtered, a)
-	}
-	if e := fs.Parse(filtered); e != nil {
+	command := commandName
+	if e := fs.Parse(args); e != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {

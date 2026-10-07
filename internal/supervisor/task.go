@@ -15,6 +15,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/observe"
 	"github.com/szhjia/stackharbor/internal/process"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -39,19 +40,63 @@ func (s *Session) phase(id model.ServiceID, gen uint64, state, reason string) {
 	}
 }
 func Redact(spec model.Service, line string) string {
+	values := []string{}
 	for k, v := range spec.Env {
-		if len(v) < 6 {
+		if v == "" {
 			continue
 		}
 		upper := strings.ToUpper(k)
-		if strings.Contains(upper, "SECRET") || strings.Contains(upper, "PASSWORD") || strings.Contains(upper, "TOKEN") {
-			line = strings.ReplaceAll(line, v, "[redacted]")
+		if strings.Contains(upper, "SECRET") || strings.Contains(upper, "PASSWORD") || strings.Contains(upper, "TOKEN") || strings.HasSuffix(upper, "_KEY") || strings.HasSuffix(upper, "_PASS") {
+			values = append(values, v)
 		}
 		if u, e := url.Parse(v); e == nil && u.User != nil {
-			line = strings.ReplaceAll(line, u.User.String(), "[redacted]")
+			if userinfo := u.User.String(); userinfo != "" {
+				values = append(values, userinfo)
+			}
+			if password, ok := u.User.Password(); ok && password != "" {
+				values = append(values, password)
+			}
 		}
 	}
-	return line
+	type span struct{ start, end int }
+	var spans []span
+	for _, value := range values {
+		for offset := 0; offset < len(line); {
+			index := strings.Index(line[offset:], value)
+			if index < 0 {
+				break
+			}
+			start := offset + index
+			spans = append(spans, span{start, start + len(value)})
+			offset = start + 1
+		}
+	}
+	if len(spans) == 0 {
+		return line
+	}
+	sort.Slice(spans, func(i, j int) bool {
+		if spans[i].start == spans[j].start {
+			return spans[i].end > spans[j].end
+		}
+		return spans[i].start < spans[j].start
+	})
+	merged := spans[:0]
+	for _, next := range spans {
+		if len(merged) == 0 || next.start > merged[len(merged)-1].end {
+			merged = append(merged, next)
+		} else if next.end > merged[len(merged)-1].end {
+			merged[len(merged)-1].end = next.end
+		}
+	}
+	var output strings.Builder
+	previous := 0
+	for _, match := range merged {
+		output.WriteString(line[previous:match.start])
+		output.WriteString("[redacted]")
+		previous = match.end
+	}
+	output.WriteString(line[previous:])
+	return output.String()
 }
 func (s *Session) taskCommand(ctx context.Context, id model.ServiceID, gen uint64, spec model.Service, args []string, phase string) (int, string, error) {
 	if e := s.checkInputs(); e != nil {

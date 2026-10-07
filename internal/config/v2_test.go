@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,5 +39,27 @@ services:
 	}
 	if !found {
 		t.Fatal("typed task identity absent", p)
+	}
+}
+
+type countingReader struct {
+	io.Reader
+	read int
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	r.read += n
+	return n, err
+}
+
+func TestEnvDataReadIsBounded(t *testing.T) {
+	reader := &countingReader{Reader: bytes.NewReader(bytes.Repeat([]byte{'x'}, 2<<20))}
+	data, err := readEnvData(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != 1<<20+1 || reader.read != 1<<20+1 {
+		t.Fatalf("read %d bytes, returned %d; expected limit plus one", reader.read, len(data))
 	}
 }

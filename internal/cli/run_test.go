@@ -37,6 +37,32 @@ func TestCLIAllCommandsFlagsAndExitCodes(t *testing.T) {
 		t.Fatal("invalid configuration accepted")
 	}
 }
+
+func TestPositionalSubcommandsAfterGlobalFlags(t *testing.T) {
+	root := t.TempDir()
+	for _, tc := range []struct {
+		name     string
+		args     []string
+		code     int
+		contains string
+		stderr   bool
+	}{
+		{"plan action", []string{"--root", root, "plan", "stop"}, 0, `"action": "stop"`, false},
+		{"task run", []string{"--root", root, "task", "run", "missing"}, 2, "Target is not a registered task", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, errs bytes.Buffer
+			code := Run(context.Background(), tc.args, strings.NewReader(""), &out, &errs)
+			got := out.String()
+			if tc.stderr {
+				got = errs.String()
+			}
+			if code != tc.code || !strings.Contains(got, tc.contains) {
+				t.Fatalf("%v: code=%d, stdout=%q, stderr=%q", tc.args, code, out.String(), errs.String())
+			}
+		})
+	}
+}
 func TestInitNeverOverwritesSymlinkOrCollision(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "stackharbor.yaml")

@@ -6,10 +6,59 @@ import (
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/observe"
 	"github.com/szhjia/stackharbor/internal/runner"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestRedactSensitiveEnvironmentValues(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, value string
+	}{
+		{"short password", "DB_PASSWORD", "abc"},
+		{"API key", "SERVICE_API_KEY", "key-1234"},
+		{"short pass alias", "DB_PASS", "pw"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Redact(model.Service{Env: map[string]string{tc.key: tc.value}}, "credential="+tc.value)
+			if strings.Contains(got, tc.value) {
+				t.Fatalf("sensitive environment value leaked: %q", got)
+			}
+		})
+	}
+}
+
+func TestRedactOverlappingSecrets(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		line string
+	}{
+		{"prefix", map[string]string{"SHORT_TOKEN": "secret", "LONG_TOKEN": "secret-suffix"}, "credential=secret-suffix"},
+		{"offset", map[string]string{"FIRST_TOKEN": "abc", "SECOND_TOKEN": "bcd"}, "credential=abcd"},
+		{"marker", map[string]string{"SHORT_TOKEN": "red", "LONG_TOKEN": "secret"}, "value=secret"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for range 100 {
+				want := "credential=[redacted]"
+				if tc.name == "marker" {
+					want = "value=[redacted]"
+				}
+				if got := Redact(model.Service{Env: tc.env}, tc.line); got != want {
+					t.Fatalf("partial secret leaked or marker corrupted: %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestRedactURLPasswordOutsideURL(t *testing.T) {
+	spec := model.Service{Env: map[string]string{"DATABASE_URL": "postgres://alice:pw123@localhost/db"}}
+	if got := Redact(spec, "password=pw123"); got != "password=[redacted]" {
+		t.Fatalf("URL password leaked outside URL: %q", got)
+	}
+}
 
 type phaseRunner struct {
 	mu                    sync.Mutex
