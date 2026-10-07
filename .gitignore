@@ -8,6 +8,7 @@ dist/
 !.env.example
 .v2c/
 .video_agent/
+.playwright-mcp/
 _runtime_verification/
 docs/verification/
 docs/superpowers/
