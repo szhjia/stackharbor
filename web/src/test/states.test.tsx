@@ -217,7 +217,7 @@ it("bulk requests retain independent outcomes and never call partial success ove
     };
   });
   app();
-  await screen.findByRole("region", {name: "Workspaces"});
+  await screen.findByRole("region", {name: "Session health"});
   fireEvent.click(screen.getByRole("link", { name: /^Workspaces$/ }));
   await screen.findByText("/owned/fixture");
   fireEvent.click(

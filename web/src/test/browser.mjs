@@ -18,7 +18,7 @@ page.on("pageerror", (e) => {
   console.log("PAGE ERROR " + e.message);
 });
 await page.goto(url);
-await page.getByRole("heading", { name: "Overview", exact: true }).waitFor();
+await page.getByRole("heading", { name: "Workbench", exact: true }).waitFor();
 await page
   .getByText(/harbor-cafe/)
   .first()
@@ -66,7 +66,7 @@ await page.screenshot({
   fullPage: true,
 });
 await page.reload();
-await page.getByRole("heading", { name: "Overview", exact: true }).waitFor();
+await page.getByRole("heading", { name: "Workbench", exact: true }).waitFor();
 console.log("cookie reload " + new URL(page.url()).hash);
 await page.getByText("Live", { exact: true }).first().waitFor();
 await writeFile("/private/tmp/stackharbor-browser-task9/disconnect", "");

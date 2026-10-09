@@ -4,9 +4,9 @@ export function workspacePath(sessionID: string, tab = "services", target = "") 
 }
 
 export const consoleRoutes = [
-  {path: "/", handle: {page: "Overview", tab: "services"}},
+  {path: "/", handle: {page: "Workbench", tab: "services"}},
   {path: "/workspaces", handle: {page: "Workspaces", tab: "services"}},
-  {path: "/resources", handle: {page: "Resources", tab: "services"}},
+  {path: "/resources", handle: {page: "Runtime resources", tab: "services"}},
   {path: "/settings", handle: {page: "Settings", tab: "services"}},
   {path: "/operations", handle: {page: "Operations", tab: "services"}},
   {path: "/workspaces/:sessionID", handle: {page: "Workspaces", tab: "services"}},

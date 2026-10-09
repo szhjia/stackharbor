@@ -183,6 +183,7 @@
   --tracking-label: 0.04em;
   --tracking-stat: -.03em;
   --auth-mark: 48px;
+  --workbench-chart-height: 200px;
   /* Shell, content, table and overlay dimensions. */
   --viewport-min-width: 320px;
   --sidebar-expanded-width: 224px;
@@ -245,6 +246,7 @@
 }
 
 .dark {
+  --caution: oklch(0.78 0.13 80);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

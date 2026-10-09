@@ -38,13 +38,13 @@ for(const width of [1440,900,760,640,390,320]) {
 // Verify that changing a single token updates both utility and application CSS.
 await page.setViewportSize({width:1440,height:900});
 await page.goto(baseURL);
-await page.locator('.overview-summary').first().waitFor();
+await page.locator('.workbench [data-slot="card-content"]').first().waitFor();
 await page.addStyleTag({content:"*, *::before, *::after { transition: none !important; animation: none !important; }"});
 const baseType = await page.evaluate(() => {
   const size = selector => getComputedStyle(document.querySelector(selector)).fontSize;
-  return {body: size('body'), nav: size('.console-nav [data-slot="navigation-menu-link"]'), caption: size('.caption'), heading: size('.overview-summary h2'), stat: size('.overview-summary-total strong')};
+  return {body: size('body'), nav: size('.console-nav [data-slot="navigation-menu-link"]'), caption: size('.caption'), heading: size('.workbench-charts h2'), stat: size('.workbench-stat')};
 });
-if (JSON.stringify(baseType) !== JSON.stringify({body:'12px', nav:'12px', caption:'12px', heading:'18px', stat:'24px'})) throw new Error(`Unexpected overview type scale: ${JSON.stringify(baseType)}`);
+if (JSON.stringify(baseType) !== JSON.stringify({body:'12px', nav:'12px', caption:'12px', heading:'18px', stat:'24px'})) throw new Error(`Unexpected workbench type scale: ${JSON.stringify(baseType)}`);
 await page.goto(baseURL+'/resources');
 await page.locator('.data-list [data-slot="table-cell"]').first().waitFor();
 const tableType = await page.evaluate(() => {
@@ -53,13 +53,13 @@ const tableType = await page.evaluate(() => {
 });
 if (JSON.stringify(tableType) !== JSON.stringify({head:'12px', cell:'12px', input:'12px', button:'12px'})) throw new Error(`Unexpected data type scale: ${JSON.stringify(tableType)}`);
 await page.goto(baseURL);
-await page.locator('.overview-summary').first().waitFor();
+await page.locator('.workbench [data-slot="card-content"]').first().waitFor();
 await page.addStyleTag({content:"*, *::before, *::after { transition: none !important; animation: none !important; }"});
 const tokenChecks = await page.evaluate(() => {
   const root = document.documentElement;
   const css = (selector, property) => { const element=document.querySelector(selector); if(!element) throw new Error(`Missing token check element: ${selector}`); return getComputedStyle(element)[property]; };
   root.style.setProperty('--spacing', '5px');
-  const spacing = {panel: css('.overview-summary','paddingLeft'), button: css('.sidebar-toggle','height')};
+  const spacing = {panel: css('.workbench [data-slot="card-content"]','paddingLeft'), button: css('.sidebar-toggle','height')};
   root.style.removeProperty('--spacing');
   root.style.setProperty('--type-sm', '16px');
   const typography = {caption: css('.caption','fontSize'), badge: css('.connection [data-slot="badge"]','fontSize')};
@@ -68,17 +68,17 @@ const tokenChecks = await page.evaluate(() => {
   typography.button = css('.connection [data-slot="button"]','fontSize');
   root.style.removeProperty('--type-body');
   root.style.setProperty('--primary', 'rgb(128, 40, 150)');
-  const color = {link: css('.overview-summary a','color'), marker: css('.observation-summary > div','borderLeftColor')};
+  const color = {link: css('.workbench-link','color'), marker: css('.recharts-bar-rectangle path','fill')};
   root.style.removeProperty('--primary');
-  root.style.setProperty('--radius-panel', '14px');
-  const radius = css('.panel','borderTopLeftRadius');
-  root.style.removeProperty('--radius-panel');
+  root.style.setProperty('--radius', '10px');
+  const radius = css('.workbench [data-slot=card]','borderTopLeftRadius');
+  root.style.removeProperty('--radius');
   root.classList.add('dark');
-  const dark = {card: css('.panel','backgroundColor'), page: css('body','backgroundColor')};
+  const dark = {card: css('.workbench [data-slot=card]','backgroundColor'), page: css('body','backgroundColor')};
   root.classList.remove('dark');
   return {spacing, typography, color, radius, dark};
 });
-if(tokenChecks.spacing.panel !== '25px' || tokenChecks.spacing.button !== '40px') throw new Error(`Spacing token did not propagate: ${JSON.stringify(tokenChecks)}`);
+if(tokenChecks.spacing.panel !== '15px' || tokenChecks.spacing.button !== '40px') throw new Error(`Spacing token did not propagate: ${JSON.stringify(tokenChecks)}`);
 if(Object.values(tokenChecks.typography).some(value=>value!=='16px')) throw new Error('Typography token did not propagate');
 if(Object.values(tokenChecks.color).some(value=>value!=='rgb(128, 40, 150)')) throw new Error('Color token did not propagate');
 if(tokenChecks.radius !== '14px' || tokenChecks.dark.card === tokenChecks.dark.page) throw new Error('Surface tokens did not propagate');

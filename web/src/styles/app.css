@@ -1162,3 +1162,42 @@ select:focus-visible {
   .settings-row { flex-direction: column; align-items: stretch; gap: var(--space-4); padding: var(--space-5); }
   .settings-select { width: 100%; }
 }
+
+.workbench-intro { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.workbench-intro h2 { font-size: var(--type-page); letter-spacing: var(--tracking-heading); margin: 0 0 var(--space-2); }
+.workbench-intro p { color: var(--muted-foreground); margin: 0; }
+.workbench-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+.workbench-stat { display: block; font-family: var(--font-mono); font-size: var(--type-stat); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; margin-bottom: var(--space-2); overflow-wrap: anywhere; }
+.workbench [data-slot="card-action"] > svg { width: var(--space-4); height: var(--space-4); color: var(--muted-foreground); }
+.workbench h2 { text-wrap: balance; }
+.workbench-charts { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--space-4); }
+.workbench [data-slot="card"] { min-width: 0; }
+.workbench [data-slot="card-content"] { flex: 1; min-width: 0; }
+.workbench-bar-chart { height: var(--workbench-chart-height); width: 100%; aspect-ratio: auto; }
+.workbench-health { position: relative; }
+.workbench-donut { height: var(--workbench-chart-height); width: 100%; aspect-ratio: auto; }
+.workbench-health-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.workbench-health-center strong { font-family: var(--font-mono); font-size: var(--type-stat); font-variant-numeric: tabular-nums; }
+.workbench-health-center span { color: var(--muted-foreground); }
+.workbench-health-legend { display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 0; }
+.workbench-health-legend > div { display: flex; justify-content: space-between; gap: var(--space-4); }
+.workbench-health-legend dt { display: flex; align-items: center; gap: var(--space-2); }
+.workbench-health-legend dt span { width: var(--space-2); height: var(--space-2); border-radius: var(--control-radius-xs); }
+.workbench-health-legend dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin: 0; }
+.workbench-link { display: inline-flex; align-items: center; justify-content: space-between; width: 100%; gap: var(--space-2); color: var(--primary); }
+.workbench-link svg, .workbench-attention svg { width: var(--space-4); height: var(--space-4); flex-shrink: 0; }
+.workbench-link:hover { text-decoration: underline; }
+.workbench-ranking, .workbench-attention { list-style: none; padding: 0; margin: 0; }
+.workbench-ranking li { display: grid; grid-template-columns: var(--space-4) minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: var(--space-2) 0; border-bottom: var(--border-width) solid var(--border); }
+.workbench-ranking li:last-child { border-bottom: 0; }
+.workbench-ranking small { display: block; overflow-wrap: anywhere; }
+.workbench-resource-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workbench-attention li + li { border-top: var(--border-width) solid var(--border); }
+.workbench-attention a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-sm); }
+.workbench-attention a:hover { background: var(--muted); }
+.workbench-attention a > span:first-child { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.workbench-attention small { display: block; }
+.workbench [data-slot="chart"] .recharts-surface:focus-visible { outline: var(--border-width-emphasis) solid var(--ring); outline-offset: var(--space-1); }
+@variant compact { .workbench-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@variant summary-stack { .workbench-charts { grid-template-columns: minmax(0, 1fr); } }
+@variant mobile { .workbench-intro { align-items: flex-start; flex-direction: column; } .workbench-attention a { flex-wrap: wrap; } }

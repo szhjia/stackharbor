@@ -4,9 +4,9 @@ import { Layers, Network, Activity, LayoutDashboard, Settings } from "lucide-rea
 import brandMark from "../assets/stackharbor-mark.png";
 import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink } from "../components/ui/navigation-menu";
 const navigation = [
-  {name: "Overview", path: "/", icon: LayoutDashboard},
+  {name: "Workbench", path: "/", icon: LayoutDashboard},
   {name: "Workspaces", path: "/workspaces", icon: Layers},
-  {name: "Resources", path: "/resources", icon: Network},
+  {name: "Runtime resources", path: "/resources", icon: Network},
   {name: "Operations", path: "/operations", icon: Activity},
 ];
 export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionCount: number; collapsed: boolean}) {
@@ -34,7 +34,7 @@ export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionC
                     <item.icon />
                     <span>{tr(item.name)}</span>
                     {item.name === "Workspaces" ? (
-                      <small>{sessionCount}</small>
+                      <small>{tr(sessionCount === 1 ? "{count} session" : "{count} sessions", {count: sessionCount})}</small>
                     ) : null}
                   </Link>
                 </NavigationMenuLink>

@@ -31,9 +31,9 @@ it("sidebar toggle preserves navigation and remembers the layout after remount",
   await userEvent.click(collapse);
   expect(screen.getByRole("button", {name: "Expand sidebar"})).toHaveAttribute("aria-expanded", "false");
   expect(document.querySelector(".console")).toHaveClass("sidebar-collapsed");
-  await userEvent.click(screen.getByRole("link", {name: "Resources"}));
-  expect(await screen.findByRole("heading", {name: "Resources"})).toBeVisible();
-  expect(screen.getByRole("link", {name: "Resources"})).toHaveAttribute("title", "Resources");
+  await userEvent.click(screen.getByRole("link", {name: "Runtime resources"}));
+  expect(await screen.findByRole("heading", {name: "Runtime resources"})).toBeVisible();
+  expect(screen.getByRole("link", {name: "Runtime resources"})).toHaveAttribute("title", "Runtime resources");
   expect(screen.getByRole("button", {name: "Expand sidebar"})).toBeVisible();
   view.unmount();
   mount("/resources");
@@ -57,20 +57,22 @@ it("overview summarizes unique workspaces, session health and shared resources w
     totals: {processes: total, containers: total}, partial: true, collected_at: new Date().toISOString(), event_cursor: "event:1",
   });
   mount("/");
-  const workspaces = await screen.findByRole("region", {name: "Workspaces"});
-  expect(within(workspaces).getByText("workspaces · 3 sessions").previousElementSibling).toHaveTextContent("2");
-  expect([...workspaces.querySelectorAll("dd")].map((e) => e.textContent)).toEqual(["1", "1", "1"]);
-  const resources = screen.getByRole("region", {name: "Resources"});
-  expect([...resources.querySelectorAll("dd")].map((e) => e.textContent)).toEqual(["1", "1", "1", "1"]);
-  expect(within(workspaces).getByRole("link", {name: "View all →"})).toHaveAttribute("href", "/workspaces");
-  expect(within(resources).getByRole("link", {name: "View all →"})).toHaveAttribute("href", "/resources");
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(await screen.findByRole("heading", {name: "Workbench", level: 1})).toBeVisible();
+  const health = await screen.findByRole("region", {name: "Session health"});
+  expect([...health.querySelectorAll("dd")].map(e => e.textContent)).toEqual(["1", "1", "1"]);
+  const attention = screen.getByRole("region", {name: "Needs your attention"});
+  expect(within(attention).getAllByRole("link").map(e => e.getAttribute("href"))).toEqual(["/workspaces/stale", "/workspaces/offline", "/workspaces"]);
+  expect(screen.getByText("No memory samples yet")).toBeVisible();
+  expect(screen.queryByText("Shared resources")).not.toBeInTheDocument();
+  expect(screen.queryByText("Unknown identity")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("link", {name: "Operations"})).toHaveLength(1);
+  expect(screen.getByText("Partial observation")).toBeVisible();
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
 it("direct menu URLs render their page and expose native navigation links", async () => {
   mount("/resources");
-  expect(await screen.findByRole("heading", {name: "Resources"})).toBeVisible();
-  expect(screen.getByRole("link", {name: "Resources"})).toHaveAttribute("aria-current", "page");
+  expect(await screen.findByRole("heading", {name: "Runtime resources"})).toBeVisible();
+  expect(screen.getByRole("link", {name: "Runtime resources"})).toHaveAttribute("aria-current", "page");
   fireEvent.click(screen.getByRole("link", {name: "Workspaces"}));
   expect(location.pathname).toBe("/workspaces");
   expect(await screen.findByRole("heading", {name: "Workspaces"})).toBeVisible();
@@ -95,11 +97,11 @@ it("workspace tabs and log target survive remount from a deep URL", async () => 
 it("browser back and forward restore the matching menu", async () => {
   mount("/");
   fireEvent.click(await screen.findByRole("link", {name: "Workspaces"}));
-  fireEvent.click(screen.getByRole("link", {name: "Resources"}));
+  fireEvent.click(screen.getByRole("link", {name: "Runtime resources"}));
   history.back();
   await waitFor(() => expect(screen.getByRole("heading", {name: "Workspaces"})).toBeVisible());
   history.forward();
-  await waitFor(() => expect(screen.getByRole("heading", {name: "Resources"})).toBeVisible());
+  await waitFor(() => expect(screen.getByRole("heading", {name: "Runtime resources"})).toBeVisible());
 });
 it("unknown routes and ended sessions never silently render another page", async () => {
   const view = mount("/not-a-page");

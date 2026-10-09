@@ -4,3 +4,6 @@ import { beforeEach, afterEach } from "vitest";
 afterEach(cleanup);
 
 beforeEach(() => history.replaceState(null, "", "/"));
+
+// Recharts observes its container; jsdom has no layout engine.
+globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };

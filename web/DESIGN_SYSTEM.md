@@ -54,7 +54,7 @@ file; layouts use `@variant mobile` etc.
 | Component | Responsibility | Consumers |
 | --- | --- | --- |
 | `Panel` | Surface, border and card radius; compact radius variant | Summary cards, workspace summary, all data lists, plan review sections |
-| `SummaryCard` | Named section, total, link, metrics and explanation | Overview workspace/resource summaries |
+| `SummaryCard` | Named section, total, link, metrics and explanation | Legacy summary composition |
 | `DefinitionList` | Semantic `dt`/`dd` entries; details/grid/inline layouts | All entity popovers and summary metrics |
 | `InfoPopover` | Trigger, accessibility label, hover timing and portal surface | `WorkspaceInfo`, `ResourceInfo`, `NodeInfo` |
 | `DataList` | Filtering, empty states, responsive table; layout variants | Workspaces, resources, services/tasks, operations |
@@ -104,7 +104,7 @@ rtk node src/test/design-system.browser.mjs /tmp/stackharbor-design-system
 ```
 
 Set `DESIGN_SYSTEM_URL` to check a different local URL. The script checks nine
-routes (Overview, Workspaces, Resources, Operations, Settings and four workspace tabs) at
+routes (Workbench, Workspaces, Resources, Operations, Settings and four workspace tabs) at
 1440/900/760/640/390/320px, saves desktop/mobile screenshots, checks document
 overflow and runtime errors, and exercises shared popovers, action menus, review
 dialogs, focus return and sidebar toggles. It also mutates spacing, typography,
@@ -140,3 +140,30 @@ content unchanged. Date formatting follows the selected language.
 The settings route can render before inventory discovery completes. The browser
 check also covers its footer placement, keyboard input, reload persistence and
 light/dark layouts at desktop and mobile sizes.
+
+## Workbench
+
+The root route is Workbench / 工作台. `pages/Workbench.tsx` composes shadcn
+Card and Chart (Recharts) with the existing tokens. `lib/workbench.ts` derives
+snapshot statistics: unique workspaces, disjoint fresh/attention/unavailable
+session counts, shared resources deduplicated by session/node reference, and
+the top five measured physical resources by memory. Unknown, non-finite and
+negative samples are excluded; a measured zero remains valid. No historical
+trend or host-capacity percentage is inferred from snapshot data.
+
+Chart values are also available as visible text. Charts disable animation,
+retain keyboard focus indication, and use the selected language for labels.
+Metric and session links lead to existing inspection flows. Runtime controls
+continue to require the existing plan review. The Workbench module is lazy
+loaded so other routes do not eagerly load the chart dependency.
+
+## Navigation vocabulary
+
+Top-level navigation is Workbench / 工作台, Workspaces / 工作区,
+Runtime resources / 运行资源, and Operations / 操作记录. Workbench summarizes
+current state; Workspaces organizes session-level inspection; Runtime resources
+shows physical processes and containers across workspaces. Operations includes
+both in-progress actions and completed outcomes, so it is not labeled History.
+The Workspaces navigation count explicitly uses session units. Within a
+workspace, the scoped Resources / 资源 tab retains its shorter label. Existing
+URL paths remain unchanged.
