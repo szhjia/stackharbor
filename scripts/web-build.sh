@@ -5,6 +5,7 @@ cd "$root"
 npm --prefix web ci
 node scripts/frontend-licenses.mjs --check
 if [ "${1:-}" = "--check" ]; then
+ npm --prefix web audit --audit-level=high
  npm --prefix web run typecheck
  npm --prefix web test -- --run
 fi

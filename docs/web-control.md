@@ -140,12 +140,20 @@ different explicit development origin refuses reuse; stop its owning process and
 restart with the intended mode. Omitting `--dev-origin` reopens its real backend
 URL. Production retains same-origin checks.
 
-Current reproducible frontend tooling has a build-only advisory path through
-shadcn 4.21.1 and braces 3.0.3 (GHSA-vfj7-8cjw-p6xm). The implementation audit
-reported zero production npm advisories and seven high build-tool paths; these
-counts are dated verification evidence, not a promise about future advisories.
-No forced major downgrade was applied. Inspect `npm --prefix web audit` and
-`npm --prefix web audit --omit=dev` when updating the lockfile.
+The application builds without the shadcn CLI. Its installed component sources
+and the byte-for-byte shadcn 4.21.1 stylesheet in `web/vendor/shadcn/` are kept
+locally with their MIT license. This removes the build-only dependency chain
+`shadcn → fast-glob / ts-morph → micromatch → braces`, affected by
+GHSA-vfj7-8cjw-p6xm (uncontrolled recursion on deeply nested brace patterns).
+There is no published patched braces version as of 2026-10-09; a forced shadcn
+downgrade or an audit suppression is not used.
+
+`scripts/web-build.sh --check` audits the complete dependency tree, including
+development dependencies, and fails on high/critical advisories. Run
+`npm --prefix web audit` when updating dependencies. If component generation is
+needed, first review the CLI's current dependency audit in an isolated temporary
+environment; do not automatically reintroduce it into application dependencies.
+See `web/vendor/shadcn/README.md` for stylesheet provenance and update checks.
 
 ## Browser navigation
 

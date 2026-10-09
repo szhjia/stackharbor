@@ -167,3 +167,12 @@ both in-progress actions and completed outcomes, so it is not labeled History.
 The Workspaces navigation count explicitly uses session units. Within a
 workspace, the scoped Resources / 资源 tab retains its shorter label. Existing
 URL paths remain unchanged.
+
+## Build dependency boundary
+
+The shadcn CLI is not an application dependency. Copied UI components use the
+unchanged, licensed stylesheet at `vendor/shadcn/tailwind.css`; see its README
+for the pinned source version and checksum. Asset freshness includes this vendor
+directory. Full frontend checks audit production and development dependencies
+and reject high/critical advisories. Component-generation tools must be reviewed
+separately before use; do not restore an unpatched CLI dependency chain.

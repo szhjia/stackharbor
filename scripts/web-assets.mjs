@@ -9,7 +9,7 @@ const version = readFileSync(resolve(root,"internal/buildinfo/version.go"),"utf8
 const protocol = Number(readFileSync(resolve(root,"internal/sessionapi/transport.go"),"utf8").match(/const ProtocolVersion = (\d+)/)[1]);
 function files(dir) { return readdirSync(dir,{withFileTypes:true}).flatMap(e=> e.isDirectory()?files(resolve(dir,e.name)):[resolve(dir,e.name)]).sort(); }
 function sourceDigest() {
- const paths = [...files(resolve(root,"web/src")),...['web/package.json','web/package-lock.json','web/index.html','web/vite.config.ts','web/tsconfig.json'].map(p=>resolve(root,p))].sort();
+ const paths = [...files(resolve(root,"web/src")),...files(resolve(root,"web/vendor")),...['web/package.json','web/package-lock.json','web/index.html','web/vite.config.ts','web/tsconfig.json'].map(p=>resolve(root,p))].sort();
  return hash(paths.map(p=>relative(root,p)+"\0"+hash(readFileSync(p))).join("\n"));
 }
 const content = Object.fromEntries(files(dist).filter(p=>!p.endsWith('/asset-manifest.json')).map(p=>[relative(dist,p),hash(readFileSync(p))]));

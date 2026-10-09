@@ -5,8 +5,12 @@ const root=fileURLToPath(new URL("../",import.meta.url));
 const lock=JSON.parse(readFileSync(resolve(root,"web/package-lock.json"),"utf8"));
 const check=process.argv.includes("--check");
 const entries=[];
+// Copied component sources and the vendored stylesheet retain their upstream license.
+const shadcnLicense = "npm__shadcn-4.21.1-LICENSE.md";
+if(!existsSync(resolve(root,"licenses",shadcnLicense))) throw Error("Missing vendored shadcn license");
+entries.push(`- shadcn 4.21.1 copied components and CSS (MIT): licenses/${shadcnLicense}`);
 for(const [path,meta] of Object.entries(lock.packages)) {
- if(!path || meta.dev && !["node_modules/shadcn","node_modules/tailwindcss"].includes(path)) continue;
+ if(!path || meta.dev && !["node_modules/tailwindcss"].includes(path)) continue;
  const dir=resolve(root,"web",path);
  const pkg=JSON.parse(readFileSync(resolve(dir,"package.json"),"utf8"));
  // victory-vendor ships nested D3 licenses but omits its own upstream license.
