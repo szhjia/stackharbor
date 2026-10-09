@@ -9,6 +9,24 @@ for(const [path,meta] of Object.entries(lock.packages)) {
  if(!path || meta.dev && !["node_modules/shadcn","node_modules/tailwindcss"].includes(path)) continue;
  const dir=resolve(root,"web",path);
  const pkg=JSON.parse(readFileSync(resolve(dir,"package.json"),"utf8"));
+ // victory-vendor ships nested D3 licenses but omits its own upstream license.
+ if(pkg.name === "victory-vendor" && pkg.version === "37.3.6") {
+  const target = "npm__victory-vendor-37.3.6-LICENSE.txt";
+  if(!existsSync(resolve(root,"licenses",target))) throw Error(`Missing upstream ${target}`);
+  entries.push(`- ${pkg.name} ${pkg.version} (MIT): licenses/${target} (upstream https://github.com/FormidableLabs/victory/blob/v37.3.6/LICENSE.txt; npm tarball omits it)`);
+  const vendor = resolve(dir,"lib-vendor");
+  for(const dependency of readdirSync(vendor).sort()) {
+   const source = resolve(vendor,dependency,"LICENSE");
+   if(!existsSync(source)) throw Error(`Missing vendored license: ${dependency}`);
+   const text = readFileSync(source);
+   const name = `npm__victory-vendor-${pkg.version}__${dependency}-LICENSE`;
+   const destination = resolve(root,"licenses",name);
+   if(check) {if(!existsSync(destination)||!readFileSync(destination).equals(text)) throw Error(`Missing/stale ${destination}`);}
+   else writeFileSync(destination,text);
+   entries.push(`- ${pkg.name} ${pkg.version} vendored ${dependency}: licenses/${name}`);
+  }
+  continue;
+ }
  const names=readdirSync(dir).filter(n=>/^(LICENSE|LICENCE|COPYING|NOTICE)([.-]|$)/i.test(n));
  if(!names.length) {
   // npm omits this upstream license; retain its separately sourced text.
