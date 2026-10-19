@@ -25,12 +25,33 @@ func skillBundle(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(skill, "references"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"SKILL.md", "references/registration.md", "references/v2.md", "references/maintenance.md", "references/installation.md", "references/docker.md"} {
+	for _, name := range []string{"SKILL.md", "references/registration.md", "references/v2.md", "references/maintenance.md", "references/installation.md", "references/docker.md", "references/hot-reload.md", "scripts/dev_watch.py"} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(skill, name)), 0755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(skill, name), []byte("original "+name), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return bundle
+}
+
+func TestSkillInstallRequiresDevelopmentWatcher(t *testing.T) {
+	for _, name := range []string{"references/hot-reload.md", "scripts/dev_watch.py"} {
+		t.Run(name, func(t *testing.T) {
+			bundle := skillBundle(t)
+			if err := os.Remove(filepath.Join(bundle, "skills/stackharbor", name)); err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(t.TempDir(), "skills")
+			if out, err := installSkill(bundle, target); err == nil {
+				t.Fatal("skill without development support must be rejected", string(out))
+			}
+			if _, err := os.Lstat(target); !os.IsNotExist(err) {
+				t.Fatal("incomplete source must not create installation", err)
+			}
+		})
+	}
 }
 
 func installSkill(bundle, skillsDir string) ([]byte, error) {

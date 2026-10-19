@@ -2,14 +2,20 @@
 name: stackharbor
 description: Use when a repository or subproject needs StackHarbor integration, YAML registration, workspace onboarding, migration from an older protocol, Docker readiness or resource metrics troubleshooting, finding or controlling workspace sessions, browser console authentication, service orchestration, skill upgrades, or installation and upgrade of StackHarbor on macOS/Linux from GitHub releases.
 metadata:
-  version: "0.4.0"
+  version: "0.4.1"
 ---
 
 # StackHarbor installation and workspace integration
 
-Skill version: **0.4.0**. This skill version is independent of the StackHarbor executable version.
+Skill version: **0.4.1**. This skill version is independent of the StackHarbor executable version.
 
 Generate registrations from the project's actual startup contract. The skill and protocol references are maintained together in the StackHarbor repository. StackHarbor supports local foreground processes on macOS/Linux, with distinct lifecycles for resources, tasks, and services.
+
+## Development hot reload
+
+**Default local application registrations to development commands with verified source reload.** Trace package scripts and wrappers: a command named `dev` is insufficient evidence. Prefer the framework's foreground development server; also cover workers, schedulers and relays. Vite HMR, Sanic/Uvicorn reload, a Go build watcher, and a verified Compose Watch workflow are appropriate when supported by the project. Do not silently substitute `go run`, a one-time build, `preview`, a static server, or an adopted compiled container for development mode. Keep non-watching deployment modes separate and use them only when the user requests that workflow.
+
+Verify the edit → watcher → new running code → browser/API loop, including compile/import failure recovery and stop cleanup. Keep databases and other infrastructure as persistent resources. Do not add a second watcher around a framework that already reloads, exclude a development app from normal global start by default, or trigger migrations, seeds and dependency installation on source edits. Configuration validation and a healthy initial endpoint do not prove reload. See [hot reload diagnosis, the bundled fallback watcher and verification](references/hot-reload.md). When native reload is unavailable, prepare and test a repository-owned watcher; if blocked, report the gap instead of declaring a one-time command development-ready.
 
 ## Install the application
 
@@ -24,12 +30,12 @@ When the user has requested starting the local app and its established runtime i
 ## Integration steps
 
 1. Identify the target project root and read project instructions, existing workspace/registration files, manifests, startup scripts, and Compose configuration. Locate the binary on PATH or at the user-specified path, then run `--version` and `--help` to verify its capabilities. YAML can still be prepared without the binary, but report that validation is incomplete. Installing tool dependencies requires authorization for that action.
-2. Run discover and inspect diagnostics, registered nodes, and registration candidates. Trace the actual command invocation chain to confirm the package manager, foreground entry point, cwd, port sources, health paths, stop signals, and dependencies. Record only environment variable names and file paths; avoid reading or printing secret values. Leave unknown modules, ports, or migration states pending confirmation.
+2. Run discover and inspect diagnostics, registered nodes, and registration candidates. Trace the actual command invocation chain to confirm the package manager, foreground entry point, source watcher, cwd, port sources, health paths, stop signals, and dependencies. `init` candidates are drafts: replace one-time application commands with verified development entry points before adopting them. Record only environment variable names and file paths; avoid reading or printing secret values. Leave unknown modules, ports, or migration states pending confirmation.
 3. **Default to v2 for new integrations**: read the [complete v2 contract](references/v2.md) before writing YAML. For existing v1 configurations, preserve the protocol and IDs according to the [v1 reference](references/registration.md); update all dependency references during a full migration. v2 node IDs are `project/service/key`, `project/task/key`, and `resource/key`, with dependency conditions ready/started, succeeded, and available respectively.
 4. Prefer a `stackharbor.yaml` alongside each subproject. Place centralized configuration in the root `.stackharbor/` directory and import it explicitly through the workspace. cwd is relative to the registration file and must stay within the target root; workspace root/registrations are relative to the workspace file. Preserve existing imports, exclusions, and discovery settings. When `discover: false`, add each new registration path explicitly. Include configuration in the target project's version control by default; exclude it only when the user requests local-only configuration.
 5. Before splitting scripts that combine multiple operations, verify independent foreground services, Compose identities, and check entry points. Register a schema-write task only when actual check/run/verify commands, required_scope, inputs, and the PostgreSQL target lock contract are all available. If any are missing, list the integration gaps. Preserve the existing wrapper, including its startup side effects, or integrate only verified independent services. Do not invent migration checks or modify startup scripts as an incidental change. Use observe for external processes/containers, and specify control/lifetime explicitly for managed resources.
 6. For projects using Docker, perform [Docker preflight checks](references/docker.md) and establish the engine and container states. Register actual prerequisites such as databases and Redis in the DAG before validating application services. Skip this step for projects that do not use Docker.
-7. Run validate; for v2, also run plan for the target. Check the dependency closure, conditions, and actions individually, and correct configuration errors. Report file changes, nodes/commands/ports, validation results, Docker engine and dependency readiness, unresolved items, and the TUI startup command. Successful configuration validation proves only that the declarations are valid. Mark actual startup/readiness as unverified if it has not been exercised.
+7. Run validate; for v2, also run plan for the target. Check the dependency closure, conditions, and actions individually, and correct configuration errors. Within authorized execution scope, verify a reversible source edit reaches a browser/API response or fresh worker process without a manual restart. Report file changes, nodes/commands/ports, validation results, Docker engine and dependency readiness, reload evidence per application, unresolved items, and the TUI startup command. Successful configuration validation proves only that the declarations are valid. Mark actual startup/readiness and source reload as unverified when not exercised.
 
 ## Quick reference
 
@@ -87,6 +93,8 @@ Install from the public repository with `npx skills add szhjia/stackharbor --ski
 | Treating ports declarations as application configuration | Application arguments/environment determine the actual ports |
 | Turning candidate scripts directly into executable nodes | Read the actual invocation chain, register the nodes, and validate them first |
 | Treating migrations as persistent services or inventing checkers | Use verified v2 task contracts and report gaps explicitly |
+| Registering a build-once API or a frozen application container as local development | Use a tested source watcher; preserve a separate deployment workspace when needed |
+| Verifying API reload but leaving workers on old modules | Verify each background application reloads code in a fresh process |
 | Adding only a local YAML file when discovery is disabled | Update the existing workspace's explicit imports |
 | Expecting a copied skill to follow source upgrades automatically | Install a symlink to the entire directory and retain the source directory |
 

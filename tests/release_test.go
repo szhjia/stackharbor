@@ -115,7 +115,7 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 				t.Fatal(path, "missing control docs/licenses", required)
 			}
 		}
-		for _, required := range []string{"scripts/install-skill.sh", "skills/stackharbor/SKILL.md", "skills/stackharbor/references/registration.md", "skills/stackharbor/references/v2.md", "skills/stackharbor/references/maintenance.md", "skills/stackharbor/references/installation.md", "skills/stackharbor/references/docker.md"} {
+		for _, required := range []string{"scripts/install-skill.sh", "skills/stackharbor/SKILL.md", "skills/stackharbor/references/registration.md", "skills/stackharbor/references/v2.md", "skills/stackharbor/references/maintenance.md", "skills/stackharbor/references/installation.md", "skills/stackharbor/references/docker.md", "skills/stackharbor/references/hot-reload.md", "skills/stackharbor/scripts/dev_watch.py"} {
 			if !skillFiles[required] {
 				t.Fatal(path, "missing skill install or reference file", required)
 			}

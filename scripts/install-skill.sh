@@ -7,7 +7,7 @@ if [ "${1:-}" = --help ]; then
 fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 source="$root/skills/stackharbor"
-for file in SKILL.md references/registration.md references/v2.md references/maintenance.md references/installation.md references/docker.md; do
+for file in SKILL.md references/registration.md references/v2.md references/maintenance.md references/installation.md references/docker.md references/hot-reload.md scripts/dev_watch.py; do
   if [ ! -f "$source/$file" ]; then
     printf 'Incomplete StackHarbor skill: missing %s\n' "$source/$file" >&2
     exit 1

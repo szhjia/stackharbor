@@ -32,5 +32,5 @@ Release installation: the skill is included in each release package. If you extr
 
 1. When changing YAML fields, CLI commands, node IDs, exit codes, or lifecycles, update `SKILL.md`, the relevant `references/`, examples, and regression checks together.
 2. Run baseline application scenarios before changing behavior, then have an independent agent use the skill to complete the same scenarios afterward. Pay particular attention to preserving existing workspaces, handling missing migration contracts, respecting read-only validation boundaries, and upgrade paths.
-3. `sh scripts/check.sh` checks the actual installer, validate/plan for embedded YAML, and all repository tests; `sh scripts/build-release.sh VERSION` includes the same skill and installer in the releases for all four platforms.
+3. `sh scripts/check.sh` checks the actual installer, validate/plan for embedded YAML, the Python 3.9+ fallback watcher's reload/error/cleanup behavior, and all repository tests; `sh scripts/build-release.sh VERSION` includes the same skill, watcher and installer in the releases for all four platforms. An incomplete bundle without the hot-reload reference or watcher must fail installation.
 4. Review and commit the relevant files; push or publish only with user authorization. Do not copy another protocol reference into other projects.
