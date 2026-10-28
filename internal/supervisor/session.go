@@ -90,11 +90,31 @@ func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *obser
 	s.resources = map[model.ServiceID]*docker.Manager{}
 	s.inputDigests = map[string]string{}
 	managers := map[string]*docker.Manager{}
+	adopted := map[string][]string{}
+	for _, v := range w.Services() {
+		if v.Resource != nil && v.Resource.Adapter == "existing-container" {
+			adopted[v.Resource.Project] = append(adopted[v.Resource.Project], v.Resource.Service)
+		}
+	}
 	s.dockerRows = s.docker.Specs()
 	s.dockerError = s.docker.Error
 	for _, v := range w.Services() {
 		s.entries[v.ID] = &entry{spec: v, state: "stopped"}
 		if v.Resource != nil {
+			if v.Resource.Adapter == "existing-container" {
+				key := "adopted\x00" + v.Resource.Project
+				if managers[key] == nil {
+					m := docker.NewAdopted(w.Root, v.Resource.Project, adopted[v.Resource.Project])
+					if err := m.Pin(ctx); err != nil {
+						cancel()
+						lock.Close()
+						return nil, err
+					}
+					managers[key] = m
+				}
+				s.resources[v.ID] = managers[key]
+				continue
+			}
 			scope := docker.ScopeFor(*v.Resource)
 			key := scope.Key()
 			if managers[key] == nil {
@@ -279,16 +299,17 @@ func (s *Session) launch(ctx context.Context, id model.ServiceID, gen uint64) {
 	spec := e.spec
 	s.mu.Unlock()
 	defer close(launched)
-	fail := func(err error) {
+	failWithState := func(state string, err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if e.gen == gen {
-			e.state = "failed"
+			e.state = state
 			e.reason = Redact(e.spec, err.Error())
 			s.readyResult(e, err)
 			s.event(id, "error", err.Error())
 		}
 	}
+	fail := func(err error) { failWithState("failed", err) }
 	waitCtx, waitCancel := context.WithTimeout(ctx, 600*time.Second)
 	defer waitCancel()
 	for _, dep := range spec.DependsOn {
@@ -304,30 +325,18 @@ func (s *Session) launch(ctx context.Context, id model.ServiceID, gen uint64) {
 			}
 			okay := dependencySatisfied(d, condition)
 			depErr := d.startErr
+			reason := d.reason
 			s.mu.Unlock()
 			if okay {
 				break
 			}
 			if state == "failed" || state == "stopped" || state == "stopping" || state == "blocked" || state == "unknown" || state == "unavailable" || state == "unhealthy" || state == "unready" && depErr != nil {
-				s.mu.Lock()
-				why := d.reason
-				s.mu.Unlock()
-				fail(fmt.Errorf("Dependency %s not ready: %s", dep, why))
-				s.mu.Lock()
-				if e.gen == gen {
-					e.state = "blocked"
-				}
-				s.mu.Unlock()
+				failWithState("blocked", fmt.Errorf("Dependency %s not ready: %s", dep, reason))
 				return
 			}
 			select {
 			case <-waitCtx.Done():
-				fail(fmt.Errorf("Waiting for dependencies timed out or cancelled: %w", waitCtx.Err()))
-				s.mu.Lock()
-				if e.gen == gen {
-					e.state = "blocked"
-				}
-				s.mu.Unlock()
+				failWithState("blocked", fmt.Errorf("Waiting for dependencies timed out or cancelled: %w", waitCtx.Err()))
 				return
 			case <-time.After(25 * time.Millisecond):
 			}
@@ -501,7 +510,10 @@ func (s *Session) affectedLocked(ids []model.ServiceID) []model.ServiceID {
 	out := []model.ServiceID{}
 	for _, id := range s.graph.Dependents(ids) {
 		e := s.entries[id]
-		if e.spec.Control != "observe" && (e.handle != nil || e.state == "waiting" || e.state == "starting") {
+		if e.spec.Control == "observe" || e.spec.Resource != nil && e.spec.Resource.Control == "observe" {
+			continue
+		}
+		if e.handle != nil || e.state == "waiting" || e.state == "starting" || e.spec.Resource != nil && (e.state == "available" || e.resourceRunning) {
 			out = append(out, id)
 		}
 	}

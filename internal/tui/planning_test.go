@@ -45,6 +45,27 @@ func TestConfirmationRetainsPreviewPlan(t *testing.T) {
 	}
 }
 
+func TestDashboardStartConfirmsRetainedPlan(t *testing.T) {
+	f := &plannedFake{fakeController: fixture()}
+	m, cmd := key(NewModel(f), "s")
+	if !m.busy || cmd == nil {
+		t.Fatal("dashboard start did not request a preview")
+	}
+	v, _ := m.Update(cmd())
+	m = v.(Model)
+	if !m.confirm || m.action != "all-start" || f.executions != 0 {
+		t.Fatalf("dashboard start skipped scope confirmation: %+v", m)
+	}
+	m, cmd = key(m, "y")
+	if cmd == nil {
+		t.Fatal("confirmation did not execute")
+	}
+	cmd()
+	if f.plans != 1 || f.executions != 1 || f.token != "original-preview" {
+		t.Fatalf("dashboard start replanned after confirmation: %+v", f)
+	}
+}
+
 func TestDockerAndAllConfirmationsRetainPreview(t *testing.T) {
 	for _, action := range []string{"docker-stop", "all-stop", "all-restart"} {
 		t.Run(action, func(t *testing.T) {

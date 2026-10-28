@@ -1,5 +1,5 @@
 import { usePreferences } from "../lib/preferences";
-import { matchRoutes, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
+import { Link, matchRoutes, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import brandMark from "../assets/stackharbor-favicon.png";
@@ -16,6 +16,7 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Sidebar } from "./Sidebar";
 import { AppHeader } from "./AppHeader";
 import { AppContent } from "./AppContent";
+import { readTrackedOperations, rememberTrackedOperations } from "../lib/operation-tracking";
 
 export interface ConsoleContext {
   data: Inventory;
@@ -24,8 +25,6 @@ export interface ConsoleContext {
   sessionID?: string;
   now: number;
   status: string;
-  selected: Set<string>;
-  select: (id: string, value: boolean) => void;
   planning: boolean;
   requestPlans: (requests: ActionRequest[]) => Promise<void>;
   tracked: Tracked[];
@@ -62,14 +61,14 @@ export function AppShell() {
   const [auth, setAuth] = useState<"pending" | "ready" | "expired">("pending");
   const [authError, setAuthError] = useState("");
   const authStarted = useRef(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(Date.now());
   const [plans, setPlans] = useState<Planned[]>();
   const [planning, setPlanning] = useState(false);
   const planningRef = useRef(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<string[]>([]);
-  const [tracked, setTracked] = useState<Tracked[]>([]);
+  const [tracked, setTracked] = useState<Tracked[]>(readTrackedOperations);
+  useEffect(() => rememberTrackedOperations(tracked), [tracked]);
   useEffect(() => {
     if (authStarted.current) return;
     authStarted.current = true;
@@ -117,9 +116,6 @@ export function AppShell() {
   const sessions = data?.sessions ?? [];
   const current = sessions.find((s) => s.identity.session_id === sessionID);
   useEffect(() => {
-    setSelected(new Set());
-  }, [page, sessionID]);
-  useEffect(() => {
     const workspace = current?.root.split("/").filter(Boolean).at(-1);
     const section = tab === "services" ? "" : `${tr(tab[0].toUpperCase() + tab.slice(1))} · `;
     document.title = `${workspace ? section + workspace : tr(page)} · StackHarbor`;
@@ -127,16 +123,6 @@ export function AppShell() {
   useEffect(() => {
     document.getElementById("main")?.scrollIntoView?.({block: "start"});
   }, [route.pathname]);
-  const select = useCallback(
-    (id: string, v: boolean) =>
-      setSelected((old) => {
-        const n = new Set(old);
-        if (v) n.add(id);
-        else n.delete(id);
-        return n;
-      }),
-    [],
-  );
   const requestPlans = useCallback(async (requests: ActionRequest[]) => {
     if (planningRef.current || requests.length === 0) return;
     planningRef.current = true;
@@ -149,6 +135,7 @@ export function AppShell() {
       const out = await Promise.allSettled(
         requests.map(async (r) => ({
           root: r.session.root,
+          port: r.port,
           plan: await api.plan(
             r.session.identity.session_id,
             r.action,
@@ -181,9 +168,9 @@ export function AppShell() {
       plans.map(async (p) => {
         const op = await api.submit(p.plan, newKey(p.plan));
         setTracked((old) => [
-          ...old.filter((t) => t.id !== op.id),
+          ...old.filter((t) => t.id !== op.id || t.session_id !== op.session_id),
           { session_id: op.session_id, id: op.id },
-        ]);
+        ].slice(-100));
         return p.root + ": operation " + op.id + " accepted (" + op.state + ")";
       }),
     );
@@ -229,7 +216,7 @@ export function AppShell() {
       </main>
     );
   const context: ConsoleContext | undefined = data ? {
-    data, sessions, current, sessionID, now, status, selected, select,
+    data, sessions, current, sessionID, now, status,
     planning, requestPlans, tracked, setError, tab, logTarget,
     onTabChange: (next) => { if (sessionID) navigate(workspacePath(sessionID, next)); },
     onTargetChange: (target) => setSearch(target ? {target} : {}, {replace: true}),
@@ -244,6 +231,7 @@ export function AppShell() {
         {error ? (
           <Notice title={tr("Request requires attention")} danger>
             {error}
+            <Button variant="ghost" onClick={() => setError("")}>{tr("Dismiss")}</Button>
           </Notice>
         ) : null}
         {results.length ? (
@@ -251,6 +239,7 @@ export function AppShell() {
             {results.map((r, i) => (
               <p key={i}>{r}</p>
             ))}
+            <div className="action-list"><Button variant="link" asChild><Link to="/operations">{tr("Inspect operations")}</Link></Button><Button variant="ghost" onClick={() => setResults([])}>{tr("Dismiss")}</Button></div>
           </Notice>
         ) : null}
         {data?.collection_error ? (
@@ -271,7 +260,7 @@ export function AppShell() {
           ) : <Outlet context={context} />}
           {planning ? <p role="status">{tr("Planning against current session identities…")}</p> : null}
         </AppContent>
-        {plans ? <PlanDialog plans={plans} onSubmit={submit} onClose={() => setPlans(undefined)} /> : null}
+        {plans ? <PlanDialog plans={plans} onSubmit={submit} onClose={() => setPlans(undefined)} onInspectOperations={() => { setPlans(undefined); navigate("/operations"); }} /> : null}
       </main>
     </div>
   );

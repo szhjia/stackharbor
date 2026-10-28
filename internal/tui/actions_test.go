@@ -9,15 +9,18 @@ import (
 	"testing"
 )
 
-func TestGlobalControlsVisibleOnProjectAndRestartAvailableWhenStopped(t *testing.T) {
+func TestProjectFooterShowsLocalActionsWhenStopped(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	m := NewModel(fixture())
 	m.width = 180
 	m.selected = 2
-	for _, label := range []string{"Start all", "Stop all", "Restart all", "Restart"} {
+	for _, label := range []string{"Start s", "Restart r"} {
 		if !strings.Contains(m.footer(), label) {
 			t.Errorf("missing %s: %s", label, m.footer())
 		}
+	}
+	if strings.Contains(m.footer(), "Shift+") || strings.Contains(m.footer(), "Start all") {
+		t.Errorf("global shortcut shown as a project action: %s", m.footer())
 	}
 	if strings.Contains(m.render(), "RSS") {
 		t.Fatal("technical RSS label remains")
@@ -68,7 +71,7 @@ func TestProjectFooterAt80ColumnsKeepsActions(t *testing.T) {
 	m.selected = 1
 	m.snapshot.DockerFile = "compose.yaml"
 	footer := m.footer()
-	for _, k := range []string{"Stop x", "Restart r", "All Shift+S/X/R", "Docker d", "Quit q"} {
+	for _, k := range []string{"Stop x", "Restart r", "Docker d", "Quit q"} {
 		if !strings.Contains(footer, k) {
 			t.Fatal(k, footer)
 		}

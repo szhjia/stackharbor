@@ -134,7 +134,7 @@ func validateProject(path, root string, f projectFile) (model.Project, []model.D
 		if name == "" {
 			name = k
 		}
-		p.Services = append(p.Services, model.Service{ID: model.ServiceID(p.ID + "/" + k), ProjectID: p.ID, Key: k, Name: name, SourceFile: path, Cwd: cwd, Command: v.Run.Command, Env: v.Env, Ports: v.Ports, Ready: v.Ready, DependsOn: v.DependsOn, DockerDependsOn: v.DockerDependsOn, Stop: v.Stop, Open: v.Open})
+		p.Services = append(p.Services, model.Service{ID: model.ServiceID(p.ID + "/" + k), ProjectID: p.ID, Key: k, Name: name, SourceFile: path, Cwd: cwd, Command: v.Run.Command, Env: v.Env, Ports: v.Ports, Ready: v.Ready, DependsOn: v.DependsOn, DockerDependsOn: v.DockerDependsOn, Stop: v.Stop, Open: v.Open, AllActions: v.AllActions})
 	}
 	return p, ds
 }

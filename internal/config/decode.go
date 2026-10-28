@@ -30,12 +30,13 @@ type projectFile struct {
 	Services map[string]serviceFile `yaml:"services"`
 }
 type serviceFile struct {
-	Identity *model.ObservedIdentity `yaml:"identity"`
-	Requires []model.Requirement     `yaml:"requires"`
-	Control  string                  `yaml:"control"`
-	Name     string                  `yaml:"name"`
-	Cwd      string                  `yaml:"cwd"`
-	Run      struct {
+	Identity   *model.ObservedIdentity `yaml:"identity"`
+	Requires   []model.Requirement     `yaml:"requires"`
+	Control    string                  `yaml:"control"`
+	AllActions *bool                   `yaml:"all_actions"`
+	Name       string                  `yaml:"name"`
+	Cwd        string                  `yaml:"cwd"`
+	Run        struct {
 		Command []string `yaml:"command"`
 	} `yaml:"run"`
 	Env             map[string]string `yaml:"env"`

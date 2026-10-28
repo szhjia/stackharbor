@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiFailure } from "./client";
 import { mergeLogPage, logKey } from "./logs";
-import type { LogPage, LogState } from "./types";
+import { terminalStates, type LogPage, type LogState, type Operation } from "./types";
 export function useEvents(
   enabled: boolean,
   initialCursor: string | undefined,
@@ -37,7 +37,12 @@ export function useEvents(
     const invalidate = () => {
       void query.invalidateQueries({ queryKey: ["inventory"] });
       void query.invalidateQueries({ queryKey: ["operations"] });
-      void query.invalidateQueries({ queryKey: ["operation"] });
+      void query.invalidateQueries({
+        queryKey: ["operation"],
+        // Failed lookups own their retry cadence; inventory ticks must not
+        // bypass backoff or revive a paused lookup for an ended session.
+        predicate: cached => cached.state.status !== "error" && !terminalStates.has((cached.state.data as Operation | undefined)?.state ?? ""),
+      });
       revalidateUnavailableLogs();
     };
     const connect = () => {
@@ -53,6 +58,11 @@ export function useEvents(
       source.onopen = () => {
         setStatus("Live");
         revalidateUnavailableLogs();
+        void query.invalidateQueries({
+          queryKey: ["operation"],
+          predicate: cached => cached.state.status === "error"
+            && !terminalStates.has((cached.state.data as Operation | undefined)?.state ?? ""),
+        });
       };
       const event = (name: string, callback: (data: any) => void) =>
         source!.addEventListener(name, (e) => {

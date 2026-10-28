@@ -170,10 +170,6 @@ func (m Model) shortcuts(items []shortcut, compact bool) string {
 	for i := 0; i < len(items); i++ {
 		item := items[i]
 		if compact {
-			if item.key == "Shift+S" && i+2 < len(items) && items[i+1].key == "Shift+X" && items[i+2].key == "Shift+R" {
-				item = shortcut{"Shift+S/X/R", "All"}
-				i += 2
-			}
 			switch item.label {
 			case "Projects/content":
 				item.label = "Switch"
@@ -205,6 +201,8 @@ func (m Model) footer() string {
 		if m.dockerView {
 			items = append(items, shortcut{"←/→", "Container"})
 			items = append(items, shortcut{"s", "Start"}, shortcut{"x", "Stop"}, shortcut{"r", "Restart"})
+		} else if m.selected == 0 {
+			items = append(items, shortcut{"s", "Start all"}, shortcut{"x", "Stop all"}, shortcut{"r", "Restart all"})
 		} else if m.selected > 0 && m.selected <= len(m.snapshot.Projects) {
 			active, canStart, open := false, false, false
 			taskOnly := len(m.ids()) == 1
@@ -243,7 +241,6 @@ func (m Model) footer() string {
 			}
 			items = append(items, shortcut{"i", "Details"})
 		}
-		items = append(items, shortcut{"Shift+S", "Start all"}, shortcut{"Shift+X", "Stop all"}, shortcut{"Shift+R", "Restart all"})
 		if m.snapshot.DockerFile != "" && !m.dockerView {
 			items = append(items, shortcut{"d", "Docker"})
 		}
@@ -293,7 +290,7 @@ func (m Model) render() string {
 	lines := []string{}
 	switch {
 	case m.help:
-		lines = []string{heading("Keyboard shortcuts"), "", "↑/↓ j/k select project or Docker · Home dashboard", "←/→ h/l select task, service or container · i details", "PageUp/PageDown log history or dashboard pages · End latest", "s start or check task · x stop · r restart service", "Failed tasks block dependents; retry checks prerequisites again", "Port conflicts: review PID and confirm release before starting", "Project metrics: service process trees; footer: StackHarbor", "Shift+S start all · Shift+X stop all", "Shift+R restart running set · Shift applies actions globally", "Docker: ←/→ containers · s/x/r controls (confirm) · d quick access", "o open service URL · Tab projects/content on narrow screens", "? / Esc back · q / Ctrl-C quit"}
+		lines = []string{heading("Keyboard shortcuts"), "", "↑/↓ j/k select project or Docker · Home dashboard", "←/→ h/l select task, service or container · i details", "PageUp/PageDown log history or dashboard pages · End latest", "Dashboard: s start all · x stop all · r restart running set", "Project/service: s start or check · x stop · r restart", "Global actions show scope before confirmation", "Failed tasks block dependents; retry checks prerequisites again", "Port conflicts: review PID and confirm release before starting", "Shift+S/X/R: global aliases from any page", "Docker: ←/→ containers · s/x/r controls (confirm) · d quick access", "o open service URL · Tab projects/content on narrow screens", "? / Esc back · q / Ctrl-C quit"}
 	case m.confirm:
 		label := map[string]string{"start": "Start", "stop": "Stop", "restart": "Restart", "all-start": "Start all", "all-stop": "Stop all", "all-restart": "Restart all", "docker-start": "Start Docker", "docker-stop": "Stop Docker", "docker-restart": "Restart Docker"}[m.action]
 		lines = []string{heading("Confirm: " + label), "", "Selected scope: " + plain(fmt.Sprint(m.pending)), plain(m.status)}
@@ -369,7 +366,11 @@ func (m Model) render() string {
 		out = append(out, fit(line, m.pageWidth()))
 	}
 	if m.status != "" && !m.confirm && !m.quitting {
-		out = append(out, fit(plain(m.status), m.pageWidth()))
+		status := plain(m.status)
+		if m.statusError {
+			status = m.tone(status, red)
+		}
+		out = append(out, fit(status, m.pageWidth()))
 	}
 	out = append(out, m.tone(strings.Repeat("─", m.pageWidth()), muted), m.footer())
 	return m.frame(out)

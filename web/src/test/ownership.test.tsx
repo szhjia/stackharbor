@@ -9,11 +9,11 @@ it("resource columns separate identifiers and metrics without hiding unknown or 
   const resource: Resource = {id: "process:123:exact-identity", pid: 123, kind: "process", identity_known: false,
     metric: {known: false, partial: true, sampled_at: null, rss_bytes: 500, cpu_percent: 2, uptime_millis: null}, references: []};
   render(<MemoryRouter><Resources resources={[resource]} sessions={[]} /></MemoryRouter>);
-  expect(screen.getAllByRole("columnheader").map(e => e.textContent)).toEqual(["Type", "PID / ID", "Workspace / Nodes", "CPU", "Memory", "Sample"]);
+  expect(screen.getAllByRole("columnheader").map(e => e.textContent)).toEqual(["Type", "PID / ID", "Workspace", "Nodes", "CPU", "Memory", "Sample"]);
   const cells = screen.getAllByRole("cell");
-  expect(cells[3]).toHaveTextContent("2.0%");
-  expect(cells[4]).toHaveTextContent("Unknown");
-  expect(cells[5]).toHaveTextContent("Partial");
+  expect(cells[4]).toHaveTextContent("2.0%");
+  expect(cells[5]).toHaveTextContent("Unknown");
+  expect(cells[6]).toHaveTextContent("Partial");
   await userEvent.hover(screen.getByRole("button", {name: "Resource details: process:123:exact-identity"}));
   expect(await screen.findByText("process:123:exact-identity")).toBeVisible();
   expect(screen.getByText("Identity").nextElementSibling).toHaveTextContent("Unknown");

@@ -6,9 +6,12 @@ import (
 	"github.com/szhjia/stackharbor/internal/model"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
-	"strings"
 )
+
+// Compose project names may start with a digit, unlike StackHarbor resource keys.
+var composeProjectName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 
 func normalizeComposeScope(path, root string, r model.ResourceSpec) (docker.ComposeScope, []model.Diagnostic) {
 	if real, err := filepath.EvalSymlinks(root); err == nil {
@@ -91,8 +94,42 @@ func ResourceProject(path, root string, c WorkspaceConfig) (model.Project, []mod
 	for _, k := range keys {
 		r := c.Resources[k]
 		bad := func(msg string) { ds = append(ds, model.Error(path, "resources."+k, msg)) }
-		if !identifier.MatchString(k) || !identifier.MatchString(r.Service) || r.Adapter != "compose" || r.Project == "" || strings.HasPrefix(r.Project, "-") {
-			bad("explicit compose file/project/service required")
+		if !identifier.MatchString(k) || !identifier.MatchString(r.Service) || (r.Adapter != "compose" && r.Adapter != "existing-container") || !composeProjectName.MatchString(r.Project) {
+			bad("explicit adapter, project and service required")
+			continue
+		}
+		if r.Adapter == "existing-container" {
+			if r.File != "" || r.Files != nil || r.ProjectDirectory != "" || len(r.EnvFiles) > 0 {
+				bad("existing-container does not accept Compose input files")
+				continue
+			}
+			if r.Control != "managed" && r.Control != "observe" || r.Lifetime != "persistent" || r.Available != "healthy" && r.Available != "running" {
+				bad("existing-container requires explicit control, persistent lifetime and available condition")
+				continue
+			}
+			if r.AllActions && r.Control != "managed" {
+				bad("all_actions requires managed control")
+				continue
+			}
+			identity := r.Project + "\x00" + r.Service
+			if seen[identity] {
+				bad("duplicate resource identity")
+				continue
+			}
+			seen[identity] = true
+			name := r.Name
+			if name == "" {
+				name = k
+			}
+			p.Services = append(p.Services, model.Service{ID: model.ServiceID("resource/" + k), ProjectID: p.ID, Key: k, Name: name, Kind: "resource", Version: 2, SourceFile: path, Cwd: root, Resource: &r, InputFiles: []string{path}})
+			continue
+		}
+		if r.AllActions {
+			bad("all_actions is supported only for existing-container resources")
+			continue
+		}
+		if len(r.Requires) > 0 {
+			bad("compose dependencies are read from the resolved Compose configuration")
 			continue
 		}
 		scope, problems := normalizeComposeScope(path, root, r)
@@ -151,6 +188,24 @@ func ResourceProject(path, root string, c WorkspaceConfig) (model.Project, []mod
 	for i := range p.Services {
 		n := &p.Services[i]
 		r := n.Resource
+		if r.Adapter != "compose" {
+			for _, edge := range r.Requires {
+				found := false
+				for _, other := range p.Services {
+					if other.ID == edge.Node && edge.Condition == "available" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					ds = append(ds, model.Error(path, "resources."+n.Key+".requires", "existing-container dependency must name a registered available resource"))
+					continue
+				}
+				n.Requires = append(n.Requires, edge)
+				n.DependsOn = append(n.DependsOn, edge.Node)
+			}
+			continue
+		}
 		scope := docker.ScopeFor(*r)
 		decl := resolved[scope.Key()].Services[r.Service]
 		deps := []string{}

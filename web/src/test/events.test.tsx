@@ -55,6 +55,16 @@ function setup() {
   );
   return { cache, expired };
 }
+it("does not revalidate immutable terminal operation results on every inventory tick", () => {
+  const {cache} = setup();
+  const finished = ["operation", "exact", "finished"];
+  const running = ["operation", "exact", "running"];
+  cache.setQueryData(finished, {state: "succeeded"});
+  cache.setQueryData(running, {state: "running"});
+  act(() => Source.all[0].emit("inventory", {}, "global:2"));
+  expect(cache.getQueryState(finished)?.isInvalidated).toBe(false);
+  expect(cache.getQueryState(running)?.isInvalidated).toBe(true);
+});
 it("recreates SSE with latest event and log cursors after checking cookie", async () => {
   vi.useFakeTimers();
   vi.spyOn(api, "session").mockResolvedValue({

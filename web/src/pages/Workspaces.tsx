@@ -1,53 +1,41 @@
 import { usePreferences } from "../lib/preferences";
-import { Link } from "react-router";
-import { workspacePath } from "../routes";
 import { useMemo } from "react";
 import type { Session } from "../api/types";
-import { controllable, sessionStale } from "../api/types";
+import { sessionStale } from "../api/types";
 import type { ListColumn } from "../components/DataList";
 import { DataList } from "../components/DataList";
 import { Status } from "../components/Status";
-import { Button } from "../components/ui/button";
-import { Checkbox } from "../components/ui/checkbox";
 import { WorkspaceInfo } from "../components/WorkspaceInfo";
-const sessionInfoCell: ListColumn<Session>["cell"] = ({row}) => <WorkspaceInfo session={row.original} kind="session" />;
-const terminalInfoCell: ListColumn<Session>["cell"] = ({row}) => <WorkspaceInfo session={row.original} kind="terminal" />;
+import { WorkspaceLink } from "../components/WorkspaceLink";
+import { summarizeWorkspaceNodes } from "../lib/workspace-summary";
+type WorkspaceRow = Session & {summary: ReturnType<typeof summarizeWorkspaceNodes>};
+const sessionInfoCell: ListColumn<WorkspaceRow>["cell"] = ({row}) => <WorkspaceInfo session={row.original} />;
+const connectionState = (s: Session, now: number) =>
+  !s.available ? "unavailable" : sessionStale(s, now) ? "stale" : s.identity.protocol_version !== 1 ? "unsupported" : "Live";
 export function Workspaces({
   sessions,
-  selected,
-  onSelect,
   now,
 }: {
   sessions: Session[];
-  selected: Set<string>;
-  onSelect: (id: string, value: boolean) => void;
   now: number;
 }) {
   const {t: tr, language} = usePreferences();
-  const columns = useMemo<ListColumn<Session>[]>(
+  const rows = useMemo(() => sessions.map(session => ({...session, summary: summarizeWorkspaceNodes(session.snapshot?.nodes)})), [sessions]);
+  const columns = useMemo<ListColumn<WorkspaceRow>[]>(
     () => [
       {
-        id: "select",
-        header: tr("Select"),
-        cell: ({ row }) => (
-          <Checkbox
-            aria-label={tr("Select {name}", {name: row.original.root})}
-            disabled={!controllable(row.original, now)}
-            checked={selected.has(row.original.identity.session_id)}
-            onCheckedChange={(v) =>
-              onSelect(row.original.identity.session_id, v === true)
-            }
-          />
-        ),
+        accessorFn: (s) => s.root,
+        id: "root",
+        header: tr("Workspace"),
+        cell: ({ row }) => <WorkspaceLink sessionID={row.original.identity.session_id} root={row.original.root} />,
       },
       {
-        accessorKey: "root",
-        header: tr("Workspace"),
-        cell: ({ row }) => (
-          <Button variant="link" asChild>
-            <Link className="workspace-root" title={row.original.root} to={workspacePath(row.original.identity.session_id)}>{row.original.root}</Link>
-          </Button>
-        ),
+        id: "terminal", header: tr("Terminal"),
+        cell: ({row}) => <span className="table-text" title={row.original.tty}>{row.original.terminal || tr("Foreground session")}</span>,
+      },
+      {
+        accessorKey: "pid", header: "PID",
+        cell: ({row}) => <span className="mono">{row.original.pid}</span>,
       },
       {
         accessorFn: (s) => s.identity.session_id,
@@ -55,40 +43,20 @@ export function Workspaces({
         header: tr("Session"),
         cell: sessionInfoCell,
       },
-      {accessorKey: "pid", header: "PID", cell: ({row}) => <span className="workspace-pid mono">{row.original.pid}</span>},
-      {
-        id: "terminal",
-        header: tr("Terminal"),
-        accessorFn: (s) => `${s.terminal ?? tr("Foreground session")} ${s.tty ?? ""}`,
-        cell: terminalInfoCell,
-      },
       {
         id: "state",
         header: tr("Connection"),
+        accessorFn: (s) => connectionState(s, now),
         cell: ({ row }) => (
-          <div className="record">
-            <Status
-              value={
-                !row.original.available
-                  ? "unavailable"
-                  : sessionStale(row.original, now)
-                    ? "stale"
-                    : row.original.identity.protocol_version !== 1
-                      ? "unsupported"
-                      : "Live"
-              }
-            />
-            {row.original.error ? (
-              <span className="caption">{row.original.error.message}</span>
-            ) : null}
-          </div>
+          <span title={row.original.error?.message}>
+            <Status value={connectionState(row.original, now)} />
+          </span>
         ),
       },
-      {
-        id: "nodes",
-        header: tr("Nodes"),
-        accessorFn: (s) => s.snapshot?.nodes.length ?? tr("Unknown"),
-      },
+      ...([['services', 'Service / resource nodes'], ['tasks', 'Tasks'], ['runningServices', 'Ready services'], ['abnormal', 'Abnormal nodes']] as const).map(([id, label]) => ({
+        id, header: tr(label),
+        cell: ({row}: {row: {original: WorkspaceRow}}) => <span className="mono table-count" data-attention={(id === "abnormal" && Boolean(row.original.summary?.abnormal)) || undefined}>{row.original.summary?.[id] ?? tr("Unknown")}</span>,
+      })),
       {
         id: "observed",
         header: tr("Last observation"),
@@ -101,15 +69,19 @@ export function Workspaces({
         ),
       },
     ],
-    [selected, onSelect, now, tr, language],
+    [now, tr, language],
   );
   return (
+    <>
     <DataList
-      data={sessions}
+      data={rows}
       columns={columns}
       label="workspaces"
+      searchText={s => [s.root, s.identity.session_id, s.terminal || tr("Foreground session"), s.tty, s.pid, connectionState(s, now), tr(connectionState(s, now)), ...s.snapshot?.nodes.flatMap(n => [n.name, n.id, n.state, tr(n.state)]) ?? []].join(" ")}
       layout="workspaces"
       empty={tr("No foreground sessions")}
     />
+    <p className="caption">{tr("Node totals include services and registered resources. Ready services have passed their readiness check; started processes and available resources keep their own states.")}</p>
+    </>
   );
 }

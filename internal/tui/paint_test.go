@@ -169,7 +169,7 @@ func TestFooterNameBeforeKeyAndSpacing(t *testing.T) {
 	if !strings.HasPrefix(rows[len(rows)-2], "  ") {
 		t.Fatal("left inset missing")
 	}
-	if !strings.Contains(footer, "Start all Shift+S   Stop all Shift+X") {
+	if !strings.Contains(footer, "Start all s   Stop all x") {
 		t.Fatal("label/key order or spacing wrong", footer)
 	}
 }
@@ -198,7 +198,7 @@ func TestFooterUsesArrowHintAndLabelsItsOwnMetrics(t *testing.T) {
 	f.snapshot.Services[0].Metric = model.Metric{Known: true, RSS: 128 * 1048576}
 	m := resized(NewModel(f), 180, 24)
 	footer := m.footer()
-	if !strings.Contains(footer, "Select ↑/↓   Start all Shift+S") {
+	if !strings.Contains(footer, "Select ↑/↓   Start all s") {
 		t.Fatal("footer lost compact, grouped arrow shortcut", footer)
 	}
 	if !strings.Contains(footer, "StackHarbor memory 21.0 MiB · CPU 1.5%") || strings.Contains(footer, "128.0 MiB") {

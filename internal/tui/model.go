@@ -54,6 +54,7 @@ type Model struct {
 	conflicts                                  []model.PortConflict
 	help, confirm, quitting, showList, details bool
 	action, status                             string
+	statusError                                bool
 	pending                                    []model.ServiceID
 	err                                        error
 }
@@ -90,8 +91,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if v.err != nil {
 			m.status = v.err.Error()
+			m.statusError = true
 			return m, nil
 		}
+		m.statusError = false
 		m.planned = &v.plan
 		m.action, m.pending, m.pendingDocker = v.action, v.ids, v.docker
 		m.conflicts = v.plan.Conflicts
@@ -128,13 +131,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if v.err != nil {
 			m.status = v.err.Error()
+			m.statusError = true
 		} else {
 			m.status = "Operation complete"
+			m.statusError = false
 		}
 		if v.quit {
 			return m, tea.Quit
 		}
 	case tea.KeyPressMsg:
+		if m.statusError {
+			m.status = ""
+			m.statusError = false
+		}
 		return m.key(v.String())
 	}
 	return m, nil

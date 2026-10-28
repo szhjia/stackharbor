@@ -49,7 +49,7 @@ func TestDesignReadableWorkspaceAndContextFooter(t *testing.T) {
 		}
 		lines := strings.Split(view, "\n")
 		footer := lines[len(lines)-2]
-		if !strings.Contains(footer, "Shift+S") || !(strings.Contains(footer, "Shift+X") || strings.Contains(footer, "Shift+S/X/R")) || !strings.Contains(footer, "q") || strings.Contains(footer, "Start s") || strings.Contains(footer, "Stop x") || strings.Contains(footer, "Restart r") || strings.Contains(footer, "Details i") {
+		if !strings.Contains(footer, "Start all s") || !strings.Contains(footer, "Stop all x") || !strings.Contains(footer, "q") || strings.Contains(footer, "Shift+") || strings.Contains(footer, "Details i") {
 			t.Errorf("incorrect Dashboard commands: %s", footer)
 		}
 		if strings.Contains(view, "Quitting stops services started in this session") {

@@ -1,7 +1,8 @@
 import { usePreferences } from "../lib/preferences";
 import { Link } from "react-router";
 import { workspacePath } from "../routes";
-import { createContext, useContext, useState, useMemo } from "react";
+import { createContext, useContext, useState, useMemo, useEffect } from "react";
+import { matchesSearch, nodeSearchText, useListQuery } from "../lib/list-state";
 import { MoreHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session, Node, Resource, LogState } from "../api/types";
@@ -14,6 +15,7 @@ import { Panel } from "../components/Panel";
 import { DefinitionList } from "../components/DefinitionList";
 import { NodeInfo } from "../components/NodeInfo";
 import { WorkspaceInfo } from "../components/WorkspaceInfo";
+import { summarizeWorkspaceNodes } from "../lib/workspace-summary";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem } from "../components/ui/dropdown-menu";
 import { Notice } from "../components/Notice";
 import { LogView } from "../components/LogView";
@@ -35,12 +37,16 @@ export interface ActionRequest {
   targets: string[];
   port?: number;
 }
-const NodeActionContext = createContext({sid: "", usable: false, plan: (_action: string, _ids: string[]) => {}});
+const NodeActionContext = createContext({sid: "", usable: false, plan: (_action: string, _ids: string[], _port?: number) => {}});
 function NodeActions({node}: {node: Node}) {
   const {t: tr} = usePreferences();
   const {sid, usable, plan} = useContext(NodeActionContext);
   const actions = node.allowed_actions.filter(action => action !== "release");
   return <div className="action-list node-actions">
+    {node.allowed_actions.includes("release") ? node.ports.filter(port => port.status === "external").map(port =>
+      <Button key={port.port} size="sm" variant="outline" disabled={!usable}
+        aria-label={tr("Review port {port} for {name}", {port: port.port, name: node.id})}
+        onClick={() => plan("release", [node.id], port.port)}>{tr("Resolve :{port}", {port: port.port})}</Button>) : null}
     <Button size="sm" variant="ghost" asChild><Link aria-label={tr("Logs for {name}", {name: node.id})} to={workspacePath(sid, "logs", node.id)}>{tr("Logs")}</Link></Button>
     {actions.length > 0 ? <DropdownMenu><DropdownMenuTrigger asChild>
       <Button size="icon-sm" variant="ghost" aria-label={tr("Actions for {name}", {name: node.id})} disabled={!usable} data-focus-key={`${sid}/${node.id}/actions`}><MoreHorizontal /></Button>
@@ -80,9 +86,13 @@ export function WorkspaceDetail({
   const cache = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [port, setPort] = useState("");
+  const {search} = useListQuery();
   const sid = session.identity.session_id;
   const usable = controllable(session, now);
   const nodes = session.snapshot?.nodes ?? [];
+  const summary = summarizeWorkspaceNodes(session.snapshot?.nodes);
+  useEffect(() => { setSelected(new Set()); setPort(""); }, [sid, tab]);
+  useEffect(() => { setPort(""); }, [selected]);
   const logs = useQuery({
     queryKey: logKey(sid, target),
     queryFn: async (): Promise<LogState> => {
@@ -110,12 +120,13 @@ export function WorkspaceDetail({
       { session, action, targets: ids, ...(newPort ? { port: newPort } : {}) },
     ]);
   const columns = useMemo<ListColumn<Node>[]>(
-    () => [
+    () => ([
       {
         id: "select",
         header: tr("Select"),
         cell: ({ row }) => (
-          <Checkbox
+          <label className="node-selection" htmlFor={`select-${sid}-${row.original.id}`}><Checkbox
+            id={`select-${sid}-${row.original.id}`}
             aria-label={tr("Select {name}", {name: row.original.id})}
             checked={selected.has(row.original.id)}
             disabled={!usable || row.original.allowed_actions.length === 0}
@@ -127,7 +138,7 @@ export function WorkspaceDetail({
                 return next;
               })
             }
-          />
+          /></label>
         ),
       },
       {
@@ -140,10 +151,12 @@ export function WorkspaceDetail({
       {id: "cpu", header: "CPU", cell: ({row}) => <MetricValue metric={row.original.metric} kind="cpu" />},
       {id: "memory", header: tr("Memory"), cell: ({row}) => <MetricValue metric={row.original.metric} kind="memory" />},
       {id: "actions", header: tr("Actions"), cell: nodeActionsCell},
-    ],
+    ] as ListColumn<Node>[]).filter(column => tab !== "tasks" || !["ports", "cpu", "memory"].includes(column.id ?? "")),
     [selected, usable, session, onPlan, tab, tr],
   );
-  const selectedNodes = nodes.filter((n) => selected.has(n.id));
+  const scopedNodes = nodes.filter(n => tab === "tasks" ? n.kind === "task" : n.kind !== "task");
+  const selectedNodes = scopedNodes.filter(n => selected.has(n.id));
+  const hiddenSelected = selectedNodes.filter(n => !matchesSearch(nodeSearchText(n, tr), search)).length;
   const bulkActions = ["start", "stop", "restart"].filter(
     (a) =>
       selectedNodes.length > 0 &&
@@ -156,16 +169,18 @@ export function WorkspaceDetail({
         <div className="workspace-summary-top">
           <p className="workspace-path mono">{session.root}</p>
           <div className="workspace-summary-actions">
-            <WorkspaceInfo session={session} kind="session" />
+            <WorkspaceInfo session={session} />
             <Button size="sm" variant="outline" disabled={!usable} onClick={() => plan("close", [])}>{tr("Close session")}</Button>
           </div>
         </div>
-        <DefinitionList layout="inline" label={tr("Workspace summary")} items={[
-          {label: tr("Services"), value: nodes.filter(n => n.kind !== "task").length},
-          {label: tr("Running"), value: nodes.filter(n => n.kind !== "task" && n.state === "running").length},
-          {label: tr("Tasks"), value: nodes.filter(n => n.kind === "task").length},
-          {label: tr("Resources"), value: resources.filter(r => r.references.some(ref => ref.session_id === sid)).length},
-        ]} />
+        {tab === "services" ? (
+          <DefinitionList layout="inline" label={tr("Workspace summary")} items={[
+            {label: tr("Service / resource nodes"), value: summary?.services ?? tr("Unknown")},
+            {label: tr("Ready services"), value: summary?.runningServices ?? tr("Unknown")},
+            {label: tr("Tasks"), value: summary?.tasks ?? tr("Unknown")},
+            {label: tr("Resources"), value: resources.filter(r => r.references.some(ref => ref.session_id === sid)).length},
+          ]} />
+        ) : null}
       </Panel>
       {!usable ? (
         <Notice
@@ -192,7 +207,9 @@ export function WorkspaceDetail({
           <TabsContent value={t} key={t}>
             {selectedNodes.length > 0 ? <div className="toolbar node-toolbar">
               {selectedNodes.length > 0 ? <span>{tr("{count} nodes selected", {count: selectedNodes.length})}</span> : null}
+              {hiddenSelected ? <span className="caption">{tr("{count} selected outside this filter", {count: hiddenSelected})}</span> : null}
               <div className="action-list">
+                <Button variant="ghost" onClick={() => setSelected(new Set())}>{tr("Clear selection")}</Button>
                 {bulkActions.map((a) => (
                   <Button
                     variant="outline"
@@ -214,8 +231,9 @@ export function WorkspaceDetail({
                 t === "tasks" ? n.kind === "task" : n.kind !== "task",
               )}
               columns={columns}
+              searchText={node => nodeSearchText(node, tr)}
               label={t}
-              layout="nodes"
+              layout={t === "tasks" ? "tasks" : "nodes"}
               empty={t === "tasks" ? tr("No tasks in this workspace") : tr("No services in this workspace")}
               emptyDescription={tr("Nodes declared by this workspace appear here.")}
               />
@@ -243,6 +261,7 @@ export function WorkspaceDetail({
                       !/^\d+$/.test(port) ||
                       Number(port) < 1 ||
                       Number(port) > 65535
+                      || !selectedNodes[0].ports.some(p => p.status === "external" && p.port === Number(port))
                     }
                     onClick={() =>
                       plan("release", [selectedNodes[0].id], Number(port))
@@ -283,6 +302,7 @@ export function WorkspaceDetail({
             </Notice>
           ) : null}
           <LogView
+            key={`${sid}/${target}`}
             entries={logs.data?.entries ?? []}
             gap={logs.data?.gap ?? 0}
             connected={connected}

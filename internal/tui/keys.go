@@ -309,24 +309,25 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.selected == 0 && (k == "s" || k == "x" || k == "r") {
-			m.status = "Select a project; Shift+S start all, Shift+X stop all, Shift+R restart all"
-			return m, nil
-		}
+		global := m.selected == 0 || k == "S" || k == "X" || k == "R"
 		ids := m.ids()
-		if m.service < 0 {
+		if m.service < 0 && !global {
 			ids = defaultTargets(m.snapshot, ids)
 		}
-		if k == "S" || k == "X" || k == "R" {
+		if global {
 			ids = nil
 			for _, v := range m.snapshot.Services {
-				if v.Spec.Kind != "task" && v.Spec.Kind != "resource" && v.Spec.Control != "observe" {
+				if v.Spec.InAllActions() {
 					ids = append(ids, v.Spec.ID)
 				}
 			}
 		}
 		if len(ids) == 0 {
-			m.status = "Register project first: stackharbor init --project <directory>"
+			if len(m.snapshot.Diagnostics) > 0 {
+				m.status = "Configuration errors; run stackharbor validate for details"
+			} else {
+				m.status = "Register project first: stackharbor init --project <directory>"
+			}
 			return m, nil
 		}
 		for _, id := range ids {
@@ -348,21 +349,21 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		if k == "r" || k == "R" {
 			action = "restart"
 		}
-		if k == "S" || k == "X" || k == "R" {
+		if global {
 			action = "all-" + action
 		}
 		affected := m.controller.Affected(ids)
-		if k == "X" || k == "R" || (action != "start" && action != "all-start" && len(affected) > 0) {
+		if global || (action != "start" && len(affected) > 0) {
 			m.confirm = true
 			m.confirmOffset = 0
 			m.action = action
 			m.pending = ids
 			m.status = fmt.Sprintf("Affected dependents: %v", affected)
-			if k == "X" || k == "R" {
-				m.status = "Scope: all local services + declared Docker dependencies; container data preserved"
+			if global {
+				m.status = "Scope: managed application services and selected existing containers; container data preserved"
 				for _, v := range m.snapshot.Services {
 					if v.Spec.Version == 2 {
-						m.status = "Scope: all managed application services; persistent containers keep running"
+						m.status = "Scope: managed application services and selected existing containers; other persistent containers keep running"
 						break
 					}
 				}

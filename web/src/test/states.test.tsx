@@ -115,7 +115,7 @@ it("collection failure with zero rows stays failed partial state", async () => {
     screen.getByText(/Retained records and totals may be incomplete/),
   ).toBeVisible();
 });
-it("stale and unsupported sessions cannot be selected for controls", () => {
+it("stale and unsupported sessions are labeled where connection state is shown", () => {
   const stale = session({ stale: true });
   const unsupported = session({
     identity: {
@@ -128,22 +128,11 @@ it("stale and unsupported sessions cannot be selected for controls", () => {
   render(
     <MemoryRouter><Workspaces
       sessions={[stale, unsupported]}
-      selected={new Set()}
-      onSelect={() => {}}
       now={Date.now()}
     /></MemoryRouter>,
   );
   expect(screen.getByText("stale")).toBeVisible();
-  expect(screen.getByText("unsupported")).toBeVisible();
-  expect(
-    screen
-      .getAllByRole("checkbox")
-      .every(
-        (c) =>
-          (c as HTMLInputElement).getAttribute("data-disabled") !== null ||
-          c.hasAttribute("disabled"),
-      ),
-  ).toBe(true);
+  expect(screen.getByText("unsupported", {selector: '[data-slot="badge"]'})).toBeVisible();
 });
 it("client freshness ages out even if inventory transport stops updating", () => {
   const s = session();
@@ -164,8 +153,6 @@ it("filters workspace rows using TanStack9", async () => {
           identity: { ...session().identity, session_id: "other" },
         }),
       ]}
-      selected={new Set()}
-      onSelect={() => {}}
       now={Date.now()}
     /></MemoryRouter>,
   );
@@ -173,71 +160,7 @@ it("filters workspace rows using TanStack9", async () => {
     target: { value: "fixture" },
   });
   await waitFor(() =>
-    expect(screen.queryByText("/owned/other")).not.toBeInTheDocument(),
+    expect(screen.queryByRole("link", {name: "/owned/other"})).not.toBeInTheDocument(),
   );
-  expect(screen.getByText("/owned/fixture")).toBeVisible();
-});
-
-it("bulk requests retain independent outcomes and never call partial success overall success", async () => {
-  vi.spyOn(api, "bootstrap").mockResolvedValue({
-    csrf: "c",
-    expires_at: "2099",
-  });
-  const first = session();
-  const second = session({
-    root: "/owned/second",
-    identity: { ...first.identity, session_id: "second" },
-  });
-  vi.spyOn(api, "inventory").mockResolvedValue(
-    inventory({ sessions: [first, second] }),
-  );
-  vi.spyOn(api, "plan").mockImplementation(async (sid, action) => ({
-    id: "plan-" + sid,
-    session_id: sid,
-    action,
-    targets: [],
-    affected: ["app/api"],
-    expires_at: "2099-01-01T00:00:00Z",
-    fingerprint: "f",
-    warnings: [],
-  }));
-  vi.spyOn(api, "submit").mockImplementation(async (p) => {
-    if (p.session_id === "second")
-      throw new Error(
-        "Request outcome unknown. Inspect Operations before any new action.",
-      );
-    return {
-      id: "op-first",
-      session_id: p.session_id,
-      action: "close",
-      state: "queued",
-      results: [],
-      created_at: "now",
-      updated_at: "now",
-    };
-  });
-  app();
-  await screen.findByRole("region", {name: "Session health"});
-  fireEvent.click(screen.getByRole("link", { name: /^Workspaces$/ }));
-  await screen.findByText("/owned/fixture");
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: "Select /owned/fixture" }),
-  );
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: "Select /owned/second" }),
-  );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Review close selected" }),
-  );
-  await screen.findByRole("dialog");
-  expect(screen.getByText(/2 independent session plans/)).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Confirm close" }));
-  expect(
-    await screen.findByText(/Some requests require attention/),
-  ).toBeVisible();
-  expect(api.submit).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole("button", { name: "Confirm close" })).toBeDisabled();
-  expect(
-    screen.queryByText("All operations succeeded"),
-  ).not.toBeInTheDocument();
+  expect(screen.getByRole("link", {name: "/owned/fixture"})).toBeVisible();
 });

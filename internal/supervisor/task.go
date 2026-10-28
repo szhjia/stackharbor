@@ -457,6 +457,25 @@ func (s *Session) runResource(ctx context.Context, id model.ServiceID, gen uint6
 			return
 		}
 		available, identity = resourceAvailable(r, rows)
+		if r.Adapter == "existing-container" && !available {
+			deadline := time.NewTimer(60 * time.Second)
+			defer deadline.Stop()
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			for !available && why == "" {
+				select {
+				case <-ctx.Done():
+					fail(ctx.Err())
+					return
+				case <-deadline.C:
+					why = "Container did not become available within 60 seconds"
+				case <-ticker.C:
+					rows, why = m.Observe(ctx)
+					s.rememberResourceObservation(id, gen, r.Service, rows, why, true)
+					available, identity = resourceAvailable(r, rows)
+				}
+			}
+		}
 	}
 	if !available {
 		fail(fmt.Errorf("Resource %s unavailable or health unknown: %s", spec.Name, why))

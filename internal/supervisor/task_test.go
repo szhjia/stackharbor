@@ -194,8 +194,17 @@ func TestTaskCompletionGateAndBlockedFailure(t *testing.T) {
 		t.Fatal("blocked forever")
 	}
 	for _, v := range s.Snapshot().Services {
-		if v.Spec.ID == api.ID && v.State != "blocked" {
-			t.Fatal("unspawned child not blocked", v.State)
+		if v.Spec.ID == task.ID && v.State != "failed" {
+			t.Fatal("failed task lost its terminal state", v.State)
 		}
+		if v.Spec.ID == api.ID && (v.State != "blocked" || !strings.Contains(v.Reason, "Dependency "+string(task.ID))) {
+			t.Fatal("unspawned child not blocked with its dependency cause", v.State, v.Reason)
+		}
+	}
+	f.mu.Lock()
+	started = f.starts[api.ID]
+	f.mu.Unlock()
+	if started != 0 {
+		t.Fatal("API started after its task failed")
 	}
 }

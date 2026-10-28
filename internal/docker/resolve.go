@@ -62,19 +62,18 @@ func checkComposeSyntax(files []string) error {
 		var doc struct {
 			Include  yaml.Node `yaml:"include"`
 			Services map[string]struct {
-				Profiles yaml.Node `yaml:"profiles"`
-				Extends  yaml.Node `yaml:"extends"`
+				Extends yaml.Node `yaml:"extends"`
 			} `yaml:"services"`
 		}
 		if yaml.Unmarshal(b, &doc) != nil {
 			return errors.New("Invalid Compose YAML")
 		}
 		if doc.Include.Kind != 0 {
-			return errors.New("Compose include/profiles/extends not yet supported")
+			return errors.New("Compose include not yet supported")
 		}
 		for _, s := range doc.Services {
-			if s.Profiles.Kind != 0 || s.Extends.Kind != 0 {
-				return errors.New("Compose include/profiles/extends not yet supported")
+			if s.Extends.Kind != 0 {
+				return errors.New("Compose extends not yet supported")
 			}
 		}
 	}
@@ -198,12 +197,23 @@ func NewResolved(s ComposeScope, env []string, r *ResolvedCompose) *Manager {
 	return m
 }
 func (m *Manager) ScopeKey() string {
+	if m.adopted {
+		return "adopted\x00" + m.Project
+	}
 	if m.scope != nil {
 		return m.scope.Key()
 	}
 	return m.File + "\x00" + m.Project
 }
 func (m *Manager) CheckResolved(ctx context.Context) error {
+	if m.adopted {
+		services := make([]string, 0, len(m.specs))
+		for _, spec := range m.specs {
+			services = append(services, spec.Service)
+		}
+		_, err := m.verifyAdopted(ctx, services)
+		return err
+	}
 	if m.scope == nil {
 		return nil
 	}

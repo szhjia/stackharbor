@@ -135,16 +135,13 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		return out, nil
 	}
 	ids := []model.ServiceID{}
+	var globalActive, globalRelevant []model.ServiceID
 	if global {
-		for _, spec := range s.workspace.Services() {
-			if spec.Kind == "task" || spec.Kind == "resource" || spec.Control == "observe" {
-				continue
-			}
-			e := s.entries[spec.ID]
-			if action == "restart" && s.workspace.Version == 2 && e.handle == nil && e.state != "waiting" && e.state != "starting" {
-				continue
-			}
-			ids = append(ids, spec.ID)
+		var scopeErr error
+		ids, globalActive, globalRelevant, _, scopeErr = s.allActionScopeLocked(action)
+		if scopeErr != nil {
+			s.mu.Unlock()
+			return control.PlanState{}, controlError("invalid_request", "Invalid Docker dependency targets")
 		}
 	} else {
 		for _, target := range req.Targets {
@@ -186,7 +183,12 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 	}
 	relevant := append([]model.ServiceID{}, ids...)
 	affected := append([]model.ServiceID{}, ids...)
-	if legacyDocker {
+	if global {
+		affected, relevant = globalActive, globalRelevant
+		if action == "start" || action == "restart" {
+			affected = s.graph.StartOrder(affected)
+		}
+	} else if legacyDocker {
 		var scopeErr error
 		affected, relevant, scopeErr = s.legacyDockerScopeLocked(req.Targets, action)
 		if scopeErr != nil {
@@ -272,19 +274,15 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		}
 	}
 	s.mu.Unlock()
-	if legacyDocker || global {
-		names := req.Targets
-		if global {
-			names = nil
-			for _, spec := range s.workspace.Services() {
-				names = append(names, spec.DockerDependsOn...)
-			}
-		}
-		if _, err := s.docker.DependencyOrder(names); err != nil {
+	if legacyDocker {
+		if _, err := s.docker.DependencyOrder(req.Targets); err != nil {
 			return control.PlanState{}, controlError("invalid_request", "Invalid Docker dependency targets")
 		}
 	}
 	resourceKeys, resourceBindings, resourceErr := s.resourceEvidence(ctx, req, relevant)
+	if err := ctx.Err(); err != nil {
+		return control.PlanState{}, err
+	}
 	if resourceErr != nil {
 		return control.PlanState{}, resourceErr
 	}
@@ -294,7 +292,7 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		var err error
 		conflicts, err = observe.FindConflicts(ctx, s.ports, process.NewReader(), releasePorts, owned)
 		if err != nil {
-			return control.PlanState{}, controlError("plan_conflict", "Port listener cannot be safely verified")
+			return control.PlanState{}, controlError("plan_conflict", err.Error())
 		}
 		sort.Slice(conflicts, func(i, j int) bool {
 			if conflicts[i].Port != conflicts[j].Port {
@@ -517,6 +515,9 @@ func (s *Session) legacyDockerScopeLocked(names []string, action string) (active
 		owned := false
 		if entry.handle != nil {
 			owned = len(entry.handle.Identities()) > 0
+		}
+		if spec.Control == "observe" || spec.Resource != nil && spec.Resource.Control == "observe" {
+			continue
 		}
 		if owned || entry.state != "stopped" && entry.state != "failed" {
 			active = append(active, spec.ID)

@@ -183,8 +183,10 @@ func TestPTYQuitStopsFixtureAndRestoresTerminal(t *testing.T) {
 	}
 }
 func TestSIGTERMStopsOwnedServices(t *testing.T) {
-	cmd, master, _, _, pidfile := terminalFixture(t)
-	master.Write([]byte("S"))
+	cmd, master, _, c, pidfile := terminalFixture(t)
+	master.Write([]byte("s"))
+	wait(t, func() bool { return bytes.Contains([]byte(c.text()), []byte("Confirm: Start all")) })
+	master.Write([]byte("y"))
 	wait(t, func() bool { _, e := os.Stat(pidfile); return e == nil })
 	cmd.Process.Signal(syscall.SIGTERM)
 	done := make(chan error, 1)

@@ -13,15 +13,17 @@ import {
 import { Button } from "./ui/button";
 import { Panel } from "./Panel";
 import { Notice } from "./Notice";
-export type Planned = { root: string; plan: Plan };
+export type Planned = { root: string; plan: Plan; port?: number };
 export function PlanDialog({
   plans,
   onSubmit,
   onClose,
+  onInspectOperations,
 }: {
   plans: Planned[];
   onSubmit: () => Promise<void>;
   onClose: () => void;
+  onInspectOperations?: () => void;
 }) {
   const {t: tr, language} = usePreferences();
   const previousFocus = useRef(document.activeElement as HTMLElement | null);
@@ -75,10 +77,11 @@ export function PlanDialog({
             {tr("{count} independent session plans. Review every affected node before confirming.", {count: plans.length})}</DialogDescription>
         </DialogHeader>
         <div className="plan-scroll">
-          {plans.map(({ root, plan }) => (
+          {plans.map(({ root, plan, port }) => (
             <Panel as="section" radius="compact" key={plan.id} className="plan-section">
               <h3>{root}</h3>
               <small className="mono">{tr("Session")}{" "}{plan.session_id}</small>
+              {port != null ? <p className="mono">{tr("Port {port}", {port})}</p> : null}
               <p>{tr("Requested targets")}</p>
               <ul>
                 {plan.targets.map((id) => (
@@ -87,9 +90,9 @@ export function PlanDialog({
                   </li>
                 ))}
               </ul>
-              <p>{tr("Full affected set")}</p>
+              <p>{tr("Additional affected nodes · {count}", {count: plan.affected.filter(id => !plan.targets.includes(id)).length})}</p>
               <ul>
-                {plan.affected.map((id) => (
+                {plan.affected.filter(id => !plan.targets.includes(id)).map((id) => (
                   <li key={id} className="mono">
                     {id}
                   </li>
@@ -114,6 +117,7 @@ export function PlanDialog({
         {error ? (
           <Notice title={tr("Action requires attention")} danger>
             {error}
+            {onInspectOperations ? <Button variant="outline" onClick={onInspectOperations}>{tr("Inspect operations")}</Button> : null}
           </Notice>
         ) : null}
         <DialogFooter>

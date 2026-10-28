@@ -78,3 +78,79 @@ func TestComposeScopeRejectsBothYAMLFields(t *testing.T) {
 		}
 	}
 }
+
+func TestExistingContainerRegistrationUsesExplicitDependenciesWithoutCompose(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "stackharbor.workspace.yaml")
+	db := model.ResourceSpec{Adapter: "existing-container", Project: "wordverse", Service: "db", Available: "healthy", Control: "managed", Lifetime: "persistent"}
+	api := model.ResourceSpec{Adapter: "existing-container", Project: "wordverse", Service: "api", Available: "healthy", Control: "managed", Lifetime: "persistent", AllActions: true, Requires: []model.Requirement{{Node: "resource/database", Condition: "available"}}}
+	c := WorkspaceConfig{Resources: map[string]model.ResourceSpec{"database": db, "api": api}}
+	p, ds := ResourceProject(path, root, c)
+	if len(ds) != 0 || len(p.Services) != 2 {
+		t.Fatalf("valid adopted resources rejected: %v", ds)
+	}
+	for _, n := range p.Services {
+		if n.ID == "resource/api" && (len(n.DependsOn) != 1 || n.DependsOn[0] != "resource/database" || !n.Resource.AllActions) {
+			t.Fatalf("adopted dependency or all_actions lost: %+v", n)
+		}
+	}
+	api.File = "docker-compose.yml"
+	c.Resources["api"] = api
+	if _, ds := ResourceProject(path, root, c); len(ds) == 0 {
+		t.Fatal("adopted resource accepted Compose file")
+	}
+	api.File = ""
+	api.Requires[0].Node = "resource/missing"
+	c.Resources["api"] = api
+	if _, ds := ResourceProject(path, root, c); len(ds) == 0 {
+		t.Fatal("missing adopted dependency accepted")
+	}
+}
+
+func TestResourceProjectComposeProjectNames(t *testing.T) {
+	for _, adapter := range []string{"compose", "existing-container"} {
+		for _, tc := range []struct {
+			name  string
+			valid bool
+		}{
+			{"20years", true}, {"0", true}, {"123", true}, {"demo", true}, {"demo-project_2", true},
+			{"", false}, {"-demo", false}, {"_demo", false}, {"Demo", false},
+			{"demo.project", false}, {"demo project", false}, {"demo/name", false}, {"demo\n", false}, {"项目", false},
+		} {
+			t.Run(adapter+"/"+tc.name, func(t *testing.T) {
+				root, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				put(t, root, "base.yml", "services: {db: {image: postgres:17}}")
+				put(t, root, "docker", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$SH_PROJECT_ARGS_LOG\"\nprintf '%s\\n' '{\"services\":{\"db\":{\"image\":\"postgres:17\"}}}'\n")
+				if err := os.Chmod(filepath.Join(root, "docker"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				argsPath := filepath.Join(root, "docker-args")
+				t.Setenv("SH_PROJECT_ARGS_LOG", argsPath)
+				t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+				r := model.ResourceSpec{Adapter: adapter, Project: tc.name, Service: "db", Available: "running", Control: "managed", Lifetime: "persistent"}
+				if adapter == "compose" {
+					r.File = "base.yml"
+				}
+				project, ds := ResourceProject(filepath.Join(root, "workspace.yaml"), root, WorkspaceConfig{Resources: map[string]model.ResourceSpec{"db": r}})
+				if !tc.valid {
+					if len(ds) == 0 || len(project.Services) != 0 {
+						t.Fatalf("invalid project %q accepted: %+v %v", tc.name, project, ds)
+					}
+				} else if len(ds) != 0 || len(project.Services) != 1 || project.Services[0].Resource.Project != tc.name {
+					t.Fatalf("project name %q rejected or rewritten: %+v %v", tc.name, project, ds)
+				}
+				args, err := os.ReadFile(argsPath)
+				if tc.valid && adapter == "compose" {
+					if err != nil || !strings.Contains(string(args), "-p\n"+tc.name+"\n") {
+						t.Fatalf("project name not passed intact to Compose: %q %v", args, err)
+					}
+				} else if !os.IsNotExist(err) {
+					t.Fatalf("unexpected Docker invocation: %q %v", args, err)
+				}
+			})
+		}
+	}
+}

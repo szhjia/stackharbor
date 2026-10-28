@@ -1,15 +1,34 @@
 package tui
 
 import (
+	"errors"
 	"image/color"
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func TestFailedPreviewUsesErrorColor(t *testing.T) {
+	old, ok := os.LookupEnv("NO_COLOR")
+	os.Unsetenv("NO_COLOR")
+	t.Cleanup(func() {
+		if ok {
+			os.Setenv("NO_COLOR", old)
+		}
+	})
+	t.Setenv("TERM", "xterm-256color")
+	m := resized(NewModel(designFixture()), 120, 24)
+	v, _ := m.Update(previewMsg{err: errors.New("Port 6210 is protected by ssh")})
+	m = v.(Model)
+	if !strings.Contains(m.View().Content, m.tone("Port 6210 is protected by ssh", red)) {
+		t.Fatal("failed preview was not rendered in error color")
+	}
+}
 
 func luminance(c color.Color) float64 {
 	r, g, b, _ := c.RGBA()

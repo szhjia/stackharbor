@@ -13,6 +13,9 @@ func (s *Session) Snapshot() model.Snapshot {
 		for _, n := range s.workspace.Services() {
 			if n.Resource != nil {
 				out.DockerFile = n.Resource.File
+				if n.Resource.Adapter == "existing-container" {
+					out.DockerFile = "docker:existing"
+				}
 				break
 			}
 		}

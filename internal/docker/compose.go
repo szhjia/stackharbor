@@ -20,6 +20,9 @@ import (
 )
 
 type Manager struct {
+	adopted      bool
+	endpoint     string
+	pinned       map[string]string
 	scope        *ComposeScope
 	inputDigests map[string][32]byte
 	env          []string
@@ -136,6 +139,9 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 	}
 	if err := m.validate(names); err != nil {
 		return err
+	}
+	if m.adopted {
+		return m.actionAdopted(ctx, action, names)
 	}
 	if len(names) == 0 {
 		return nil
@@ -272,6 +278,11 @@ func parsePS(raw []byte) ([]container, error) {
 	}
 }
 func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) {
+	if m.adopted {
+		ctx, cancel := m.adoptedContext(ctx)
+		defer cancel()
+		return m.observeAdopted(ctx)
+	}
 	rows := m.Specs()
 	if m.File == "" {
 		return rows, ""

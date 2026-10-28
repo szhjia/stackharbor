@@ -40,14 +40,16 @@ type ResourceSpec struct {
 	ProjectDirectory string   `yaml:"project_directory"`
 	EnvFiles         []string `yaml:"env_files"`
 
-	Name      string `yaml:"name"`
-	Adapter   string `yaml:"adapter"`
-	File      string `yaml:"file"`
-	Project   string `yaml:"project"`
-	Service   string `yaml:"service"`
-	Available string `yaml:"available"`
-	Lifetime  string `yaml:"lifetime"`
-	Control   string `yaml:"control"`
+	Name       string        `yaml:"name"`
+	Adapter    string        `yaml:"adapter"`
+	File       string        `yaml:"file"`
+	Project    string        `yaml:"project"`
+	Service    string        `yaml:"service"`
+	Available  string        `yaml:"available"`
+	Lifetime   string        `yaml:"lifetime"`
+	Control    string        `yaml:"control"`
+	AllActions bool          `yaml:"all_actions"`
+	Requires   []Requirement `yaml:"requires"`
 }
 type Port struct {
 	Name   string `yaml:"name" json:"name"`
@@ -73,6 +75,7 @@ type Service struct {
 	Task                                  *TaskSpec
 	Resource                              *ResourceSpec
 	Control                               string
+	AllActions                            *bool
 	EnvFrozen                             bool
 	ID                                    ServiceID
 	ProjectID, Key, Name, SourceFile, Cwd string
@@ -85,6 +88,11 @@ type Service struct {
 	Stop                                  StopPolicy
 	Open                                  string
 }
+
+func (s Service) InAllActions() bool {
+	return s.Kind != "task" && s.Control != "observe" && (s.AllActions == nil || *s.AllActions) && (s.Kind != "resource" || s.Resource != nil && s.Resource.AllActions)
+}
+
 type ObservedIdentity struct {
 	Command []string `yaml:"command"`
 }

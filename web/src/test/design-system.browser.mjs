@@ -11,6 +11,15 @@ const resource = {id:'process:123:456',kind:'process',pid:123,identity_known:tru
 const total = {count:1,known_memory_count:1,known_cpu_count:1,memory_bytes:metric.rss_bytes,cpu_percent:2.5,partial:false,sampled_at:metric.sampled_at};
 const browser = await chromium.launch({headless:true});
 const page = await browser.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+async function checkNavigationLabels(width) {
+ if(width>640)return;
+ const overflow=await page.locator('.console-nav a').evaluateAll(links=>links.flatMap(link=>{
+   const label=link.querySelector('span');if(!label)return [];
+   const bounds=link.getBoundingClientRect(),text=label.getBoundingClientRect();
+   return text.left<bounds.left-1||text.right>bounds.right+1||text.height>parseFloat(getComputedStyle(label).lineHeight)*2+1?[label.textContent]:[];
+ }));
+ if(overflow.length)throw new Error(`Navigation labels overflow or break across too many lines at ${width}px: ${overflow.join(', ')}`);
+}
 await page.route('**/api/v1/**',async route=>{
  const path=new URL(route.request().url()).pathname;
  if(route.request().method() !== 'GET' && !path.endsWith('/auth/session') && !path.endsWith('/plans')) throw new Error(`Unexpected mutation: ${path}`);
@@ -31,6 +40,7 @@ for(const width of [1440,900,760,640,390,320]) {
  await page.locator('.app-content').getByText(/Waiting for the first/).waitFor({state:'hidden'});
  const geometry=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth,content:document.querySelector('.app-content').getBoundingClientRect().width}));
  if(geometry.scroll>width) throw new Error(`Overflow ${width} ${path}: ${JSON.stringify(geometry)}`);
+ await checkNavigationLabels(width);
  if(width===1440||width===390) await page.screenshot({path:`${out}/${width}-${path.replaceAll('/','_')||'overview'}.png`,fullPage:true,animations:"disabled"});
  results.push({width,path,...geometry});
  }
@@ -42,7 +52,7 @@ await page.locator('.workbench [data-slot="card-content"]').first().waitFor();
 await page.addStyleTag({content:"*, *::before, *::after { transition: none !important; animation: none !important; }"});
 const baseType = await page.evaluate(() => {
   const size = selector => getComputedStyle(document.querySelector(selector)).fontSize;
-  return {body: size('body'), nav: size('.console-nav [data-slot="navigation-menu-link"]'), caption: size('.caption'), heading: size('.workbench-charts h2'), stat: size('.workbench-stat')};
+  return {body: size('body'), nav: size('.console-nav [data-slot="navigation-menu-link"]'), caption: size('.caption'), heading: size('.workbench-secondary h2'), stat: size('.workbench-stat')};
 });
 if (JSON.stringify(baseType) !== JSON.stringify({body:'12px', nav:'12px', caption:'12px', heading:'18px', stat:'24px'})) throw new Error(`Unexpected workbench type scale: ${JSON.stringify(baseType)}`);
 await page.goto(baseURL+'/resources');
@@ -68,7 +78,7 @@ const tokenChecks = await page.evaluate(() => {
   typography.button = css('.connection [data-slot="button"]','fontSize');
   root.style.removeProperty('--type-body');
   root.style.setProperty('--primary', 'rgb(128, 40, 150)');
-  const color = {link: css('.workbench-link','color'), marker: css('.recharts-bar-rectangle path','fill')};
+  const color = {link: css('.workbench-link','color'), marker: css('.workbench-rank-bar','backgroundColor')};
   root.style.removeProperty('--primary');
   root.style.setProperty('--radius', '10px');
   const radius = css('.workbench [data-slot=card]','borderTopLeftRadius');
@@ -140,6 +150,7 @@ for (const width of [1440,390,320]) {
     scroll: document.documentElement.scrollWidth,
   }));
   if (largeType.cell !== '14px' || largeType.nav !== '14px' || largeType.scroll > width) throw new Error(`Large text did not reach resources at ${width}px: ${JSON.stringify(largeType)}`);
+  await checkNavigationLabels(width);
   await page.goto(baseURL+'/settings');
   await page.reload();
   await expect(page.getByRole('combobox',{name:'Text size',exact:true})).toHaveText('Large (14px)');

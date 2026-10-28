@@ -33,11 +33,6 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -100,11 +95,6 @@
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-ring: var(--ring);
-  --chart-1: var(--primary);
-  --chart-2: var(--muted-foreground);
-  --chart-3: var(--secondary-foreground);
-  --chart-4: var(--sidebar-accent);
-  --chart-5: var(--sidebar);
 
   /* Shared foundations (also used by Tailwind utilities). */
   --spacing: 4px;
@@ -183,21 +173,31 @@
   --tracking-label: 0.04em;
   --tracking-stat: -.03em;
   --auth-mark: 48px;
-  --workbench-chart-height: 200px;
+  /* Data channel for workbench ranking bars; rows override it inline. */
+  --bar: 0%;
   /* Shell, content, table and overlay dimensions. */
   --viewport-min-width: 320px;
   --sidebar-expanded-width: 224px;
+  --mobile-nav-min-width: 94px;
   --header-height: 56px;
   --nav-row: 38px;
   --filter-width: 330px;
   --metric-min-width: 106px;
   --ownership-width: 220px;
   --table-detail-min-width: 700px;
-  --workspace-table-min-width: 900px;
+  --resource-table-min-width: 840px;
+  --workspace-table-min-width: 1040px;
+  --workspace-column-name: 16%;
+  --workspace-column-terminal: 12%;
+  --workspace-column-pid: 7%;
+  --workspace-column-session: 10%;
+  --workspace-column-connection: 10%;
+  --workspace-column-count: 7%;
+  --workspace-column-running: 10%;
+  --workspace-column-abnormal: 10%;
+  --workspace-column-observed: 11%;
   --workspace-path-width: 200px;
   --session-id-width: 88px;
-  --terminal-width: 170px;
-  --terminal-column-width: 190px;
   --info-popover-width: 340px;
   --viewport-gutter: var(--space-6);
   --log-source-width: 180px;
@@ -226,12 +226,13 @@
   --content-scroll-offset: 80px;
   --dialog-max-height: 90dvh;
   --observation-columns: 1fr 1.4fr 1.4fr;
-  --resource-column-1: 10%;
-  --resource-column-2: 15%;
-  --resource-column-3: 36%;
-  --resource-column-4: 10%;
-  --resource-column-5: 16%;
-  --resource-column-6: 13%;
+  --resource-column-type: 11%;
+  --resource-column-identity: 13%;
+  --resource-column-workspace: 18%;
+  --resource-column-nodes: 21%;
+  --resource-column-cpu: 10%;
+  --resource-column-memory: 15%;
+  --resource-column-sample: 12%;
 
 }
 
@@ -267,11 +268,6 @@
   --ring: oklch(0.556 0 0);
   --sidebar-muted-foreground: oklch(0.708 0 0);
   --log-muted-foreground: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

@@ -17,6 +17,33 @@ func (f *allKeysController) AllAction(_ context.Context, action string) error {
 	return nil
 }
 
+func TestDashboardActionsUseGlobalScopeAfterConfirmation(t *testing.T) {
+	for _, action := range []struct{ key, name string }{{"s", "start"}, {"x", "stop"}, {"r", "restart"}} {
+		t.Run(action.name, func(t *testing.T) {
+			f := &allKeysController{fixture()}
+			m, cmd := key(NewModel(f), action.key)
+			if !m.confirm || cmd != nil || m.action != "all-"+action.name {
+				t.Fatalf("dashboard action did not preview global scope: action=%q confirm=%v", m.action, m.confirm)
+			}
+			if !reflect.DeepEqual(m.pending, []model.ServiceID{"app/web", "other/api"}) {
+				t.Fatalf("wrong global targets: %v", m.pending)
+			}
+			cancelled, cancelCmd := key(m, "n")
+			if cancelled.confirm || cancelCmd != nil || f.action != "" {
+				t.Fatal("cancel executed a global action")
+			}
+			m, cmd = key(m, "y")
+			if cmd == nil || m.confirm {
+				t.Fatal("confirmation did not execute the action")
+			}
+			cmd()
+			if f.action != "all-"+action.name {
+				t.Fatalf("wrong executed action: %q", f.action)
+			}
+		})
+	}
+}
+
 func TestShiftActionsUseAllScopeAndKeepConfirmation(t *testing.T) {
 	for _, page := range []string{"overview", "project", "docker"} {
 		for _, action := range []struct {
@@ -47,15 +74,13 @@ func TestShiftActionsUseAllScopeAndKeepConfirmation(t *testing.T) {
 					m.dockerView = page == "docker"
 					v, cmd := m.Update(input.msg)
 					m = v.(Model)
-					if action.name != "start" {
-						if !m.confirm || cmd != nil || m.action != "all-"+action.name {
-							t.Fatalf("missing global confirmation: action=%s confirm=%v cmd=%v", m.action, m.confirm, cmd != nil)
-						}
-						if !reflect.DeepEqual(m.pending, []model.ServiceID{"app/web", "other/api"}) {
-							t.Fatalf("wrong global targets: %v", m.pending)
-						}
-						m, cmd = key(m, "y")
+					if !m.confirm || cmd != nil || m.action != "all-"+action.name {
+						t.Fatalf("missing global confirmation: action=%s confirm=%v cmd=%v", m.action, m.confirm, cmd != nil)
 					}
+					if !reflect.DeepEqual(m.pending, []model.ServiceID{"app/web", "other/api"}) {
+						t.Fatalf("wrong global targets: %v", m.pending)
+					}
+					m, cmd = key(m, "y")
 					if cmd == nil {
 						t.Fatal("missing global command")
 					}
@@ -103,7 +128,17 @@ func TestShiftStopAndRestartCanBeCancelled(t *testing.T) {
 	}
 }
 
-func TestShiftShortcutsDiscoverableAcrossPagesAndWidths(t *testing.T) {
+func TestInvalidConfigurationDoesNotSuggestRegisteringProject(t *testing.T) {
+	f := fixture()
+	f.snapshot.Services = nil
+	f.snapshot.Diagnostics = []model.Diagnostic{{Severity: "error", Message: "Compose configuration invalid"}}
+	m, cmd := key(NewModel(f), "S")
+	if cmd != nil || !strings.Contains(m.status, "stackharbor validate") || strings.Contains(m.status, "init --project") {
+		t.Fatalf("misleading action hint: %q", m.status)
+	}
+}
+
+func TestContextShortcutsDiscoverableAcrossPagesAndWidths(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	for _, width := range []int{80, 120, 180} {
 		for _, page := range []string{"overview", "project", "docker"} {
@@ -116,8 +151,11 @@ func TestShiftShortcutsDiscoverableAcrossPagesAndWidths(t *testing.T) {
 			}
 			m.dockerView = page == "docker"
 			footer := m.footer()
-			if !strings.Contains(footer, "Shift+S/X/R") {
-				for _, input := range []string{"Shift+S", "Shift+X", "Shift+R"} {
+			if strings.Contains(footer, "Shift+") {
+				t.Fatalf("%s at %d columns: global alias shown as primary shortcut: %s", page, width, footer)
+			}
+			if page == "overview" {
+				for _, input := range []string{"Start all s", "Stop all x", "Restart all r"} {
 					if !strings.Contains(footer, input) {
 						t.Fatalf("%s at %d columns: missing %s: %s", page, width, input, footer)
 					}
@@ -127,7 +165,7 @@ func TestShiftShortcutsDiscoverableAcrossPagesAndWidths(t *testing.T) {
 	}
 	m := NewModel(fixture())
 	m.help = true
-	for _, input := range []string{"Shift+S", "Shift+X", "Shift+R"} {
+	for _, input := range []string{"Shift+S/X/R", "Dashboard: s start all"} {
 		if !strings.Contains(m.render(), input) {
 			t.Fatalf("help missing %s", input)
 		}

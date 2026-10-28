@@ -59,7 +59,9 @@ func (s *Session) resourceEvidence(ctx context.Context, req control.PlanRequest,
 	if len(s.resources) == 0 && strings.HasPrefix(action, "all-") {
 		names := []string{}
 		for _, spec := range s.workspace.Services() {
-			names = append(names, spec.DockerDependsOn...)
+			if spec.InAllActions() {
+				names = append(names, spec.DockerDependsOn...)
+			}
 		}
 		order, err := s.docker.DependencyOrder(names)
 		if err != nil {

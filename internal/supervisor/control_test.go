@@ -96,6 +96,25 @@ func TestControlStandaloneReleaseDoesNotStart(t *testing.T) {
 		t.Fatal("undeclared port accepted")
 	}
 }
+
+type unknownListenerProbe struct{}
+
+func (unknownListenerProbe) Observe(context.Context, []model.Port, []model.ProcessIdentity) []model.PortObservation {
+	return []model.PortObservation{{Port: 18456, Status: "unknown", Reason: "listener probe unavailable"}}
+}
+func (unknownListenerProbe) CheckStart(context.Context, []model.Port) error { return nil }
+
+func TestControlPlanExplainsPortVerificationFailure(t *testing.T) {
+	n := service("app/a")
+	n.Ports = []model.Port{{Number: 18456}}
+	s, _ := setup(t, n)
+	s.ports = unknownListenerProbe{}
+	b := NewControlBackend(s, control.Identity{})
+	_, err := b.PlanState(context.Background(), control.PlanRequest{Action: "release", Targets: []string{"app/a"}, Port: 18456})
+	if err == nil || !strings.Contains(err.Error(), "Port 18456 status unknown") {
+		t.Fatalf("port verification cause hidden: %v", err)
+	}
+}
 func TestControlConfigMismatchStillAllowsRecovery(t *testing.T) {
 	s, _ := setup(t, service("app/a"))
 	file := filepath.Join(t.TempDir(), "config.yaml")

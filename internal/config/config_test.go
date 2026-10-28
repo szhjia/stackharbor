@@ -61,3 +61,12 @@ func TestWorkspaceDiscoverDefault(t *testing.T) {
 		t.Fatal(w, ds)
 	}
 }
+
+func TestLocalServiceCanOptOutOfGlobalActionsWithoutLosingItsID(t *testing.T) {
+	root := t.TempDir()
+	path := put(t, root, "stackharbor.yaml", strings.Replace(valid, "    run:", "    all_actions: false\n    run:", 1))
+	p, ds := LoadProject(path, root)
+	if len(ds) != 0 || len(p.Services) != 1 || p.Services[0].ID != "app/web" || p.Services[0].InAllActions() {
+		t.Fatalf("local opt-out invalid: %+v %+v", p, ds)
+	}
+}

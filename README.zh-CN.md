@@ -90,13 +90,13 @@ cd stackharbor
 make demo
 ```
 
-这条命令编译工具并打开 Harbor Café。按 **Shift+S** 启动服务，默认使用 18281–18282 端口；出现端口冲突时先核实影响。按 **q** 停止本会话启动的进程并退出。
+这条命令编译工具并打开 Harbor Café。在总览页按 **s**、核对范围并确认，即可启动服务，默认使用 18281–18282 端口；出现端口冲突时先核实影响。按 **q** 停止本会话启动的进程并退出。
 
 ### 界面释义：以 Harbor Café 为例
 
-[Harbor Café](examples/harbor-cafe) 是专门为本说明编写、可以实际运行的咖啡店案例：**Menu API** 提供三款饮品，**Order counter** 从 API 读取菜单。点单服务必须等菜单 API 就绪后才能启动。运行 `make demo`，再按 **Shift+S**。
+[Harbor Café](examples/harbor-cafe) 是专门为本说明编写、可以实际运行的咖啡店案例：**Menu API** 提供三款饮品，**Order counter** 从 API 读取菜单。点单服务必须等菜单 API 就绪后才能启动。运行 `make demo`，在总览页按 **s** 并确认。
 
-![macOS Terminal 中实际运行的 Harbor Café 总览](docs/screenshots/harbor-cafe-dashboard.png)
+![Harbor Café 当前版本的真实终端输出](docs/screenshots/harbor-cafe-dashboard.png)
 
 总览回答日常最常见的问题：哪些服务正在运行、监听哪些端口、端口属于谁。截图为旧版；当前 **Running 2/2** 包含就绪的外部服务，**Session 2** 单独统计本会话管理的服务。**Running ext** 表示外部端点就绪，**Listening** 只确认存在监听；**Port owner** 表示观测到的监听端口归属，内存和 CPU 来自实际进程观测。**Session events** 展示菜单 API 就绪后才启动点单服务的顺序。这是 macOS 自带 Terminal 的真实运行截图。
 
@@ -135,7 +135,7 @@ stackharbor
 
 YAML 中的端口用于描述和观测，不会改变应用监听配置。命令采用 argv 数组，路径相对注册文件解析，且必须位于目标工作区内。v2 将资源、任务和服务分开并按依赖编排，同时兼容 v1。详见 [v2 协议](docs/protocol-v2.md)、[v1 英文参考](skills/stackharbor/references/registration.md) 和 [详细使用说明](docs/usage.zh-CN.md)。
 
-接入后，按 **s / x / r** 启动、停止或重启当前服务，按 **Shift+S** 启动默认启动集合中的应用。打开控制台本身不会启动服务。应用启动命令或端口改变时，同步更新注册文件。
+接入后，在总览页按 **s / x / r** 控制全部应用；选中工程、服务或容器时，同样按键控制当前范围。全局操作会先展示范围并等待确认。Shift+S/X/R 保留为任意页面可用的全局快捷键。打开控制台本身不会启动服务。应用启动命令或端口改变时，同步更新注册文件。
 
 ### 找回与关闭工作区会话
 
@@ -159,8 +159,8 @@ YAML 中的端口用于描述和观测，不会改变应用监听配置。命令
 | --- | --- |
 | ↑/↓ 或 j/k；Home | 选择工程或 Docker；返回总览 |
 | ←/→ 或 h/l | 选择服务、任务、容器或日志范围 |
-| s / x / r | 启动 / 停止 / 重启当前对象 |
-| Shift+S / Shift+X / Shift+R | 全部启动 / 全部停止 / 重启原运行集合 |
+| s / x / r | 总览页控制全部应用；其它页面控制当前对象 |
+| Shift+S / Shift+X / Shift+R | 任意页面的全局操作兼容快捷键 |
 | d | 快速进入 Docker（也可上下选择） |
 | i / o | 展开详情 / 打开服务网址 |
 | PageUp / PageDown / End | 日志历史或总览翻页 / 最新 |
@@ -178,7 +178,7 @@ StackHarbor 以当前用户权限运行本地前台进程，不提供安全沙�
 
 Docker 资源指标通过批量 `docker stats` 采样动态刷新。注册的 Compose 资源在总览、工程详情和 Docker 页面显示内存、CPU；外部转发端口在已配置 Compose 范围内唯一匹配运行容器时，工程行也显示该容器指标；采样失败显示未知值和原因。指标口径见 [使用说明](docs/usage.zh-CN.md#docker-依赖)。
 
-当前早期版本不提供 Windows、后台托管、自动重启或热加载。配置校验成功不代表已经验证应用的真实启动和数据库迁移行为。
+当前早期版本不提供 Windows、后台托管或应用故障后自动重启。`pnpm dev` 等开发命令自带的文件监听与 HMR 会正常保留。StackHarbor 不为任意命令额外添加监听器，也不重建接管的容器；源码热更新应登记项目的前台开发监听命令，详见[热更新排查](skills/stackharbor/references/hot-reload.md)。配置校验成功不代表已经验证应用的真实启动和数据库迁移行为。
 
 ## 开发与贡献
 

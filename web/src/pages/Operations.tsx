@@ -1,6 +1,8 @@
 import { usePreferences } from "../lib/preferences";
-import { useQueries } from "@tanstack/react-query";
-import { api, actionableError } from "../api/client";
+import { Link, useSearchParams } from "react-router";
+import { workspacePath } from "../routes";
+import { useQueries, useQueryClient, type Query } from "@tanstack/react-query";
+import { api, ApiFailure, actionableError } from "../api/client";
 import type { Session, Operation } from "../api/types";
 import { terminalStates } from "../api/types";
 import { DataList } from "../components/DataList";
@@ -21,7 +23,14 @@ export function Operations({
   tracked: Tracked[];
   onError: (s: string) => void;
 }) {
-  const {t: tr} = usePreferences();
+  const {t: tr, language} = usePreferences();
+  const cache = useQueryClient();
+  const roots = new Map(sessions.map(s => [s.identity.session_id, s.root]));
+  const [params] = useSearchParams();
+  const sessionID = params.get("session");
+  const operationID = params.get("operation");
+  const requested = new Map(tracked.map(operation => [`${operation.session_id}/${operation.id}`, operation]));
+  if (sessionID && operationID) requested.set(`${sessionID}/${operationID}`, {session_id: sessionID, id: operationID});
   const lists = useQueries({
     queries: sessions.map((s) => ({
       queryKey: ["operations", s.identity.session_id],
@@ -31,12 +40,19 @@ export function Operations({
     })),
   });
   const exact = useQueries({
-    queries: tracked.map((o) => ({
+    queries: [...requested.values()].map((o) => ({
       queryKey: ["operation", o.session_id, o.id],
       queryFn: () => api.operation(o.session_id, o.id),
       retry: false,
-      refetchInterval: (q: any) =>
-        terminalStates.has(q.state.data?.state) ? false : 1000,
+      refetchInterval: (q: Query<Operation>) => {
+        if (terminalStates.has(q.state.data?.state ?? "")) return false;
+        if (!q.state.error) return 1000;
+        // A missing exact session cannot answer repeated lookups. Keep the
+        // unknown outcome available for explicit retry or connection recovery.
+        if (!sessions.some(s => s.identity.session_id === o.session_id && s.available)
+          || (q.state.error instanceof ApiFailure && [404, 410].includes(q.state.error.status))) return false;
+        return Math.min(30000, 1000 * 2 ** Math.min(q.state.errorUpdateCount, 5));
+      },
     })),
   });
   const rows = new Map<string, Operation>();
@@ -53,9 +69,12 @@ export function Operations({
       cell: ({ row }) => (
         <div className="record">
           <strong>{tr(row.original.action)}</strong>
-          <span className="mono caption">{row.original.id}</span>
+          <Link to={workspacePath(row.original.session_id)}>{roots.get(row.original.session_id) ?? row.original.session_id}</Link>
+          <Link className="mono caption" to={`/operations?${new URLSearchParams({session: row.original.session_id, operation: row.original.id, q: row.original.id})}`}>{row.original.id}</Link>
           <span className="mono caption">{tr("Session")}{" "}{row.original.session_id}
           </span>
+          <span className="caption">{tr("Created")} · <time dateTime={row.original.created_at}>{new Date(row.original.created_at).toLocaleString(language)}</time></span>
+          {row.original.updated_at ? <span className="caption">{tr("Updated")} · <time dateTime={row.original.updated_at}>{new Date(row.original.updated_at).toLocaleString(language)}</time></span> : null}
         </div>
       ),
     },
@@ -71,7 +90,7 @@ export function Operations({
         <div className="record">
           {row.original.results.map((r) => (
             <span key={r.target}>
-              <span className="mono">{r.target}</span> · {tr(r.state)}
+              <Link className="mono" aria-label={tr("Logs for {name}", {name: r.target})} to={workspacePath(row.original.session_id, "logs", r.target)}>{r.target}</Link> · {tr(r.state)}
               {r.error ? ` · ${r.error.message}` : ""}
             </span>
           ))}
@@ -100,15 +119,22 @@ export function Operations({
   return (
     <>
       {[...lists, ...exact].some((q) => q.error) ? (
-        <Notice title={tr("Some operation outcomes are unavailable")}>{tr("Reconnect to the exact session. Missing results do not imply success.")}{" "}</Notice>
+        <Notice title={tr("Some operation outcomes are unavailable")}>
+          <p>{tr("Reconnect to the exact session. Missing results do not imply success.")}</p>
+          <Button variant="outline" onClick={() => void cache.invalidateQueries({
+            predicate: query => ["operation", "operations"].includes(String(query.queryKey[0])) && query.state.status === "error",
+          })}>{tr("Retry unavailable outcomes")}</Button>
+        </Notice>
       ) : null}
       <DataList
         data={[...rows.values()].sort((a, b) =>
           b.created_at.localeCompare(a.created_at),
         )}
         columns={columns}
+        searchText={op => [op.id, op.session_id, roots.get(op.session_id), op.action, tr(op.action), op.state, tr(op.state), op.error?.message, ...op.results.flatMap(r => [r.target, r.state, tr(r.state), r.error?.message])].join(" ")}
         label="operations"
         empty={tr("No recorded operations")}
+        emptyDescription={tr("Reviewed actions appear here with their per-target results.")}
       />
     </>
   );

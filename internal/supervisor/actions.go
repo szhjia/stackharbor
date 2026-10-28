@@ -86,35 +86,13 @@ func (s *Session) DockerAction(ctx context.Context, action string, names []strin
 	}
 	active := []model.ServiceID{}
 	if action != "start" {
-		snap := s.Snapshot()
-		for _, v := range snap.Services {
-			order, err := s.docker.DependencyOrder(v.Spec.DockerDependsOn)
-			if err != nil {
-				return err
-			}
-			affected := false
-			for _, nodeID := range s.graph.StartOrder([]model.ServiceID{v.Spec.ID}) {
-				node := s.entries[nodeID].spec
-				if node.Resource != nil && node.Resource.File == s.docker.File {
-					for _, name := range names {
-						if node.Resource.Service == name {
-							affected = true
-						}
-					}
-				}
-			}
-			for _, dep := range order {
-				for _, name := range names {
-					if dep == name {
-						affected = true
-					}
-				}
-			}
-			if affected && (len(v.Owned) > 0 || (v.State != "stopped" && v.State != "failed")) {
-				active = append(active, v.Spec.ID)
-			}
+		s.mu.Lock()
+		var scopeErr error
+		active, _, scopeErr = s.legacyDockerScopeLocked(names, "stop")
+		s.mu.Unlock()
+		if scopeErr != nil {
+			return scopeErr
 		}
-		active = append(active, s.Affected(active)...)
 		if err := s.Stop(ctx, active); err != nil {
 			return err
 		}
@@ -151,45 +129,81 @@ func (s *Session) AllAction(ctx context.Context, action string) error {
 	if action != "start" && action != "stop" && action != "restart" {
 		return fmt.Errorf("Unknown global service action")
 	}
-	ids := []model.ServiceID{}
-	deps := []string{}
-	for _, spec := range s.workspace.Services() {
-		if spec.Kind != "task" && spec.Kind != "resource" && spec.Control != "observe" {
-			if action == "restart" && s.workspace.Version == 2 {
-				s.mu.Lock()
-				active := s.entries[spec.ID].handle != nil || s.entries[spec.ID].state == "waiting" || s.entries[spec.ID].state == "starting"
-				s.mu.Unlock()
-				if !active {
-					continue
-				}
-			}
-			ids = append(ids, spec.ID)
-		}
-		deps = append(deps, spec.DockerDependsOn...)
-	}
-	order, err := s.docker.DependencyOrder(deps)
+	s.mu.Lock()
+	ids, active, _, order, err := s.allActionScopeLocked(action)
+	s.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	if action == "start" {
 		return s.Start(ctx, ids)
 	}
-	if err = s.Stop(ctx, ids); err != nil {
+	if err = s.Stop(ctx, active); err != nil {
 		return err
 	}
 	if s.workspace.Version == 2 {
 		if action == "restart" {
-			return s.Start(ctx, ids)
+			return s.Start(ctx, active)
 		}
 		return nil
 	}
 	for i := len(order) - 1; i >= 0; i-- {
-		if err = s.DockerAction(ctx, "stop", []string{order[i]}); err != nil {
+		if err = s.docker.Action(ctx, "stop", []string{order[i]}); err != nil {
 			return err
 		}
 	}
+	if len(order) > 0 {
+		rows, observeErr := s.docker.Observe(ctx)
+		s.mu.Lock()
+		s.dockerRows, s.dockerError = rows, observeErr
+		s.event("", "docker", "Docker stop: "+fmt.Sprint(order))
+		s.mu.Unlock()
+	}
 	if action == "restart" {
-		return s.Start(ctx, ids)
+		return s.Start(ctx, active)
 	}
 	return nil
+}
+
+// Caller holds session.mu. Plan and execution share both the graph effects and
+// v1 Docker consumers; all_actions only selects direct global targets.
+func (s *Session) allActionScopeLocked(action string) (ids, active, relevant []model.ServiceID, dockerOrder []string, err error) {
+	deps := []string{}
+	for _, spec := range s.workspace.Services() {
+		if !spec.InAllActions() {
+			continue
+		}
+		e := s.entries[spec.ID]
+		if action == "restart" && s.workspace.Version == 2 && e.handle == nil && e.state != "waiting" && e.state != "starting" && !(spec.Resource != nil && (e.state == "available" || e.resourceRunning)) {
+			continue
+		}
+		ids = append(ids, spec.ID)
+		deps = append(deps, spec.DockerDependsOn...)
+	}
+	dockerOrder, err = s.docker.DependencyOrder(deps)
+	if err != nil {
+		return
+	}
+	active = append([]model.ServiceID{}, ids...)
+	if action == "start" {
+		relevant = s.graph.StartOrder(ids)
+		return
+	}
+	active = append(active, s.affectedLocked(ids)...)
+	relevant = append(append([]model.ServiceID{}, ids...), s.graph.Dependents(ids)...)
+	if s.workspace.Version != 2 && len(s.resources) == 0 {
+		var consumers, potential []model.ServiceID
+		consumers, potential, err = s.legacyDockerScopeLocked(dockerOrder, "stop")
+		if err != nil {
+			return
+		}
+		active = append(active, consumers...)
+		relevant = append(relevant, potential...)
+	}
+	active = uniqueServiceIDs(active)
+	if action == "restart" {
+		relevant = append(relevant, s.graph.StartOrder(active)...)
+	}
+	relevant = uniqueServiceIDs(relevant)
+	return
 }

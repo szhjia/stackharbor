@@ -55,8 +55,8 @@ stackharbor sessions --focus 12345   # 将 PID 对应的 Terminal 标签页切�
 |---|---|
 | ↑/↓ 或 j/k；Home | 选择工程；返回工作台 |
 | ←/→ 或 h/l | 切换全部/单服务日志 |
-| s / x / r | 启动 / 停止 / 重启当前工程或服务 |
-| Shift+S / Shift+X / Shift+R | 全部启动 / 停止 / 重启；v2 重启原运行集合，持久容器单独控制（停止、重启需确认） |
+| s / x / r | 总览页启动全部 / 停止全部 / 重启原运行集合；工程、服务或容器页控制当前对象 |
+| Shift+S / Shift+X / Shift+R | 任意页面的全局操作兼容快捷键；显式设置 all_actions 的既有容器可参与 |
 | d | Docker 快捷入口；也可 ↑/↓ 选中 Docker，←/→ 选择容器，s/x/r 单独控制 |
 | PageUp / PageDown / End | 日志历史 / 最新；工作台翻页 / 最后一页 |
 | i | 展开或收起当前工程详情 |
@@ -106,9 +106,9 @@ cp -R examples/multi-service /tmp/stackharbor-multi
 stackharbor --root /tmp/stackharbor-multi
 ```
 
-快捷键字母表示动作，Shift 将范围扩大到全部：s/x/r 控制当前对象，Shift+S/X/R 控制全部。旧 a/A 绑定已移除。
+快捷键字母表示动作，当前选中位置决定范围：总览页的 s/x/r 控制全部，工程、服务或容器页控制当前对象。所有全局操作会先展示范围并等待确认；Shift+S/X/R 保留为任意页面可用的全局别名。旧 a/A 绑定已移除。
 
-在工作台按 Shift+S 启动全部，或选中工程后按 s。工作台的 s/x/r 不执行动作。第二个演示的前端依赖 API 就绪。若端口已有外部进程，启动或重启前会列出冲突端口、PID 和命令；按 y 确认释放后启动，Esc/n 取消。也可修改示例端口、ready、open 和 DEMO_PORT。
+在工作台按 s、核对范围并确认，即可启动全部；选中工程后按 s 则只启动该工程。第二个演示的前端依赖 API 就绪。若端口已有外部进程，启动或重启前会列出冲突端口、PID 和命令；按 y 确认释放后启动，Esc/n 取消。也可修改示例端口、ready、open 和 DEMO_PORT。
 
 `examples/pagesmith/` 是需要按目标工程调整的参考配置；通用可运行演示使用 minimal 和 multi-service。
 
@@ -142,7 +142,7 @@ go vet ./...
 ./scripts/release.sh
 ```
 
-测试用临时监听和进程，不接管本机工程。发行脚本生成 macOS/Linux × arm64/amd64 的压缩包及 SHA256 校验表，含示例、skill、说明和第三方许可证。当前不包含 Windows、容器资源统计、后台 daemon、自动重启、热加载或网页控制台。
+测试用临时监听和进程，不接管本机工程。发行脚本生成 macOS/Linux × arm64/amd64 的压缩包及 SHA256 校验表，含示例、skill、说明和第三方许可证。当前不包含 Windows、后台 daemon 或应用故障后自动重启。前台开发命令自带的 HMR 和源码监听照常工作；StackHarbor 不会自动为一次性编译命令或既有镜像添加热更新，接入与验证见[热更新排查](../skills/stackharbor/references/hot-reload.md)。
 
 相关开源项目：[Process Compose](https://github.com/F1bonacc1/process-compose) 提供 YAML 进程编排、依赖和 TUI；[Overmind](https://github.com/DarthSim/overmind) 使用 Procfile 与 tmux。StackHarbor 将子工程自动发现、自注册和工程级 Dashboard 组合为当前工作流。
 
@@ -178,3 +178,10 @@ services:
 ## Compose 多文件资源
 
 协议 v2 支持有序 `files`、可选 `project_directory` 和 `env_files`，兼容原有 `file`（两者不能同时使用）。路径相对 workspace 文件，默认工作目录是首个 Compose 文件所在目录，不自动加入 override。验证使用官方解析器，需要 Docker CLI 与 Compose 插件，解析本身不需要引擎运行。配置变化后容器操作会被拒绝，需重开工作区并重新规划。详见[字段及示例](../skills/stackharbor/references/v2.md#ordered-compose-inputs)。
+
+
+### 全局操作、节点统计与会话关闭
+
+`all_actions: false` 排除的是全局直接目标，不免除依赖变化带来的联动影响。v1 的共享 Docker 依赖和 v2 的显式依赖都必须显示在计划中；重启会恢复本次停止的活动托管下游，闲置下游和只读对象保持原状。持久既有容器只有显式 `all_actions: true` 才成为全局直接目标，退出控制台仍保留持久和只读资源。
+
+Web 工作区列表用于查看与定位会话。关闭会话从详情页发起，审核该会话的计划后确认；当前不提供跨工作区批量关闭入口。“服务与资源节点”包含所有非任务节点，“已就绪服务”仅统计通过就绪检查的 running 服务。started 表示进程存活，available 表示资源可用，均不等同于服务就绪；缺少快照时显示未知。

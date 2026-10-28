@@ -45,6 +45,35 @@ function mount(path: string) {
   history.replaceState(null, "", path);
   return render(<QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}><App /></QueryClientProvider>);
 }
+it("shows readiness and resource health failures on the workbench and clears them after recovery", async () => {
+  const node = {id: "app/api", name: "API", project_id: "app", kind: "service", state: "unready", reason: "Readiness probe returned 503", ownership: "session", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: [{port: 8080, status: "owned", reason: "", resource_refs: []}]};
+  const resource = {...node, id: "infra/db", name: "Database", kind: "resource", state: "unavailable", reason: "Container healthcheck failed", ports: []};
+  const data: Inventory = {sessions: [{...fixture, snapshot: {...fixture.snapshot!, observed_at: new Date().toISOString(), nodes: [node, resource]}}], resources: [], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"};
+  vi.mocked(api.inventory).mockResolvedValue(data);
+  mount("/");
+  const attention = await screen.findByRole("region", {name: "Needs your attention"});
+  expect(within(attention).getByText(node.reason)).toBeVisible();
+  expect(within(attention).getByText(resource.reason)).toBeVisible();
+  expect(within(attention).getByText("2", {selector: '[data-slot="badge"]'})).toBeVisible();
+  expect(within(attention).queryByText("No connection issues or current node failures.")).not.toBeInTheDocument();
+  vi.mocked(api.inventory).mockResolvedValue({...data, sessions: [{...data.sessions[0], snapshot: {...data.sessions[0].snapshot!, nodes: [{...node, state: "running", reason: ""}, {...resource, state: "available", reason: ""}]}}]});
+  await userEvent.click(screen.getByRole("button", {name: "Refresh"}));
+  expect(await within(attention).findByText("No connection issues or current node failures.")).toBeVisible();
+  expect(within(attention).queryByText(node.reason)).not.toBeInTheDocument();
+});
+it("workbench links current failed nodes directly to filtered services and provides a terminal command when empty", async () => {
+  const node = {id: "app/api", name: "API", project_id: "app", kind: "service", state: "failed", reason: "Port occupied", ownership: "session", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: []};
+  vi.mocked(api.inventory).mockResolvedValue({sessions: [{...fixture, snapshot: {...fixture.snapshot!, observed_at: new Date().toISOString(), nodes: [node]}}], resources: [], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"});
+  const view = mount("/");
+  const attention = await screen.findByRole("region", {name: "Needs your attention"});
+  expect(within(attention).getByText("Port occupied")).toBeVisible();
+  expect(within(attention).getByRole("link", {name: /API/})).toHaveAttribute("href", "/workspaces/exact?q=app%2Fapi");
+  view.unmount();
+  vi.mocked(api.inventory).mockResolvedValue({sessions: [], resources: [], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"});
+  mount("/");
+  expect(await screen.findByText("stackharbor --root /path/to/workspace")).toBeVisible();
+  expect(screen.getByRole("button", {name: "Copy command"})).toBeVisible();
+});
 it("overview summarizes unique workspaces, session health and shared resources without duplicating lists", async () => {
   const metric = {known: false, partial: true, sampled_at: null, rss_bytes: null, cpu_percent: null, uptime_millis: null};
   const ref = {session_id: "exact", workspace_id: "workspace", node_ids: ["api"], nodes: []};
@@ -69,6 +98,22 @@ it("overview summarizes unique workspaces, session health and shared resources w
   expect(screen.getByText("Partial observation")).toBeVisible();
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
+it.each([false, true])("workbench excludes healthy observe listeners while preserving real conflicts (conflict: %s)", async withConflict => {
+  const observer = {id: "app/db", name: "Observed database", project_id: "app", kind: "service", state: "running", reason: "External service · read-only dependency", ownership: "external", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: [{port: 5432, status: "external", reason: "", resource_refs: []}]};
+  const conflict = {...observer, id: "app/api", name: "API conflict", ownership: "session", reason: "", ports: [{port: 5173, status: "external", reason: "Occupied", resource_refs: []}]};
+  vi.mocked(api.inventory).mockResolvedValue({sessions: [{...fixture, snapshot: {...fixture.snapshot!, observed_at: new Date().toISOString(), nodes: withConflict ? [observer, conflict] : [observer]}}], resources: [], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"});
+  mount("/");
+  const attention = await screen.findByRole("region", {name: "Needs your attention"});
+  expect(within(attention).queryByText("Observed database")).not.toBeInTheDocument();
+  expect(within(attention).getByText(withConflict ? "1" : "0", {selector: '[data-slot="badge"]'})).toBeVisible();
+  if (withConflict) {
+    expect(within(attention).getByText(":5173 · Occupied")).toBeVisible();
+    expect(within(attention).getByRole("link", {name: /API conflict/})).toHaveAttribute("href", "/workspaces/exact?q=app%2Fapi");
+  } else {
+    expect(within(attention).getByText("No connection issues or current node failures.")).toBeVisible();
+    expect(within(attention).queryByText("running")).not.toBeInTheDocument();
+  }
+});
 it("direct menu URLs render their page and expose native navigation links", async () => {
   mount("/resources");
   expect(await screen.findByRole("heading", {name: "Runtime resources"})).toBeVisible();
@@ -77,7 +122,7 @@ it("direct menu URLs render their page and expose native navigation links", asyn
   expect(location.pathname).toBe("/workspaces");
   expect(await screen.findByRole("heading", {name: "Workspaces"})).toBeVisible();
   expect(screen.getByRole("link", {name: "/owned/fixture"})).toHaveAttribute("href", "/workspaces/exact");
-  expect(screen.getAllByRole("columnheader").map((column) => column.textContent)).toEqual(["Select", "Workspace", "Session", "PID", "Terminal", "Connection", "Nodes", "Last observation"]);
+  expect(screen.getAllByRole("columnheader").map((column) => column.textContent)).toEqual(["Workspace", "Terminal", "PID", "Session", "Connection", "Service / resource nodes", "Tasks", "Ready services", "Abnormal nodes", "Last observation"]);
   expect(api.bootstrap).toHaveBeenCalledTimes(1);
   expect(screen.getAllByRole("button", {name: "Refresh"})).toHaveLength(1);
 });

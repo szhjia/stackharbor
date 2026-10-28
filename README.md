@@ -90,13 +90,13 @@ cd stackharbor
 make demo
 ```
 
-This builds StackHarbor and opens Harbor Café. Press **Shift+S** to start its services on ports 18281–18282. Review any port conflict before taking action. Press **q** to stop the session-owned processes and exit.
+This builds StackHarbor and opens Harbor Café. Press **s** on the dashboard, review the scope, then confirm to start its services on ports 18281–18282. Review any port conflict before taking action. Press **q** to stop the session-owned processes and exit.
 
 ### Interface walkthrough: Harbor Café
 
-[Harbor Café](examples/harbor-cafe) is a small, runnable example created for this guide: a **Menu API** serves three drinks, and an **Order counter** fetches that menu. The counter starts only after the API is ready. Run `make demo`, then press **Shift+S**.
+[Harbor Café](examples/harbor-cafe) is a small, runnable example created for this guide: a **Menu API** serves three drinks, and an **Order counter** fetches that menu. The counter starts only after the API is ready. Run `make demo`, then press **s** on the dashboard and confirm.
 
-![Harbor Café running in macOS Terminal](docs/screenshots/harbor-cafe-dashboard.png)
+![Live terminal output from Harbor Café](docs/screenshots/harbor-cafe-dashboard.png)
 
 The dashboard answers the everyday questions: which services are running, which ports they listen on, and who owns those listeners. The capture predates v2.0.1. The current **Running 2/2** count includes ready external services; **Session 2** counts services managed by this session. **Running ext** identifies a ready external endpoint, and **Listening** means a listener exists without a readiness probe. **Port owner** identifies the observed listener ownership; memory and CPU come from actual process measurements. **Session events** shows the API becoming ready before the counter starts. This is a real capture from macOS Terminal.
 
@@ -135,7 +135,7 @@ stackharbor
 
 Ports in YAML describe the application; they do not configure its listener. Commands are argv arrays. Paths resolve relative to the registration file and must stay within the selected workspace. Protocol v2 separates resources, tasks, and services and orders them by dependency; v1 remains supported. See the [v2 protocol](docs/protocol-v2.md) (Chinese), [v1 reference](skills/stackharbor/references/registration.md) (English), and [detailed usage](docs/usage.zh-CN.md) (Chinese).
 
-After registration, use **s / x / r** to start, stop, or restart the selected service. Use **Shift+S** to start all eligible registered apps. Opening the console itself starts nothing. Update the registration when your app's startup command or ports change.
+After registration, use **s / x / r** on the dashboard for all apps, or on a project, service, or container for that selection. Global actions show their scope before confirmation. Shift+S/X/R remain available as global aliases from any page. Opening the console itself starts nothing. Update the registration when your app's startup command or ports change.
 
 ### Find and close workspace sessions
 
@@ -159,8 +159,8 @@ For Docker-backed apps, verify `docker compose version` and `docker info` before
 | --- | --- |
 | ↑/↓ or j/k; Home | Select project or Docker; return to dashboard |
 | ←/→ or h/l | Select service/task, container, or log scope |
-| s / x / r | Start / stop / restart selected scope |
-| Shift+S / Shift+X / Shift+R | Start all / stop all / restart running set |
+| s / x / r | Dashboard: start all / stop all / restart running set; elsewhere: control selected scope |
+| Shift+S / Shift+X / Shift+R | Global aliases from any page |
 | d | Optional shortcut to Docker containers |
 | i / o | Toggle details / open service URL |
 | PageUp / PageDown / End | Log history or dashboard pages / latest |
@@ -178,7 +178,7 @@ Readiness probes are loopback-only. Logs are bounded (2,000 lines / 2 MiB per se
 
 Docker resource metrics refresh through batched `docker stats` samples. Registered Compose resources and uniquely associated external forwarded endpoints show memory and CPU on the Dashboard, project details, and Docker panel; failed samples display unknown values with a reason. See the [usage guide](docs/usage.zh-CN.md#docker-依赖) for metric semantics.
 
-This early release does not provide Windows support, background supervision, automatic restart, or hot reload. Configuration validation does not prove an application's real startup or migration behavior.
+This early release does not provide Windows support, background supervision, or automatic restart after application failure. Development commands such as `pnpm dev` retain their own file watching and HMR. StackHarbor does not add a watcher to arbitrary commands or rebuild adopted containers; register the project's foreground development watcher for source reload. See [hot reload diagnosis](skills/stackharbor/references/hot-reload.md). Configuration validation does not prove an application's real startup or migration behavior.
 
 ## Development and contributing
 

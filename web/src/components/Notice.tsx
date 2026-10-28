@@ -9,7 +9,7 @@ export function Notice({
   danger?: boolean;
 }) {
   return (
-    <Alert variant={danger ? "destructive" : "default"}>
+    <Alert className="console-notice" variant={danger ? "destructive" : "default"}>
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{children}</AlertDescription>
     </Alert>

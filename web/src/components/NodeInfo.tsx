@@ -19,8 +19,13 @@ export function NodeInfo({node, kind}: {node: Node; kind: "identity" | "state" |
   ] : node.ports.length ? node.ports.map(port => ({
     label: tr("Port {port}", {port: port.port}), value: <>{tr(port.status)}{port.reason ? ` · ${port.reason}` : ""}</>,
   })) : [{label: tr("Ports"), value: tr("No declared ports")}];
-  return <InfoPopover title={title} label={`${title}: ${node.id}`} className="node-info-trigger"
+  return <div className={`node-cell node-cell-${kind}`}><InfoPopover title={title} label={`${title}: ${node.id}`} className="node-info-trigger"
     summary={kind === "identity" ? <span className="truncate">{node.name || node.id}</span> : kind === "state" ? <Status value={node.state} /> : <span className="mono truncate">{node.ports.length ? node.ports.map(port => `:${port.port}`).join(", ") : "—"}</span>}>
     <DefinitionList items={items} />
-  </InfoPopover>;
+  </InfoPopover>
+    {kind === "identity" ? <>
+      {node.name && node.name !== node.id ? <span className="caption mono node-id">{node.id}</span> : null}
+      {node.reason && ["failed", "error", "blocked"].includes(node.state) ? <p className="node-diagnostic">{node.reason}</p> : null}
+    </> : null}
+  </div>;
 }

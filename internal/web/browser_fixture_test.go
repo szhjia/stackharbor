@@ -90,15 +90,32 @@ func TestBrowserFixture(t *testing.T) {
 		}
 	}
 	credential()
+	primaryClosed := false
+	if err := os.WriteFile(filepath.Join(dir, "session-id"), []byte(host.SessionInfo().SessionID), 0600); err != nil {
+		t.Fatal(err)
+	}
 	nextCredential := time.Now().Add(15 * time.Second)
 	deadline := time.Now().Add(8 * time.Minute)
 	for time.Now().Before(deadline) {
 		if _, err = os.Stat(filepath.Join(dir, "stop")); err == nil {
 			break
 		}
+		if _, err = os.Stat(filepath.Join(dir, "append-log")); err == nil {
+			os.Remove(filepath.Join(dir, "append-log"))
+			host.Controller().Logs().Append(logs.Entry{ServiceID: "cafe/api", ProjectID: "cafe", Stream: "stdout", Text: "live acceptance appended output"})
+		}
+		if _, err = os.Stat(filepath.Join(dir, "close-primary")); err == nil && !primaryClosed {
+			if err = host.Close(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			primaryClosed = true
+		}
 		if _, err = os.Stat(filepath.Join(dir, "disconnect")); err == nil {
 			os.Remove(filepath.Join(dir, "disconnect"))
 			server.Close()
+			if err = os.WriteFile(filepath.Join(dir, "disconnected"), []byte("1"), 0600); err != nil {
+				t.Fatal(err)
+			}
 			time.Sleep(1500 * time.Millisecond)
 			listener, err = net.Listen("tcp4", address)
 			if err != nil {

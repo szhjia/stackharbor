@@ -54,11 +54,20 @@ file; layouts use `@variant mobile` etc.
 | Component | Responsibility | Consumers |
 | --- | --- | --- |
 | `Panel` | Surface, border and card radius; compact radius variant | Summary cards, workspace summary, all data lists, plan review sections |
-| `SummaryCard` | Named section, total, link, metrics and explanation | Legacy summary composition |
 | `DefinitionList` | Semantic `dt`/`dd` entries; details/grid/inline layouts | All entity popovers and summary metrics |
 | `InfoPopover` | Trigger, accessibility label, hover timing and portal surface | `WorkspaceInfo`, `ResourceInfo`, `NodeInfo` |
+| `WorkspaceLink` | Compact workspace name, full-path title and exact-session route | Workspace rows and resource ownership references |
 | `DataList` | Filtering, empty states, responsive table; layout variants | Workspaces, resources, services/tasks, operations |
 | `MetricValue` | Consistent CPU/memory cells, including unknown values | Resource and node tables |
+
+Workspace rows use separate columns for workspace, terminal, PID, session,
+connection, services, tasks, running services, abnormal nodes and observation
+time. Full paths and TTY remain available in session details and search.
+`summarizeWorkspaceNodes` supplies the same counts to the list and workspace
+summary; a missing snapshot is unknown, while a known empty snapshot is zero.
+Resource rows separate workspace references from expandable node ownership.
+Each physical resource keeps one row, including when it has several consumers.
+Desktop column widths target `data-column` identities rather than positions.
 | Existing UI primitives | Buttons, statuses, alerts, tabs, selects, menus, dialog | All routes and connection/loading/error states |
 
 Entity components keep their own data fields and business labels. Pages choose a
@@ -144,18 +153,19 @@ light/dark layouts at desktop and mobile sizes.
 ## Workbench
 
 The root route is Workbench / 工作台. `pages/Workbench.tsx` composes shadcn
-Card and Chart (Recharts) with the existing tokens. `lib/workbench.ts` derives
-snapshot statistics: unique workspaces, disjoint fresh/attention/unavailable
-session counts, shared resources deduplicated by session/node reference, and
-the top five measured physical resources by memory. Unknown, non-finite and
-negative samples are excluded; a measured zero remains valid. No historical
-trend or host-capacity percentage is inferred from snapshot data.
+Cards with the existing tokens and no chart library. `lib/workbench.ts`
+derives snapshot statistics: unique workspaces, disjoint
+fresh/attention/unavailable session counts, and the top five measured
+physical resources by memory. Unknown, non-finite and negative samples are
+excluded; a measured zero remains valid. No historical trend or
+host-capacity percentage is inferred from snapshot data.
 
-Chart values are also available as visible text. Charts disable animation,
-retain keyboard focus indication, and use the selected language for labels.
-Metric and session links lead to existing inspection flows. Runtime controls
-continue to require the existing plan review. The Workbench module is lazy
-loaded so other routes do not eagerly load the chart dependency.
+Every number is also visible as text: memory ranking rows carry an inline
+bar sized by the `--bar` custom property, and session health is a plain
+`dl` of three counts. Metric cards are single links to existing inspection
+flows. With no sessions and no resources the whole page collapses into one
+combined empty state instead of one per card. Runtime controls continue to
+require the existing plan review.
 
 ## Navigation vocabulary
 
@@ -168,6 +178,45 @@ The Workspaces navigation count explicitly uses session units. Within a
 workspace, the scoped Resources / 资源 tab retains its shorter label. Existing
 URL paths remain unchanged.
 
+## Daily diagnosis flow
+
+Lists keep their search in `q`, so reload and browser Back restore the filter.
+Each page supplies searchable identity, display names and translated state labels;
+service/task searches also include ports and reasons, and operation searches
+include actions and target outcomes. Search is a normalized, case-insensitive
+substring match. Lists show the matched/total count and a clear-search control.
+Resources additionally use `kind=process|container` and `sort=memory|cpu`;
+numeric sorts put unavailable samples last and do not modify inventory order.
+
+Service/task selection is scoped to the exact session and tab and clears on tab
+changes. Hidden selections are counted explicitly and can be cleared. Every
+mutation still requires a fresh session and plan review. Declared external ports
+have a direct review action; no selection or runtime execution is implied by
+opening that review. Task lists omit service-only metric and port columns.
+
+Workbench attention combines connection issues with failures, blocked nodes,
+external-port conflicts and error diagnostics from fresh snapshots. Normal
+stopped/unrun nodes are not failures. Task failures describe their current
+snapshot state, not an inferred recent event or historical incident. Attention
+links filter the correct services/tasks tab; resource rankings link to the
+physical resource. A healthy attention region collapses into a compact summary.
+
+Logs support text/stream filters and copying the visible retained output.
+Scrolling upward freezes the view while collection continues; the new-entry
+count and jump-to-latest action restore following. Auto-scroll stays within the
+log container. Switching the exact session/target resets viewing controls.
+
+Operation rows show workspace, creation/update times, exact-target log links and
+bookmarkable `session`/`operation` lookup parameters. This browser tab retains up
+to 100 accepted operation identities in session storage across reloads, including
+when a session leaves discovery. These are lookup keys, not cached success
+claims, approval credentials or permanent history. Results still depend on the
+gateway/session retention contract; storage failures preserve in-memory use.
+
+At mobile widths, service/task records use compact identity/status/action grids
+and larger touch areas instead of repeating every table label vertically.
+The initial empty state supplies a copyable foreground-session command.
+
 ## Build dependency boundary
 
 The shadcn CLI is not an application dependency. Copied UI components use the
@@ -176,3 +225,16 @@ for the pinned source version and checksum. Asset freshness includes this vendor
 directory. Full frontend checks audit production and development dependencies
 and reject high/critical advisories. Component-generation tools must be reviewed
 separately before use; do not restore an unpatched CLI dependency chain.
+
+### Workspace counts and closing sessions
+
+Workspace node totals include every non-task node (services and registered resources).
+“Ready services” counts only `running`: `started` proves process liveness and
+`available` describes a resource, neither claims service readiness. Unknown
+snapshots remain unknown, distinct from a known empty snapshot. These labels
+preserve the existing count behavior.
+
+The workspace table intentionally provides discovery and inspection. Close one
+session from its workspace detail page, reviewing that exact session's plan.
+There is no cross-workspace bulk-close control; independent session outcomes
+must never be presented as one atomic operation.

@@ -51,11 +51,19 @@ func TestResolveCompose(t *testing.T) {
 }
 func TestComposeUnsupportedSyntax(t *testing.T) {
 	s, env := resolverFixture(t, `{"services":{"db":{"image":"postgres"}}}`)
-	for _, body := range []string{"include: other.yml\nservices: {}", "services: {db: {extends: foo}}", "services: {db: {profiles: [local]}}"} {
+	for _, body := range []string{"include: other.yml\nservices: {}", "services: {db: {extends: foo}}"} {
 		os.WriteFile(s.Files[0], []byte(body), 0600)
 		if _, e := Resolve(context.Background(), s, env); e == nil {
 			t.Fatal("unsupported syntax accepted")
 		}
+	}
+}
+func TestComposeUnrelatedProfileDoesNotBlockDefaultService(t *testing.T) {
+	s, env := resolverFixture(t, `{"services":{"db":{"image":"postgres"}}}`)
+	os.WriteFile(s.Files[0], []byte("services:\n  db: {image: postgres}\n  seed: {image: alpine, profiles: [seed]}\n"), 0600)
+	r, e := Resolve(context.Background(), s, env)
+	if e != nil || r == nil || r.Services["db"].Image != "postgres" {
+		t.Fatalf("default service blocked by unrelated profile: result=%v error=%v", r, e)
 	}
 }
 func TestComposeModelDigest(t *testing.T) {

@@ -62,6 +62,9 @@ func (m *Manager) LockKeys(ctx context.Context, names []string) ([]string, error
 // Binding captures every selected container instance, including an absent service,
 // from a fresh no-trunc status read. It is used only as server-retained plan evidence.
 func (m *Manager) Binding(ctx context.Context, names []string) (string, error) {
+	if m.adopted {
+		return m.bindingAdopted(ctx, names)
+	}
 	identity, err := m.Identity(ctx)
 	if err != nil {
 		return "", err

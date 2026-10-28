@@ -6,6 +6,50 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-28
+
+### Added
+
+- Adopt existing Docker containers as registered v2 resources with explicit
+  managed or observe-only control, availability checks and resource dependencies.
+  Opt managed resources into global actions with `all_actions`.
+- Console search, sorting, selection visibility, log stream filters and copying,
+  plus operation tracking that survives reloads and session discovery loss.
+- Verified foreground development reload guidance, a fallback watcher, and
+  integration coverage for native Vite HMR and adopted-container lifecycle.
+
+### Changed
+
+- Refined the runtime workbench, workspace/resource tables, responsive navigation
+  and shared typography for clearer ownership, readiness and abnormal-node counts.
+- Compose project names accept valid leading digits; inactive profiles no longer
+  alter default resource registration.
+
+### Fixed
+
+- Global actions respect explicit participation and observe-only resources,
+  preserve dependency ordering, and recover dependent services after restart.
+- Workbench attention and workspace abnormal counts include failed readiness,
+  unavailable resources and unresolved identities without misreporting healthy
+  externally observed listeners as port conflicts.
+- stdout/stderr log filters include all task phases and copy exactly the visible
+  output while retaining phase labels.
+- Console operation and log views recover retained results after reconnects
+  without automatically repeating uncertain action submissions.
+
+### Security
+
+- Removed the vulnerable shadcn CLI dependency chain and unused chart packages.
+
+### Upgrade notes
+
+- Existing YAML registrations and session protocol 1 remain supported. Replace
+  the binary and restart StackHarbor processes to load this version.
+- Existing-container resources require explicit project/service labels and
+  persistent lifetime. StackHarbor does not rebuild their images, remove them,
+  or add source watching; use the application's foreground development command
+  for hot reload. The bundled skill is version 0.4.1.
+
 ## [0.6.1] - 2026-10-07
 
 ### Fixed
@@ -260,7 +304,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/szhjia/stackharbor/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/szhjia/stackharbor/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/szhjia/stackharbor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/szhjia/stackharbor/compare/v0.4.0...v0.5.0

@@ -55,13 +55,15 @@ Go includes the standard `testing` framework. No extra test framework needs to
 be installed. Run a focused package test while working, then the repository's
 checks before proposing a release:
 
+The bundled skill's fallback watcher and its regression checks require Python 3.9+; the StackHarbor binary itself has no Python dependency.
+
 ```sh
 make web-build
 go test ./internal/docker ./internal/supervisor ./internal/tui -count=1
 make check
 ```
 
-`make check` installs locked npm dependencies, checks frontend types/tests, builds and validates matching embedded assets/licenses, then verifies Go formatting, runs `go vet`, runs the main module's tests
+`make check` installs locked npm dependencies, checks frontend types/tests, builds and validates matching embedded assets/licenses, runs the bundled development watcher's Python tests, then verifies Go formatting, runs `go vet`, runs the main module's tests
 and race detector, then tests every example module. Integration tests create
 disposable processes and listeners. Some environment-dependent checks, including
 release archive and PostgreSQL checks, are opt-in; see each test's skip message.
@@ -120,3 +122,37 @@ there is an actual external consumer.
 See [Web/CLI control](web-control.md) for source builds and the exact Vite proxy opt-in. `make build/check/release` are supported freshness paths. `node scripts/web-assets.mjs validate` refuses stale source/version/protocol or modified bundle files. `node scripts/frontend-licenses.mjs --check` validates retained texts; regenerate with the same command without `--check` when dependencies change. react-remove-scroll-bar 2.3.8 omits its license from npm: the retained MIT text comes from upstream LICENSE snapshot `8ca9ba5ea52de03308fe8ced94f7b159a44d28ff` (npm release gitHead is unavailable upstream).
 
 `TestWebControlTwoPTYWorkspacesWithoutGateway` runs two real PTYs, CLI control, gateway inventory, plan conflicts, accepted-request disconnect recovery, legacy read-only metadata, gateway-only teardown and terminal restoration. `STACKHARBOR_CAFE_TEST=1` enables original Harbor Café lifecycle on 18281/18282 and refuses occupied ports. `STACKHARBOR_DOCKER_TEST=1` enables a unique Compose Redis fixture, named-volume persistence and container-replacement conflict; only that generated project is removed. Default checks skip those two opt-in environmental integrations. Neither uses existing developer containers or data.
+
+
+### Explicit integration acceptance
+
+The ordinary gate can enable config-only Compose and real local Vite HMR:
+
+```sh
+STACKHARBOR_COMPOSE_INTEGRATION=1 STACKHARBOR_TEST_VITE="$PWD/web/node_modules/vite/bin/vite.js" make check
+```
+
+Disposable Docker acceptance requires a working daemon and an already installed
+`redis:7-alpine` image (override with `STACKHARBOR_TEST_DOCKER_IMAGE` containing
+`/bin/sh`, `sleep` and standard shell tools). It never pulls images. It covers
+adopted lifecycle, mixed global actions, observe-only preservation, health
+recovery/cancellation/the real 60-second deadline, scaling, replacement and removal.
+All containers have random project labels, no host ports or data volumes, and
+are removed by their exact full IDs. Daemon identity switching is separately
+covered by the command-boundary regression test.
+
+```sh
+STACKHARBOR_DOCKER_INTEGRATION=1 go test ./internal/supervisor -run '^TestAdoptedEngineLifecycleAndIdentity$' -count=1 -timeout 200s
+```
+
+For browser-to-gateway acceptance, first run `make web-build`, then create a
+private temporary directory and pass its absolute path as
+`STACKHARBOR_BROWSER_FIXTURE` when running `go test ./internal/web -run
+'^TestBrowserFixture$' -count=1 -timeout 12m`. Once its `url` file exists, run
+`node web/src/test/live-control.browser.mjs <fixture-directory> <output-directory>`
+with Playwright/Chromium available. The script verifies that the host embeds the
+current built bundle before testing actual plans, accepted operations, refresh,
+logs, SSE recovery, dropped accepted responses without duplicate submission,
+exact-session lookup and ended-session uncertainty. Write a `stop` file in the
+fixture directory afterwards; cleanup belongs to the fixture. Browser outputs
+should stay outside the repository. The fixture never discovers personal sessions.
