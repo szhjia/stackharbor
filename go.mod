@@ -37,3 +37,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+// BSD reader close/read lifecycle fix; see third_party/cancelreader/PATCHES.md.
+replace github.com/muesli/cancelreader => ./third_party/cancelreader

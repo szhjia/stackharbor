@@ -58,7 +58,12 @@ func TestMain(m *testing.M) {
 		os.Exit(code)
 	}
 	binary = filepath.Join(dir, "stackharbor")
-	cmd := exec.Command("go", "build", "-o", binary, "../cmd/stackharbor")
+	args := []string{"build", "-o", binary}
+	if terminalRaceEnabled {
+		args = append(args, "-race")
+	}
+	args = append(args, "../cmd/stackharbor")
+	cmd := exec.Command("go", args...)
 	if out, e := cmd.CombinedOutput(); e != nil {
 		panic(string(out))
 	}
