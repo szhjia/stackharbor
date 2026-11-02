@@ -38,5 +38,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 )
 
-// BSD reader close/read lifecycle fix; see third_party/cancelreader/PATCHES.md.
+// BSD/Linux reader close/read lifecycle fix; see third_party/cancelreader/PATCHES.md.
 replace github.com/muesli/cancelreader => ./third_party/cancelreader

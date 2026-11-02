@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"golang.org/x/sys/unix"
 )
@@ -63,6 +64,10 @@ func NewReader(reader io.Reader) (CancelReader, error) {
 }
 
 type epollCancelReader struct {
+	// Closing must join an active read before releasing its epoll and pipe.
+	readMu             sync.Mutex
+	closeOnce          sync.Once
+	closeErr           error
 	file               File
 	cancelSignalReader File
 	cancelSignalWriter File
@@ -71,6 +76,8 @@ type epollCancelReader struct {
 }
 
 func (r *epollCancelReader) Read(data []byte) (int, error) {
+	r.readMu.Lock()
+	defer r.readMu.Unlock()
 	if r.isCanceled() {
 		return 0, ErrCanceled
 	}
@@ -101,9 +108,19 @@ func (r *epollCancelReader) Cancel() bool {
 }
 
 func (r *epollCancelReader) Close() error {
+	r.closeOnce.Do(func() {
+		r.Cancel()
+		r.readMu.Lock()
+		defer r.readMu.Unlock()
+		r.closeErr = r.closeResources()
+	})
+	return r.closeErr
+}
+
+func (r *epollCancelReader) closeResources() error {
 	var errMsgs []string
 
-	// close kqueue
+	// close epoll
 	err := unix.Close(r.epoll)
 	if err != nil {
 		errMsgs = append(errMsgs, fmt.Sprintf("closing epoll: %v", err))

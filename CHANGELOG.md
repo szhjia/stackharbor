@@ -6,6 +6,8 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-02
+
 ### Added
 
 - Reopening an occupied workspace displays its owner and close plan, with one
@@ -24,6 +26,15 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 - Legacy session shutdown rechecks the selected session identity after
   confirmation so a replacement owner cannot inherit approval.
+- Terminal input shutdown on macOS/BSD and Linux waits for an active read to
+  finish before closing its descriptors, preventing a data race during
+  cancellation and exit.
+
+### Upgrade notes
+
+- Existing YAML registrations and session protocol 1 remain supported. Replace
+  the binary and restart StackHarbor processes to load this version.
+- The bundled skill remains at version 0.4.1.
 
 ## [0.7.0] - 2026-10-28
 
@@ -323,7 +334,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/szhjia/stackharbor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/szhjia/stackharbor/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/szhjia/stackharbor/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/szhjia/stackharbor/compare/v0.5.0...v0.6.0
