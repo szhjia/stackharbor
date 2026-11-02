@@ -13,26 +13,26 @@ See which services and ports are running. Start your apps without remembering th
 
 ## Development and design philosophy
 
-AI coding tools make it easier to turn ideas into applications. Every new app also brings startup commands, ports, logs, and dependencies to manage. StackHarbor gives those growing app collections a shared place in your terminal, so you can spend less time recalling commands and finding terminal tabs.
+AI coding tools make it easier to turn ideas into applications, but each app adds startup commands, ports, logs, and dependencies to manage. StackHarbor brings those apps together in your terminal, so you spend less time looking up commands and switching terminal tabs.
 
 - **Keep daily development lightweight.** Use one local terminal program and readable configuration, with no hosted control platform to set up.
-- **Keep existing project workflows.** Register the foreground commands your apps already use. Preserve their languages, package managers, and startup contracts.
-- **Make running state clear.** Show observed services, listening ports, port ownership, and logs. Unknown measurements stay unknown; session-owned processes and external services remain distinct.
-- **Make operations explicit.** Opening the console starts nothing. Show the impact before stopping or restarting dependencies, and check process identity before releasing an external port.
-- **Respect different lifecycles.** Persistent databases, one-time tasks, and long-running services have separate handling. Normal exit cleans up session-owned processes while retaining persistent resources.
+- **Keep existing project workflows.** Register the foreground commands your apps already use, keeping their languages, package managers, and startup contracts.
+- **Make running state clear.** Show observed services, listening ports, port ownership, and logs. When a measurement is unavailable, show it as unknown. Keep session-owned processes and external services distinct.
+- **Make operations explicit.** Opening the console starts nothing. Before stopping or restarting dependencies, show what will be affected; before releasing an external port, check the process identity.
+- **Respect different lifecycles.** Handle persistent databases, one-time tasks, and long-running services separately. Normal exit cleans up session-owned processes while retaining persistent resources.
 - **Give humans and agents the same contract.** Versioned YAML, machine-readable discovery and validation, read-only plans, and a bundled skill make project setup inspectable and repeatable.
 
 ## Core advantages
 
-- **See services and ports in one place.** Find out which registered apps are running, who owns their listening ports, and where to read their logs. Port declarations describe the expected listeners; observed ownership and readiness provide runtime evidence.
-- **Register commands once, reuse them every day.** Save the working directory, command, ports, and dependencies in YAML. Start, stop, or restart through the console without recalling a different command for each app.
-- **Bring several projects into one workspace.** Discover project registrations and view them together while preserving each project's own startup workflow. Unregistered candidates are shown for review and never executed automatically.
-- **Work with your coding agent.** The bundled skill helps agents install and register apps using their real startup commands. JSON discovery, validation, and read-only dependency plans give agents a consistent way to inspect configuration before acting.
-- **Run locally with clear operation boundaries.** The console runs on your machine. Starting services is explicit; external services are observed without acquiring stop permission, and dependency changes show their impact. These controls make operations predictable; commands still run with your user permissions.
+- **See services and ports in one place.** Find which registered apps are running, who owns their listening ports, and where to read their logs. Port declarations describe the expected listeners; observed ownership and readiness show the current runtime state.
+- **Register commands once, reuse them every day.** Save the working directory, command, ports, and dependencies in YAML. Start, stop, or restart through the console without looking up a different command for each app.
+- **Bring several projects into one workspace.** Discover project registrations and view them together without changing each project's startup workflow. Unregistered candidates are shown for review and never executed automatically.
+- **Work with your coding agent.** The bundled skill helps agents install and register apps with their existing startup commands. Agents can inspect the configuration through JSON discovery, validation, and read-only dependency plans before acting.
+- **Run locally with explicit controls.** The console runs on your machine. Starting services requires an explicit action. External services are observed without acquiring permission to stop them, and dependency changes show their impact. Commands still run with your user permissions.
 
 ## How StackHarbor differs from related tools
 
-Choose StackHarbor when your main need is to keep a growing collection of local apps understandable: which services and ports are running, how to start each app, and which processes your session owns. Its lightweight workflow uses existing commands, project registrations, a workspace overview, and explicit lifecycle controls.
+Choose StackHarbor to keep track of a growing collection of local apps: which services and ports are running, how to start each app, and which processes your session owns. It uses existing commands, project registrations, a workspace overview, and explicit lifecycle controls.
 
 | Tool | Main focus | StackHarbor's focus by comparison |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ Choose StackHarbor when your main need is to keep a growing collection of local 
 | [Overmind](https://github.com/DarthSim/overmind) | Procfile-based process management and interactive access through tmux | YAML project registrations and a workspace overview, without requiring tmux |
 | [Tilt](https://github.com/tilt-dev/tilt) | A development loop that watches code, builds container images, and updates environments using Kubernetes or Compose | Direct use of existing local foreground commands, with optional Compose resources |
 
-StackHarbor keeps setup small: one terminal binary, no tmux requirement, and Docker only for apps that use Compose resources. Its advantage for this use case is the combination of project discovery, service/port visibility, reusable commands, and explicit session ownership. Choose according to the workflow you need; related tools also offer local operation and agent support.
+StackHarbor uses one terminal binary, does not require tmux, and needs Docker only for apps with Compose resources. It combines project discovery, service and port visibility, reusable commands, and explicit session ownership. Choose the tool that fits your workflow; the related tools also support local operation and coding agents.
 
 ## Install
 
