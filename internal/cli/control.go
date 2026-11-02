@@ -27,6 +27,13 @@ func controlCommand(command string) bool {
 	return false
 }
 
+// An interactive recovery can only close the owner that triggered its prompt.
+// Public control commands select their own owner and keep their usual prompt.
+type controlInteraction struct {
+	expected *supervisor.SessionInfo
+	confirm  func(io.Reader, io.Writer, string) bool
+}
+
 // extractCommand preserves flags before a command without treating their values
 // as command names. The remaining arguments are still validated by FlagSet.
 func extractCommand(args []string) (string, []string) {
@@ -123,6 +130,10 @@ func selectControlSession(root string) (supervisor.SessionInfo, bool, error) {
 	return supervisor.SessionInfo{}, false, nil
 }
 func runControl(ctx context.Context, command string, args []string, in io.Reader, out, errOut io.Writer) int {
+	return runControlWithInteraction(ctx, command, args, in, out, errOut, controlInteraction{})
+}
+
+func runControlWithInteraction(ctx context.Context, command string, args []string, in io.Reader, out, errOut io.Writer, interaction controlInteraction) int {
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	root := fs.String("root", "", "Workspace root")
@@ -224,6 +235,12 @@ func runControl(ctx context.Context, command string, args []string, in io.Reader
 	if e != nil {
 		return controlFailure(errOut, e)
 	}
+	if found && interaction.expected != nil {
+		expected := interaction.expected
+		if info.Root != expected.Root || info.PID != expected.PID || info.ProcessCreatedMillis != expected.ProcessCreatedMillis || info.SessionID != expected.SessionID || info.SocketPath != expected.SocketPath || info.ProtocolVersion != expected.ProtocolVersion {
+			return controlFailure(errOut, &control.APIError{Code: "plan_conflict", Message: "Workspace session changed; run stackharbor again to review its current owner"})
+		}
+	}
 	if command == "operations" && *id != "" {
 		if op, e := readCompletedOperation(canonical, *id); e == nil {
 			return writeOperation(out, errOut, op, *jsonMode)
@@ -247,21 +264,25 @@ func runControl(ctx context.Context, command string, args []string, in io.Reader
 	if *jsonMode {
 		interactionOut = errOut
 	}
+	confirm := confirmControl
+	if interaction.confirm != nil {
+		confirm = interaction.confirm
+	}
 	if command == "kill" && info.ProtocolVersion == 0 && info.SocketPath == "" {
 		if *dry {
 			return encodeControl(out, control.Plan{SessionID: info.SessionID, Action: "close", Warnings: []string{"Legacy session: identity-checked signal shutdown; no operation journal"}, Affected: []string{}, Targets: []string{}})
 		}
-		if !*yes && *jsonMode {
+		if !*yes {
 			preview := control.Plan{SessionID: info.SessionID, Action: "close", Targets: []string{}, Affected: []string{}, Warnings: []string{fmt.Sprintf("Close legacy workspace %q, PID %d via identity-checked signal; no operation journal", canonical, info.PID)}}
 			if code := writePlan(interactionOut, errOut, preview); code != 0 {
 				return code
 			}
 		}
-		if !*yes && !confirmControl(in, interactionOut, "Close legacy session?") {
+		if !*yes && !confirm(in, interactionOut, "Close legacy session? [y/N]") {
 			fmt.Fprintln(errOut, "Confirmation declined")
 			return 2
 		}
-		return runKill(ctx, canonical, *timeout, *jsonMode, out, errOut)
+		return runKill(ctx, info, *timeout, *jsonMode, out, errOut)
 	}
 	client, e := sessionapi.Connect(ctx, info)
 	if e != nil {
@@ -286,6 +307,10 @@ func runControl(ctx context.Context, command string, args []string, in io.Reader
 	action := command
 	if command == "kill" {
 		action = "close"
+	} else if command == "start" || command == "restart" {
+		// Match the terminal console: one retained plan covers any declared port
+		// conflicts and the launch, so the user need not issue release then retry.
+		action = "release-" + command
 	}
 	targets := []string{}
 	if *target != "" {
@@ -314,7 +339,7 @@ func runControl(ctx context.Context, command string, args []string, in io.Reader
 			return code
 		}
 	}
-	if !*yes && !confirmControl(in, interactionOut, "Execute this plan? [y/N]") {
+	if !*yes && !confirm(in, interactionOut, "Execute this plan? [y/N]") {
 		fmt.Fprintln(errOut, "Confirmation declined")
 		return 2
 	}

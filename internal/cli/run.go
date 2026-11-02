@@ -45,6 +45,8 @@ Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions
   init --write         Write unambiguous drafts without overwriting files
   --project PATH       Limit init to the selected candidate directory
 Services do not start automatically. Interactive mode: s start, x stop, ? help, q quit.
+Existing workspace: review its owner and close plan, then confirm to reopen here.
+Start/restart plans include declared external port conflicts; confirmation releases and launches.
 `
 
 func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
@@ -135,9 +137,13 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprintln(errOut, "Interactive mode requires a terminal; use stackharbor discover or validate.")
 		return 2
 	}
-	w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})
-	_, ds := graph.Build(w.Services())
-	w.Diagnostics = append(w.Diagnostics, ds...)
+	loadWorkspace := func() model.Workspace {
+		w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})
+		_, ds := graph.Build(w.Services())
+		w.Diagnostics = append(w.Diagnostics, ds...)
+		return w
+	}
+	w := loadWorkspace()
 	if command == "history" {
 		events, e := supervisor.ReadHistory(w.Root)
 		if e != nil {
@@ -284,8 +290,25 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	if e != nil {
 		var conflict *supervisor.SessionConflict
 		if errors.As(e, &conflict) {
-			return locateConflict(ctx, conflict, out, errOut)
+			reopen, code := recoverSession(ctx, conflict, in, out, errOut)
+			if !reopen {
+				return code
+			}
+			// Confirmation and cleanup can take time; never freeze new file
+			// contents together with a model parsed before the prompt.
+			fresh := loadWorkspace()
+			if fresh.Invalid() {
+				_ = WriteDiscovery(out, fresh, false)
+				return 2
+			}
+			if fresh.Root != w.Root {
+				fmt.Fprintln(errOut, "Workspace root changed; run stackharbor again to review the new workspace")
+				return 2
+			}
+			host, e = sessionhost.New(ctx, fresh)
 		}
+	}
+	if e != nil {
 		fmt.Fprintln(errOut, e)
 		return 1
 	}

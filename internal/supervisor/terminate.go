@@ -20,6 +20,16 @@ import (
 // TerminateSession targets only the canonical workspace's lock owner. SIGTERM lets
 // the existing session stop its owned services and restore its terminal normally.
 func TerminateSession(ctx context.Context, root string) (SessionInfo, bool, error) {
+	return terminateSession(ctx, root, nil)
+}
+
+// TerminateObservedSession preserves the caller's selected owner across a
+// confirmation prompt. A replacement session never inherits that approval.
+func TerminateObservedSession(ctx context.Context, expected SessionInfo) (SessionInfo, bool, error) {
+	return terminateSession(ctx, expected.Root, &expected)
+}
+
+func terminateSession(ctx context.Context, root string, expected *SessionInfo) (SessionInfo, bool, error) {
 	real, err := filepath.Abs(root)
 	if err == nil {
 		real, err = filepath.EvalSymlinks(real)
@@ -37,6 +47,9 @@ func TerminateSession(ctx context.Context, root string) (SessionInfo, bool, erro
 		return info, false, err
 	}
 	info.Root = real // Also identify legacy sessions whose cwd differs from workspace root.
+	if expected != nil && (info.Root != expected.Root || info.PID != expected.PID || info.ProcessCreatedMillis != expected.ProcessCreatedMillis || info.SessionID != expected.SessionID) {
+		return info, false, fmt.Errorf("Workspace session changed; no signal sent")
+	}
 	if info.PID == os.Getpid() {
 		return info, false, fmt.Errorf("Refusing to terminate the current process")
 	}
@@ -82,7 +95,7 @@ func verifySessionOwner(ctx context.Context, info SessionInfo) error {
 	if err != nil {
 		return err
 	}
-	if !active || current.PID != info.PID || current.ProcessCreatedMillis != info.ProcessCreatedMillis {
+	if !active || current.PID != info.PID || current.ProcessCreatedMillis != info.ProcessCreatedMillis || current.SessionID != info.SessionID {
 		return fmt.Errorf("Workspace session changed or ended")
 	}
 	p, err := gp.NewProcessWithContext(ctx, int32(info.PID))

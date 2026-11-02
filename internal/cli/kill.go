@@ -11,13 +11,14 @@ import (
 
 // runKill preserves only the legacy, identity-checked signal path. Modern hosts
 // always close through a retained plan/operation and durable completion journal.
-func runKill(ctx context.Context, root string, timeout time.Duration, jsonMode bool, out, errOut io.Writer) int {
+func runKill(ctx context.Context, expected supervisor.SessionInfo, timeout time.Duration, jsonMode bool, out, errOut io.Writer) int {
+	root := expected.Root
 	if !jsonMode {
 		fmt.Fprintf(out, "Closing legacy StackHarbor session for %q...\n", root)
 	}
 	budget, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	info, stopped, e := supervisor.TerminateSession(budget, root)
+	info, stopped, e := supervisor.TerminateObservedSession(budget, expected)
 	if e != nil {
 		fmt.Fprintln(errOut, e)
 		if errors.Is(e, context.DeadlineExceeded) || errors.Is(e, context.Canceled) {

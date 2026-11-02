@@ -96,7 +96,7 @@ func encodeControl(out io.Writer, value any) int {
 	return 0
 }
 func writePlan(out, errOut io.Writer, p control.Plan) int {
-	if _, e := fmt.Fprintf(out, "Plan %s: %s targets=%v affected=%v expires=%s\n", p.ID, p.Action, p.Targets, p.Affected, p.ExpiresAt.Format(time.RFC3339Nano)); e != nil {
+	if _, e := fmt.Fprintf(out, "Plan %s: %s targets=%v affected=%v expires=%s session=%s\n", p.ID, p.Action, p.Targets, p.Affected, p.ExpiresAt.Format(time.RFC3339Nano), p.SessionID); e != nil {
 		return controlFailure(errOut, e)
 	}
 	for _, warning := range p.Warnings {

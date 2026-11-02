@@ -120,9 +120,11 @@ func (f *webPTY) cli(t *testing.T, args ...string) []byte {
 	t.Helper()
 	cmd := exec.Command(binary, append(args, "--root", f.root, "--json")...)
 	cmd.Env = f.env
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("CLI %v: %v %s", args, err, out)
+		t.Fatalf("CLI %v: %v stdout=%s stderr=%s", args, err, out, &stderr)
 	}
 	return out
 }

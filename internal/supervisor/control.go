@@ -304,7 +304,7 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 			return conflicts[i].Identity.CreatedMillis < conflicts[j].Identity.CreatedMillis
 		})
 		for _, c := range conflicts {
-			warnings = append(warnings, fmt.Sprintf("Release external listener on port %d (PID %d)", c.Port, c.Identity.PID))
+			warnings = append(warnings, fmt.Sprintf("Release external listener on port %d (PID %d, command %q)", c.Port, c.Identity.PID, c.Command))
 		}
 	}
 	for _, conflict := range conflicts {

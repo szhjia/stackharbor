@@ -65,7 +65,7 @@ func TestInteractiveJSONConfirmationShowsPlanOnStderr(t *testing.T) {
 	if code != 0 || json.Unmarshal(result, &op) != nil || op.State != "succeeded" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, result, stderr.String())
 	}
-	for _, text := range []string{"Plan ", "stop targets=[app/web] affected=[app/web]", "Warning: Resource dependency coverage is partial", "Execute this plan? [y/N]"} {
+	for _, text := range []string{"Plan ", "stop targets=[app/web] affected=[app/web]", "session=" + h.SessionInfo().SessionID, "Warning: Resource dependency coverage is partial", "Execute this plan? [y/N]"} {
 		if !strings.Contains(stderr.String(), text) {
 			t.Fatalf("missing %q in stderr=%q", text, stderr.String())
 		}

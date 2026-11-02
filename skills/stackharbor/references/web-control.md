@@ -11,6 +11,16 @@ workspace/session, targets/affected nodes, warnings and60-second expiry.
 confirmation. Timeout/disconnect can leave an accepted action running; query its
 operation ID and retain unresolved evidence, never blindly reexecute.
 
+Current source builds also recover conflicts in the original command. Reopening
+an occupied workspace shows its owner and close plan; one confirmation closes
+that exact session and opens a new console here. Decline preserves it. CLI
+`start`/`restart` preview combined `release-start`/`release-restart` plans with
+declared external port, PID and command warnings. `--yes` approves both release
+and launch, so review the dry-run and obtain authorization for that whole scope.
+Replaced listeners, protected forwarders and unknown identities are not released.
+Reopening a console does not automatically start applications. Older binaries
+may still need the separate `kill` or `release` command; verify actual behavior.
+
 Run `stackharbor web` to open a loopback browser gateway (127.0.0.1:16800).
 `--port 0 --no-open` prints an OS-assigned launch URL. Its fragment credential is
 one-use,60 seconds. UI removes it and exchanges a private HttpOnly cookie plus

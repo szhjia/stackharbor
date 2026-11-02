@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -71,5 +72,47 @@ func TestTerminateRefusesSelfAndSignalVerificationFailure(t *testing.T) {
 	cancel()
 	if err := signalSession(ctx, info, func(context.Context, SessionInfo) error { return nil }, signal); err == nil || signals != 0 {
 		t.Fatal("signal sent despite cancellation", err, signals)
+	}
+}
+
+func TestTerminateObservedSessionRejectsReplacement(t *testing.T) {
+	t.Setenv("STACKHARBOR_CACHE_DIR", t.TempDir())
+	root := t.TempDir()
+	old, err := Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := old.Info()
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	current, err := Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer current.Close()
+	// Both locks have the same PID and birth time. Session identity must still
+	// distinguish them, including legacy records that now carry session IDs.
+	if _, stopped, err := TerminateObservedSession(context.Background(), expected); err == nil || stopped || !strings.Contains(err.Error(), "Workspace session changed") {
+		t.Fatalf("replacement accepted: stopped=%v err=%v", stopped, err)
+	}
+	if lock, err := Acquire(root); err == nil {
+		lock.Close()
+		t.Fatal("replacement owner lost its lock")
+	}
+}
+
+func TestTerminateObservedSessionAlreadyEnded(t *testing.T) {
+	t.Setenv("STACKHARBOR_CACHE_DIR", t.TempDir())
+	lock, err := Acquire(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := lock.Info()
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, stopped, err := TerminateObservedSession(context.Background(), expected); err != nil || stopped {
+		t.Fatalf("ended owner: stopped=%v err=%v", stopped, err)
 	}
 }

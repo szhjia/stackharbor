@@ -27,6 +27,13 @@ func TestCLIProcessFixture(t *testing.T) {
 	if os.Getenv("SH_CLI_FIXTURE") != "1" {
 		return
 	}
+	if port := os.Getenv("SH_CLI_PORT"); port != "" {
+		listener, err := net.Listen("tcp", "127.0.0.1:"+port)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer listener.Close()
+	}
 	if f := os.Getenv("SH_CLI_PID_FILE"); f != "" {
 		_ = os.WriteFile(f, []byte("started"), 0600)
 	}
@@ -36,6 +43,10 @@ func TestCLIProcessFixture(t *testing.T) {
 }
 func controlHost(t *testing.T, ready bool) *sessionhost.Host {
 	t.Helper()
+	return controlHostWithListener(t, ready, false)
+}
+func controlHostWithListener(t *testing.T, ready, listen bool) *sessionhost.Host {
+	t.Helper()
 	t.Setenv("STACKHARBOR_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
 	root := t.TempDir()
 	n := model.Service{ID: "app/web", ProjectID: "app", Cwd: root, Command: []string{os.Args[0], "-test.run=^TestCLIProcessFixture$"}, Env: map[string]string{"SH_CLI_FIXTURE": "1"}, Stop: model.StopPolicy{TimeoutSeconds: 1}}
@@ -43,6 +54,9 @@ func controlHost(t *testing.T, ready bool) *sessionhost.Host {
 		n.Ready = &model.ReadyProbe{TCP: "127.0.0.1:1", TimeoutSeconds: 10}
 	}
 	n.Ports = []model.Port{{Number: freeCLIPort(t)}}
+	if listen {
+		n.Env["SH_CLI_PORT"] = strconv.Itoa(n.Ports[0].Number)
+	}
 	h, err := sessionhost.New(context.Background(), model.Workspace{Root: root, Projects: []model.Project{{ID: "app", Services: []model.Service{n}}}})
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +69,77 @@ func controlHost(t *testing.T, ready bool) *sessionhost.Host {
 		}
 	})
 	return h
+}
+
+func externalCLIListener(t *testing.T, port int) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestCLIProcessFixture$")
+	cmd.Env = append(os.Environ(), "SH_CLI_FIXTURE=1", "SH_CLI_PORT="+strconv.Itoa(port))
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 50*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return cmd
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("external CLI listener did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestControlReleaseAndLaunchUsesOneConfirmedPlan(t *testing.T) {
+	for _, action := range []string{"start", "restart"} {
+		t.Run(action, func(t *testing.T) {
+			h := controlHostWithListener(t, false, true)
+			port := h.Controller().Snapshot().Services[0].Spec.Ports[0].Number
+			external := externalCLIListener(t, port)
+			code, out, errs := controlRun(t, h, action, "--target", "app/web", "--dry-run", "--json")
+			var plan control.Plan
+			if code != 0 || json.Unmarshal([]byte(out), &plan) != nil || plan.Action != "release-"+action {
+				t.Fatalf("code=%d output=%s %s", code, out, errs)
+			}
+			if len(plan.Warnings) != 1 || !strings.Contains(plan.Warnings[0], fmt.Sprintf("port %d (PID %d, command", port, external.Process.Pid)) {
+				t.Fatalf("owner not disclosed: %+v", plan)
+			}
+			if syscall.Kill(external.Process.Pid, 0) != nil || len(h.Coordinator().Operations()) != 0 {
+				t.Fatal("preview changed the listener or launched a service")
+			}
+			if code, _, _ := controlRun(t, h, action, "--target", "app/web"); code != 2 {
+				t.Fatal("noninteractive release did not require confirmation", code)
+			}
+			if syscall.Kill(external.Process.Pid, 0) != nil {
+				t.Fatal("unconfirmed launch stopped the listener")
+			}
+			code, out, errs = controlRun(t, h, action, "--target", "app/web", "--yes", "--json")
+			var op control.Operation
+			if code != 0 || json.Unmarshal([]byte(out), &op) != nil || op.Action != "release-"+action || op.State != "succeeded" {
+				t.Fatalf("code=%d output=%s %s", code, out, errs)
+			}
+			if len(h.Coordinator().Operations()) != 1 {
+				t.Fatal("release and launch were separate operations")
+			}
+			if err := external.Wait(); err == nil {
+				t.Fatal("external listener was not terminated")
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				n := h.Controller().Snapshot().Services[0]
+				if len(n.Ports) > 0 && n.Ports[0].Status == "owned" {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("registered service did not replace listener: %+v", n)
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+		})
+	}
 }
 func controlRun(t *testing.T, h *sessionhost.Host, args ...string) (int, string, string) {
 	t.Helper()

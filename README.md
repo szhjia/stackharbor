@@ -139,9 +139,13 @@ After registration, use **s / x / r** on the dashboard for all apps, or on a pro
 
 ### Find and close workspace sessions
 
-Different workspaces can run simultaneously. Opening the same workspace again shows its existing session's path, PID and terminal, and attempts to select its matching macOS Terminal tab. Use `stackharbor sessions` to list active sessions, `stackharbor sessions --json` for JSON, or `stackharbor sessions --focus PID` to locate a window. Other terminals and Linux show observed PID/TTY details; automatic window selection currently supports macOS Terminal.
+Different workspaces can run simultaneously. Opening the same workspace again shows its existing session's path, PID, terminal and close plan. Enter `y` or `yes` to close that session and reopen the console in the current terminal, `f` to locate its existing window, or Enter/`n` to cancel. Closing waits for its owned services to stop; reopening starts no applications automatically. Other workspaces are unaffected. A changed owner or an unresolved close stops recovery instead of retrying termination.
+
+Use `stackharbor sessions` to list active sessions, `stackharbor sessions --json` for JSON, or `stackharbor sessions --focus PID` to locate a window. Other terminals and Linux show observed PID/TTY details; automatic window selection currently supports macOS Terminal.
 
 Run `stackharbor kill` in a project directory to close that workspace's existing session and clean up its owned services. Other workspaces are unaffected. Use `stackharbor kill --root /path/to/workspace` to select a workspace explicitly.
+
+When an application was started outside StackHarbor, including by a coding agent, `start`/`restart` show any conflicting declared ports, PIDs and commands in one release-and-launch plan. Confirm once to release those listeners and continue the requested action. `--dry-run` previews without stopping anything; noninteractive `--yes` approves the combined plan. Docker/SSH forwarders and unknown process identities remain protected.
 
 ### Use with your AI coding agent
 

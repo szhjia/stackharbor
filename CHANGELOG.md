@@ -6,6 +6,25 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Reopening an occupied workspace displays its owner and close plan, with one
+  confirmation to close it and reopen in the current terminal, or options to
+  locate the existing window and cancel. Configuration is reloaded before the
+  new console opens; other workspaces and persistent resources are preserved.
+
+### Changed
+
+- CLI `start`/`restart` now match the TUI's combined port-release and launch
+  plans. Conflicting declared ports show PID and command; one confirmation (or
+  noninteractive `--yes`) approves both effects. JSON plans/operations use
+  `release-start`/`release-restart`. `--dry-run` remains read-only.
+
+### Fixed
+
+- Legacy session shutdown rechecks the selected session identity after
+  confirmation so a replacement owner cannot inherit approval.
+
 ## [0.7.0] - 2026-10-28
 
 ### Added

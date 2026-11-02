@@ -180,3 +180,69 @@ func TestPTYPortConfirmationRejectsReplacement(t *testing.T) {
 		t.Fatal("quit blocked after stale confirmation")
 	}
 }
+
+func TestCLIConfirmationReleasesPortAndContinuesStart(t *testing.T) {
+	for _, mode := range []string{"confirm", "decline", "replacement"} {
+		t.Run(mode, func(t *testing.T) {
+			a := ownedWebPTY(t, t.TempDir())
+			startExternal := func() *exec.Cmd {
+				cmd := exec.Command(os.Args[0])
+				cmd.Env = append(os.Environ(), "SH_HTTP_FIXTURE=1", fmt.Sprintf("SH_HTTP_PORT=%d", a.port))
+				if err := cmd.Start(); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+				wait(t, func() bool {
+					conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", a.port), 50*time.Millisecond)
+					if conn != nil {
+						conn.Close()
+					}
+					return err == nil
+				})
+				return cmd
+			}
+			external := startExternal()
+			f := startRecoveryPTY(t, []string{"start", "--root", a.root, "--target", "fixture/web"}, a.env)
+			wait(t, func() bool { return strings.Contains(f.output.text(), "Execute this plan? [y/N]") })
+			if !strings.Contains(f.output.text(), fmt.Sprintf("port %d (PID %d, command", a.port, external.Process.Pid)) {
+				t.Fatal("CLI did not disclose conflicting listener", f.output.text())
+			}
+			if err := syscall.Kill(external.Process.Pid, 0); err != nil {
+				t.Fatal("CLI released port before confirmation", err)
+			}
+			if mode == "replacement" {
+				external.Process.Kill()
+				external.Wait()
+				external = startExternal()
+			}
+			if mode == "decline" {
+				f.master.Write([]byte("n\n"))
+			} else {
+				f.master.Write([]byte("yes\n"))
+			}
+			if mode != "confirm" {
+				f.exit(t, 2)
+				if err := syscall.Kill(external.Process.Pid, 0); err != nil {
+					t.Fatal("refused/stale plan stopped external listener", err)
+				}
+				ops, err := a.client.Operations(context.Background())
+				if err != nil || len(ops) != 0 {
+					t.Fatal("refused/stale plan accepted an operation", ops, err)
+				}
+				return
+			}
+			f.exit(t, 0)
+			if err := external.Wait(); err == nil {
+				t.Fatal("approved external listener was not stopped")
+			}
+			health(t, a.port)
+			ops, err := a.client.Operations(context.Background())
+			if err != nil || len(ops) != 1 || ops[0].Action != "release-start" || ops[0].State != "succeeded" {
+				t.Fatal("release and launch were not one successful operation", ops, err)
+			}
+			if strings.Count(f.output.text(), "Execute this plan? [y/N]") != 1 {
+				t.Fatal("CLI required more than one confirmation", f.output.text())
+			}
+		})
+	}
+}

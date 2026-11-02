@@ -31,6 +31,20 @@ plan. State or identity changes return conflict (409), requiring a new explicit
 plan; expired plans return 410. Resource mutation can be blocked by another
 workspace's active consumers. Stop those consumers and replan.
 
+`start` and `restart` use the same combined release-and-launch plans as the TUI
+(`release-start` and `release-restart` in JSON plans/operations). A conflicting
+declared port shows its PID and command before confirmation. Confirming once,
+or passing `--yes` under an authorized scope, releases the exact listeners and
+continues the launch. Use `--dry-run` to preview without stopping anything.
+Changed listeners invalidate the plan; protected Docker/SSH forwarders and
+unknown identities are refused.
+
+Opening an already occupied workspace with `stackharbor` displays its owner and
+close plan. Type `y`/`yes` and Enter to close it and reopen here, `f` and Enter to
+locate its existing terminal, or Enter/`n` to cancel. Reopening reloads and
+validates configuration, starts no applications automatically, and proceeds
+only after a successful close. It never repeatedly closes replacement owners.
+
 `release --target NODE --port PORT` releases only an explicitly declared external
 port after confirmation and current process-identity checks; it does not start
 the service. Observe-only nodes cannot mutate. `--timeout 10m` limits waiting,

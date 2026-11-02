@@ -72,8 +72,9 @@ type capture struct {
 	b  bytes.Buffer
 }
 
-func (c *capture) add(b []byte) { c.mu.Lock(); defer c.mu.Unlock(); c.b.Write(b) }
-func (c *capture) text() string { c.mu.Lock(); defer c.mu.Unlock(); return c.b.String() }
+func (c *capture) add(b []byte)                { c.mu.Lock(); defer c.mu.Unlock(); c.b.Write(b) }
+func (c *capture) text() string                { c.mu.Lock(); defer c.mu.Unlock(); return c.b.String() }
+func (c *capture) Write(b []byte) (int, error) { c.add(b); return len(b), nil }
 func wait(t *testing.T, fn func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(12 * time.Second)
