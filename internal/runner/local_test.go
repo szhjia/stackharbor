@@ -2,12 +2,14 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/process"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -193,5 +195,89 @@ func TestConcurrentStopHonorsDeadline(t *testing.T) {
 	case <-first:
 	case <-time.After(3 * time.Second):
 		t.Fatal("first cleanup blocked")
+	}
+}
+
+type unavailableTopologyReader struct {
+	listErr error
+	infos   map[int32]process.Info
+	readErr map[int32]error
+	reads   int
+}
+
+func (r *unavailableTopologyReader) List(context.Context) ([]process.Info, error) {
+	return nil, r.listErr
+}
+
+func (r *unavailableTopologyReader) Read(_ context.Context, pid int32) (process.Info, error) {
+	r.reads++
+	if err := r.readErr[pid]; err != nil {
+		return process.Info{}, err
+	}
+	if info, ok := r.infos[pid]; ok {
+		return info, nil
+	}
+	return process.Info{}, os.ErrNotExist
+}
+
+func TestLocalRefusesToLaunchWithoutProcessTopology(t *testing.T) {
+	r := &unavailableTopologyReader{listErr: syscall.EPERM}
+	marker := filepath.Join(t.TempDir(), "launched")
+	h, err := NewLocal(r).Start(context.Background(), model.Service{
+		Command: []string{"sh", "-c", `printf launched > "$1"`, "fixture", marker},
+	}, nil)
+	if h != nil || !errors.Is(err, syscall.EPERM) || !strings.Contains(err.Error(), "service not started") {
+		t.Fatalf("start did not refuse unavailable topology: handle=%v err=%v", h, err)
+	}
+	if r.reads != 0 {
+		t.Fatal("attempted to establish an identity after launching a process")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("service command ran: %v", err)
+	}
+}
+
+func TestCaptureRefreshesKnownIdentitiesWhenTopologyFails(t *testing.T) {
+	ids := []model.ProcessIdentity{
+		{PID: 1, CreatedMillis: 100}, // exited
+		{PID: 2, CreatedMillis: 100}, // zombie
+		{PID: 3, CreatedMillis: 100}, // live
+		{PID: 4, CreatedMillis: 100}, // unreadable; retain as unknown
+	}
+	r := &unavailableTopologyReader{
+		listErr: syscall.EPERM,
+		infos: map[int32]process.Info{
+			2: {Identity: ids[1], Status: "zombie"},
+			3: {Identity: ids[2], Status: "running"},
+		},
+		readErr: map[int32]error{4: syscall.EPERM},
+	}
+	h := &handle{reader: r, owned: map[int32]model.ProcessIdentity{}}
+	for _, id := range ids {
+		h.owned[id.PID] = id
+	}
+	if err := h.capture(context.Background()); !errors.Is(err, syscall.EPERM) {
+		t.Fatalf("topology failure was lost: %v", err)
+	}
+	if len(h.owned) != 2 || h.owned[3] != ids[2] || h.owned[4] != ids[3] {
+		t.Fatalf("incorrect ownership refresh: %+v", h.owned)
+	}
+}
+
+func TestStopDoesNotClaimCompleteWhenTopologyIsUnknown(t *testing.T) {
+	id := model.ProcessIdentity{PID: 12345, CreatedMillis: 100}
+	r := &unavailableTopologyReader{listErr: syscall.EPERM}
+	h := &handle{reader: r, owned: map[int32]model.ProcessIdentity{id.PID: id}, signal: func(int, syscall.Signal) error {
+		t.Fatal("must not signal an exited process")
+		return nil
+	}}
+	result := h.Stop(context.Background(), model.StopPolicy{Timeout: time.Millisecond})
+	if result.Complete || len(result.Remaining) != 0 || len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "descendant cleanup cannot be verified") {
+		t.Fatalf("unknown descendants misreported: %+v", result)
+	}
+	// Once observation recovers, a new scan can prove that cleanup completed.
+	r.listErr = nil
+	if result := h.Stop(context.Background(), model.StopPolicy{}); !result.Complete || len(result.Errors) != 0 {
+		t.Fatalf("cleanup did not recover after observation returned: %+v", result)
 	}
 }

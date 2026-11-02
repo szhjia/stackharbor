@@ -6,6 +6,38 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-03
+
+### Added
+
+- Optional macOS/Linux desktop master embeds the existing Web console, discovers
+  terminal-owned sessions, and supports separate discovery namespaces. Closing a
+  window hides it; quitting the master stops only its own gateways.
+- Matching desktop sidecar, CLI launcher, installer builds and native lifecycle
+  verification scripts. `run --no-desktop` keeps terminal-only operation.
+
+### Fixed
+
+- Refuse to start services when process-tree inspection is unavailable, before
+  executing their commands. During shutdown, refresh known process identities even
+  if discovery fails, and report unknown descendant cleanup without falsely
+  retaining exited processes or claiming complete cleanup.
+- Print captured terminal output when PTY integration tests fail, including
+  permission errors that previously appeared only as an unexplained exit code.
+- Keep Linux process birth identities stable across wall-clock corrections using
+  kernel start ticks and a private boot-bound epoch.
+
+### Upgrade notes
+
+- CLI and desktop versions must match. Existing project registrations and session
+  protocol 1 remain supported; restart StackHarbor processes to load the new code.
+- macOS desktop test installers are ad-hoc signed and not notarized. Public
+  desktop distribution requires signing and notarization credentials; CLI archives
+  remain independent of desktop installation. Windows is unsupported.
+- Process-tree inspection requires `ps` and permission to inspect processes. A
+  restricted agent sandbox may need an approved execution environment.
+- The bundled skill remains at version 0.4.1.
+
 ## [0.8.0] - 2026-11-02
 
 ### Added
@@ -334,7 +366,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/szhjia/stackharbor/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/szhjia/stackharbor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/szhjia/stackharbor/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/szhjia/stackharbor/compare/v0.6.0...v0.6.1

@@ -29,12 +29,16 @@ func (h *handle) Stop(ctx context.Context, policy model.StopPolicy) StopResult {
 	errorsSeen := map[string]bool{}
 	signalled := map[model.ProcessIdentity]syscall.Signal{}
 	for {
-		if err := h.capture(ctx); err != nil {
+		captureErr := h.capture(ctx)
+		if err := captureErr; err != nil {
 			errorsSeen[err.Error()] = true
 		}
 		ids := h.Identities()
 		if len(ids) == 0 {
-			return StopResult{Complete: true}
+			if captureErr == nil {
+				return StopResult{Complete: true}
+			}
+			break
 		}
 		if ctx.Err() != nil {
 			errorsSeen[ctx.Err().Error()] = true

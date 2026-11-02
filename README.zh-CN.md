@@ -1,5 +1,9 @@
 # StackHarbor · 栈港
 
+可选的 macOS/Linux 桌面 master 使用 Tauri v2 嵌入现有 Web，支持后台驻留、全局统计
+及页面控制现有项目会话。项目终端继续持有服务；退出 master 不会停止项目。
+详见[桌面版安装、生命周期和构建](docs/desktop.md)。首版不支持 Windows。
+
 **一个轻量的本地开发控制台，开发者和 Coding Agent 都可以使用。**
 
 查看运行中的服务和端口。启动命令只需配置一次，之后可以在控制台里启动、停止或重启应用。
@@ -63,6 +67,8 @@ sh /tmp/stackharbor-install.sh 0.2.0 "$HOME/.local/bin"
 ```
 
 也可以从 [Releases](https://github.com/szhjia/stackharbor/releases) 下载压缩包和 `SHA256SUMS`，校验、解压后，在解压目录执行 `sh scripts/install.sh`。升级前检查现有安装，将旧二进制备份后再安装，以便需要时恢复旧版本。发行包尚未经过 Apple 公证。
+
+启动服务前必须能检查进程树；权限不足或缺少 `ps` 时会拒绝启动。请在执行环境中允许进程检查，Linux 需安装 `procps`。关闭期间若检查失败，StackHarbor 仍会刷新已知进程身份，并明确报告无法确认后代进程已完整清理。
 
 交互模式需要真实终端。工具用 `ps` 观察进程树，安装 `lsof` 后可识别实际监听者；未安装时，端口归属显示为未知。Linux 打开网址需要 `xdg-open`。应用仍需自己的运行依赖；Docker 只在使用 Compose 资源时需要。
 

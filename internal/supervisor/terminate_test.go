@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	gp "github.com/shirou/gopsutil/v4/process"
+	"github.com/szhjia/stackharbor/internal/process"
 )
 
 func TestTerminateRejectsUnrelatedPIDInAdvisoryMetadata(t *testing.T) {
@@ -26,11 +26,7 @@ func TestTerminateRejectsUnrelatedPIDInAdvisoryMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { unrelated.Process.Kill(); unrelated.Wait() }()
-	p, err := gp.NewProcess(int32(unrelated.Process.Pid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	created, err := p.CreateTime()
+	created, err := process.CreatedMillis(context.Background(), int32(unrelated.Process.Pid))
 	if err != nil {
 		t.Fatal(err)
 	}

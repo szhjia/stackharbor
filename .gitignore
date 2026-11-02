@@ -16,3 +16,10 @@ docs/superpowers/
 node_modules/
 web/coverage/
 web/test-results/
+
+desktop/target/
+desktop/node_modules/
+desktop/binaries/
+desktop/generated/
+desktop/gen/schemas/
+__pycache__/

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StackHarbor",
+  "version": "0.9.0",
+  "identifier": "com.szhjia.stackharbor",
+  "mainBinaryName": "stackharbor-desktop",
+  "build": { "frontendDist": "shell" },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": false,
+    "security": { "capabilities": [] }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb"],
+    "category": "DeveloperTool",
+    "shortDescription": "Local development console",
+    "longDescription": "View and control existing StackHarbor terminal sessions. Project services remain owned by their terminals.",
+    "homepage": "https://github.com/szhjia/stackharbor",
+    "license": "MIT",
+    "icon": ["generated/icon.png"],
+    "externalBin": ["binaries/stackharbor"],
+    "resources": { "generated/licenses/": "licenses/", "generated/build.json": "build.json" },
+    "linux": { "deb": { "depends": ["lsof", "procps", "xdg-utils"] } }
+  }
+}

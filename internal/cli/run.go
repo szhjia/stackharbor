@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/x/term"
 	"github.com/szhjia/stackharbor/internal/buildinfo"
+	"github.com/szhjia/stackharbor/internal/desktop"
 	"github.com/szhjia/stackharbor/internal/discovery"
 	"github.com/szhjia/stackharbor/internal/graph"
 	"github.com/szhjia/stackharbor/internal/logs"
@@ -21,7 +22,9 @@ import (
 )
 
 const usage = `StackHarbor — terminal console for monorepos
-Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web] [options]
+Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web|desktop] [options]
+  desktop                              Open the installed desktop console
+  run --no-desktop                     Terminal only; do not launch desktop
   web [--port PORT] [--no-open]           Loopback gateway (16800; 0 chooses a free port)
   web --dev-origin http://127.0.0.1:5173  Explicit Vite proxy development mode
   --root PATH          Project root (default: current directory)
@@ -51,6 +54,12 @@ Start/restart plans include declared external port conflicts; confirmation relea
 
 func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
 	commandName, controlArgs := extractCommand(args)
+	if commandName == "desktop" {
+		return runDesktop(ctx, controlArgs, out, errOut)
+	}
+	if commandName == "desktop-backend" {
+		return runDesktopBackend(ctx, controlArgs, in, out, errOut)
+	}
 	if commandName == "web" {
 		return runWeb(ctx, controlArgs, out, errOut)
 	}
@@ -64,6 +73,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	workspace := fs.String("workspace", "", "workspace")
 	jsonMode := fs.Bool("json", false, "JSON")
 	version := fs.Bool("version", false, "version")
+	noDesktop := fs.Bool("no-desktop", false, "do not launch the desktop app")
 	focus := fs.Int("focus", 0, "session PID to focus")
 	help := fs.Bool("help", false, "help")
 	fs.BoolVar(help, "h", false, "help")
@@ -103,6 +113,12 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	if *help {
 		fmt.Fprint(out, usage)
 		return 0
+	}
+	noDesktopSet := false
+	fs.Visit(func(f *flag.Flag) { noDesktopSet = noDesktopSet || f.Name == "no-desktop" })
+	if noDesktopSet && command != "run" {
+		fmt.Fprintln(errOut, "--no-desktop is only valid for run")
+		return 2
 	}
 	if command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
 		fmt.Fprintln(errOut, "Unknown command:", command)
@@ -311,6 +327,11 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	if e != nil {
 		fmt.Fprintln(errOut, e)
 		return 1
+	}
+	if !*noDesktop {
+		if err := desktop.Launch(ctx, true); err != nil {
+			fmt.Fprintln(errOut, "Desktop:", err)
+		}
 	}
 	if e = tui.Run(ctx, host.Controller(), in, out); e != nil {
 		fmt.Fprintln(errOut, e)

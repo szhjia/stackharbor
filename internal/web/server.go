@@ -32,8 +32,11 @@ type Options struct {
 	OpenURL           func(string) error
 	Out, ErrOut       io.Writer
 	Ready             func(string)
-	Static, Events    http.Handler
-	Collect           func(context.Context) (inventory.Inventory, error)
+	// EndpointReady is a checked desktop-sidecar handshake. Returning an error
+	// aborts this invocation without closing an independently owned gateway.
+	EndpointReady  func(Endpoint) error
+	Static, Events http.Handler
+	Collect        func(context.Context) (inventory.Inventory, error)
 }
 type retainedPlan struct {
 	Plan        control.Plan

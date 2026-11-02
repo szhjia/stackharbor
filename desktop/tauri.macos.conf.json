@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "icon": ["generated/icon.icns", "generated/icon.png"],
+    "macOS": { "minimumSystemVersion": "14.0", "hardenedRuntime": true }
+  }
+}

@@ -118,16 +118,14 @@ func resolveControlRoot(root, workspace string) (string, error) {
 	return real, nil
 }
 func selectControlSession(root string) (supervisor.SessionInfo, bool, error) {
-	all, e := supervisor.ListSessions()
-	if e != nil {
-		return supervisor.SessionInfo{}, false, e
+	info, occupied, err := supervisor.SessionForRoot(root)
+	if err != nil {
+		return supervisor.SessionInfo{}, false, err
 	}
-	for _, s := range all {
-		if s.Root == root {
-			return s, true, nil
-		}
+	if occupied && (info.Root != root || info.PID <= 0 || info.ProcessCreatedMillis <= 0) {
+		return supervisor.SessionInfo{}, false, &control.APIError{Code: "identity_conflict", Message: "session process or endpoint identity changed"}
 	}
-	return supervisor.SessionInfo{}, false, nil
+	return info, occupied, nil
 }
 func runControl(ctx context.Context, command string, args []string, in io.Reader, out, errOut io.Writer) int {
 	return runControlWithInteraction(ctx, command, args, in, out, errOut, controlInteraction{})
@@ -231,19 +229,22 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		fmt.Fprintln(errOut, e)
 		return 2
 	}
+	if command == "operations" && *id != "" {
+		if op, e := readCompletedOperation(canonical, *id); e == nil {
+			return writeOperation(out, errOut, op, *jsonMode)
+		}
+	}
 	info, found, e := selectControlSession(canonical)
 	if e != nil {
+		if command == "operations" {
+			return operationQueryFailure(errOut, *id, e)
+		}
 		return controlFailure(errOut, e)
 	}
 	if found && interaction.expected != nil {
 		expected := interaction.expected
 		if info.Root != expected.Root || info.PID != expected.PID || info.ProcessCreatedMillis != expected.ProcessCreatedMillis || info.SessionID != expected.SessionID || info.SocketPath != expected.SocketPath || info.ProtocolVersion != expected.ProtocolVersion {
 			return controlFailure(errOut, &control.APIError{Code: "plan_conflict", Message: "Workspace session changed; run stackharbor again to review its current owner"})
-		}
-	}
-	if command == "operations" && *id != "" {
-		if op, e := readCompletedOperation(canonical, *id); e == nil {
-			return writeOperation(out, errOut, op, *jsonMode)
 		}
 	}
 	if !found {

@@ -1,4 +1,4 @@
-.PHONY: web-build build run demo install check release clean
+.PHONY: web-build build run demo install check release clean desktop desktop-check
 
 web-build:
 	sh scripts/web-build.sh
@@ -18,6 +18,12 @@ install: build
 
 check:
 	sh scripts/check.sh
+
+desktop:
+	node scripts/desktop-build.mjs
+
+desktop-check: web-build
+	sh scripts/desktop-check.sh
 
 release:
 	sh scripts/build-release.sh $(VERSION)

@@ -111,7 +111,7 @@ func terminalFixtureWithColors(t *testing.T, colors bool, ports ...int) (*exec.C
 		t.Fatal(e)
 	}
 	pty.Setsize(master, &pty.Winsize{Rows: 35, Cols: 120})
-	cmd := exec.Command(binary, "--root", root)
+	cmd := exec.Command(binary, "--no-desktop", "--root", root)
 	env := os.Environ()
 	if colors {
 		env = nil
@@ -153,6 +153,9 @@ func terminalFixtureWithColors(t *testing.T, colors bool, ports ...int) (*exec.C
 		slave.Close()
 		if !reflect.DeepEqual(before, after) {
 			t.Errorf("terminal settings not restored: before=%#v after=%#v", before, after)
+		}
+		if t.Failed() {
+			t.Logf("terminal output:\n%s", c.text())
 		}
 	})
 	wait(t, func() bool { return bytes.Contains([]byte(c.text()), []byte("Dashboard")) })

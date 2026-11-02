@@ -3,16 +3,14 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/process"
 	"os"
 )
 
 func (h *handle) capture(ctx context.Context) error {
-	all, err := h.reader.List(ctx)
-	if err != nil {
-		return err
-	}
+	all, listErr := h.reader.List(ctx)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	valid := map[int32]bool{}
@@ -29,6 +27,11 @@ func (h *handle) capture(ctx context.Context) error {
 				delete(h.owned, pid)
 			}
 		}
+	}
+	// A topology failure must not leave already-exited identities in the owned
+	// set, but it still prevents us from proving that all descendants are gone.
+	if listErr != nil {
+		return fmt.Errorf("cannot inspect process tree; descendant cleanup cannot be verified: %w", listErr)
 	}
 	for changed := true; changed; {
 		changed = false
@@ -55,7 +58,7 @@ func verifiedSignal(ctx context.Context, reader process.Reader, id model.Process
 		return e
 	}
 	if info.Identity != id {
-		return errors.New("PID identity changed; refused signal")
+		return fmt.Errorf("PID identity changed; refused signal (expected %d/%d, observed %d/%d)", id.PID, id.CreatedMillis, info.Identity.PID, info.Identity.CreatedMillis)
 	}
 	if !process.Live(info) {
 		return nil

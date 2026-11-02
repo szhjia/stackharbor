@@ -23,7 +23,7 @@ for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
   cp dist/RELEASE_NOTES.md "$stage/"
   cp -R skills examples licenses "$stage/"
   mkdir -p "$stage/scripts" "$stage/docs"
-  cp docs/protocol-v2.md docs/usage.zh-CN.md docs/development.md docs/web-control.md "$stage/docs/"
+  cp docs/protocol-v2.md docs/usage.zh-CN.md docs/development.md docs/web-control.md docs/desktop.md "$stage/docs/"
   cp -R docs/diagrams docs/screenshots "$stage/docs/"
   cp scripts/install.sh scripts/install-skill.sh scripts/install-release.sh "$stage/scripts/"
   COPYFILE_DISABLE=1 tar -czf "dist/$archive" -C "$stage" stackharbor .stackharbor-tool LICENSE README.md README.zh-CN.md CHANGELOG.md RELEASE_NOTES.md CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES skills examples licenses scripts docs

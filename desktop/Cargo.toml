@@ -1,0 +1,32 @@
+[package]
+name = "stackharbor-desktop"
+version = "0.9.0"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT"
+description = "StackHarbor desktop master"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "=2.7.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+
+# Build-time proc macros must remain loadable by dyld. Stripping these dylibs
+# can corrupt LINKEDIT alignment on recent macOS linkers (rust-lang/rust#157750).
+# They never ship in the app; the final release executable remains stripped.
+[profile.release.build-override]
+strip = false

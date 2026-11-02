@@ -1,0 +1,73 @@
+name: desktop
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    uses: ./.github/workflows/check.yml
+  desktop:
+    needs: core
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel, ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy && rustup override set 1.95.0
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils lsof procps xvfb dbus-x11 webkit2gtk-driver
+      - name: Build installers
+        run: make desktop
+      - name: Rust checks and tests
+        run: sh scripts/desktop-check.sh
+      - name: Install packaged Linux desktop and CLI
+        if: runner.os == 'Linux'
+        run: sudo dpkg -i dist/desktop/*/*.deb
+      - name: Native lifecycle smoke (macOS)
+        if: runner.os == 'macOS'
+        run: python3 scripts/desktop-smoke.py
+      - name: Native lifecycle smoke (Linux)
+        if: runner.os == 'Linux'
+        env:
+          STACKHARBOR_DESKTOP_TEST_APP: /usr/bin/stackharbor-desktop
+        run: dbus-run-session -- xvfb-run -a python3 scripts/desktop-smoke.py
+      - name: Install WebDriver
+        if: runner.os == 'Linux'
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Real WebView control integration (Linux)
+        if: runner.os == 'Linux'
+        env:
+          STACKHARBOR_DESKTOP_TEST_APP: /usr/bin/stackharbor-desktop
+        run: dbus-run-session -- xvfb-run -a python3 scripts/desktop-webdriver.py
+      - name: Keep internal installers and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stackharbor-desktop-${{ matrix.os }}-internal
+          path: |
+            dist/desktop/
+            _runtime_verification/desktop/
+          if-no-files-found: error

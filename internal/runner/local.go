@@ -36,6 +36,11 @@ func (l *local) Start(ctx context.Context, s model.Service, output func(string, 
 	if len(s.Command) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
+	// Discovering descendants is required for bounded, ownership-safe cleanup.
+	// Refuse to launch anything when that prerequisite is already unavailable.
+	if _, err := l.reader.List(ctx); err != nil {
+		return nil, fmt.Errorf("cannot inspect process tree; service not started (allow process inspection and ensure ps is available): %w", err)
+	}
 	cmd := exec.Command(s.Command[0], s.Command[1:]...)
 	cmd.WaitDelay = time.Second
 	cmd.Dir = s.Cwd

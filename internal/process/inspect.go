@@ -33,7 +33,7 @@ func inspect(ctx context.Context, pid int32, metrics bool) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	created, err := p.CreateTimeWithContext(ctx)
+	created, err := CreatedMillis(ctx, pid)
 	if err != nil {
 		return Info{}, err
 	}

@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/szhjia/stackharbor/internal/control"
+	"github.com/szhjia/stackharbor/internal/process"
 	"github.com/szhjia/stackharbor/internal/supervisor"
 )
 
@@ -117,11 +117,7 @@ func socketPath(info supervisor.SessionInfo) (string, error) {
 	return path, nil
 }
 func verifyProcess(ctx context.Context, info supervisor.SessionInfo) error {
-	p, err := process.NewProcessWithContext(ctx, int32(info.PID))
-	if err != nil {
-		return identityConflict()
-	}
-	created, err := p.CreateTimeWithContext(ctx)
+	created, err := process.CreatedMillis(ctx, int32(info.PID))
 	if err != nil || created != info.ProcessCreatedMillis {
 		return identityConflict()
 	}

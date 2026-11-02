@@ -437,7 +437,11 @@ func TestPTYKillOnlyCurrentWorkspaceAndCleanOwnedServices(t *testing.T) {
 		t.Fatal(err)
 	}
 	if output, err := kill.CombinedOutput(); err == nil || !bytes.Contains(output, []byte("session process or endpoint identity changed")) {
-		t.Fatalf("wrong lock owner accepted: %s %v", output, err)
+		current, _ := os.ReadFile(lockPath)
+		currentRegistry := exec.Command(binary, "sessions", "--json")
+		currentRegistry.Env = a.Env
+		listed, _ := currentRegistry.Output()
+		t.Fatalf("wrong lock owner accepted: %s %v; initial owners=%+v; forged=%s; current=%s; current registry=%s; target B alive=%v", output, err, owners, dataForged, current, listed, syscall.Kill(b.Process.Pid, 0))
 	}
 	if syscall.Kill(a.Process.Pid, 0) != nil || syscall.Kill(b.Process.Pid, 0) != nil {
 		t.Fatal("ownership rejection affected a running session")

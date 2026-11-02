@@ -15,6 +15,7 @@ import (
 	"time"
 
 	gp "github.com/shirou/gopsutil/v4/process"
+	"github.com/szhjia/stackharbor/internal/process"
 )
 
 // TerminateSession targets only the canonical workspace's lock owner. SIGTERM lets
@@ -122,12 +123,8 @@ func verifySessionOwner(ctx context.Context, info SessionInfo) error {
 	if !owned {
 		return fmt.Errorf("PID %d does not own the workspace lock file", info.PID)
 	}
-	// gopsutil caches birth time, so use a fresh process object immediately before signaling.
-	p, err = gp.NewProcessWithContext(ctx, int32(info.PID))
-	if err != nil {
-		return err
-	}
-	created, err := p.CreateTimeWithContext(ctx)
+	// Re-read the OS birth identity immediately before signaling.
+	created, err := process.CreatedMillis(ctx, int32(info.PID))
 	if err != nil || created != info.ProcessCreatedMillis {
 		return fmt.Errorf("Session process identity changed")
 	}

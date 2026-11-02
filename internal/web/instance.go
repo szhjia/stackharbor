@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/process"
+	"github.com/szhjia/stackharbor/internal/process"
 	"github.com/szhjia/stackharbor/internal/sessionapi"
 	"github.com/szhjia/stackharbor/internal/supervisor"
 )
@@ -135,12 +135,7 @@ func lockInstance(cache string) (*instance, *os.File, error) {
 		file.Close()
 		return nil, nil, err
 	}
-	p, err := process.NewProcess(int32(os.Getpid()))
-	if err != nil {
-		file.Close()
-		return nil, nil, err
-	}
-	birth, err := p.CreateTime()
+	birth, err := process.CreatedMillis(context.Background(), int32(os.Getpid()))
 	if err != nil {
 		file.Close()
 		return nil, nil, err
@@ -197,6 +192,15 @@ func (i *instance) control(g *Gateway) error {
 			if method(w, r, "GET") {
 				writeJSON(w, 200, i.info, nil)
 			}
+		case "/v1/desktop":
+			if !method(w, r, "GET") {
+				return
+			}
+			if i.info.DevelopmentOrigin != "" {
+				fail(w, apiError("endpoint_conflict", "Desktop requires a production gateway; the existing development gateway was left running"))
+				return
+			}
+			writeJSON(w, 200, endpoint(g.options.Namespace, i.info.Port, false), nil)
 		case "/v1/credential":
 			if !method(w, r, "POST") {
 				return
@@ -281,11 +285,7 @@ func reuse(ctx context.Context, file *os.File, cache string, o Options) (string,
 	if err != nil || namedErr != nil || !os.SameFile(st, named) || !privateFile(named) {
 		return "", apiError("identity_conflict", "Web instance lock replaced")
 	}
-	p, err := process.NewProcessWithContext(ctx, int32(info.PID))
-	if err != nil {
-		return "", apiError("identity_conflict", "Web gateway owner missing")
-	}
-	birth, err := p.CreateTimeWithContext(ctx)
+	birth, err := process.CreatedMillis(ctx, int32(info.PID))
 	if err != nil || birth != info.CreatedMillis {
 		return "", apiError("identity_conflict", "Web gateway owner changed")
 	}
@@ -353,6 +353,18 @@ func reuse(ctx context.Context, file *os.File, cache string, o Options) (string,
 	}
 	if o.DevelopmentOrigin != "" && o.DevelopmentOrigin != info.DevelopmentOrigin {
 		return "", apiError("endpoint_conflict", "existing gateway has a different development origin; stop it and restart with --dev-origin")
+	}
+	if o.EndpointReady != nil {
+		var ready Endpoint
+		if err := rpc("GET", "/v1/desktop", nil, &ready); err != nil {
+			return "", err
+		}
+		if ready.Namespace != cache || ready.URL != bootstrapURL(info.Port, "") || ready.Owned || ready.ProtocolVersion != instanceProtocol {
+			return "", apiError("identity_conflict", "Desktop gateway metadata mismatch")
+		}
+		if err := o.EndpointReady(ready); err != nil {
+			return "", err
+		}
 	}
 	return bootstrapURL(info.Port, ""), nil
 }
@@ -445,6 +457,13 @@ func Run(ctx context.Context, o Options) error {
 	if err = i.control(g); err != nil {
 		server.Close()
 		return err
+	}
+	if o.EndpointReady != nil {
+		if err = o.EndpointReady(endpoint(cache, i.info.Port, true)); err != nil {
+			stopLive()
+			server.Close()
+			return err
+		}
 	}
 	show(o, bootstrapURL(i.info.Port, ""))
 	var serveErr error

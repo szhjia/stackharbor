@@ -18,6 +18,7 @@ import (
 	"time"
 
 	gp "github.com/shirou/gopsutil/v4/process"
+	"github.com/szhjia/stackharbor/internal/process"
 )
 
 // Metadata is advisory. An occupied OS lock and the process birth time establish liveness.
@@ -76,9 +77,7 @@ func currentSessionInfo(root string) SessionInfo {
 	s := SessionInfo{Root: root, PID: os.Getpid(), Terminal: os.Getenv("TERM_PROGRAM"), StartedAt: time.Now().UTC()}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if p, err := gp.NewProcessWithContext(ctx, int32(s.PID)); err == nil {
-		s.ProcessCreatedMillis, _ = p.CreateTimeWithContext(ctx)
-	}
+	s.ProcessCreatedMillis, _ = process.CreatedMillis(ctx, int32(s.PID))
 	cmd := exec.CommandContext(ctx, "tty")
 	cmd.Stdin = os.Stdin
 	if b, err := cmd.Output(); err == nil {
@@ -161,11 +160,7 @@ func validSessionInfo(info SessionInfo, path string) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	p, err := gp.NewProcessWithContext(ctx, int32(info.PID))
-	if err != nil {
-		return false
-	}
-	created, err := p.CreateTimeWithContext(ctx)
+	created, err := process.CreatedMillis(ctx, int32(info.PID))
 	return err == nil && created == info.ProcessCreatedMillis
 }
 
@@ -188,7 +183,7 @@ func legacySessionInfo(path string) SessionInfo {
 				continue
 			}
 			s := SessionInfo{PID: pid}
-			s.ProcessCreatedMillis, _ = p.CreateTimeWithContext(ctx)
+			s.ProcessCreatedMillis, _ = process.CreatedMillis(ctx, int32(pid))
 			if s.ProcessCreatedMillis > 0 {
 				s.StartedAt = time.UnixMilli(s.ProcessCreatedMillis).UTC()
 			}
@@ -212,6 +207,27 @@ func ListSessions() ([]SessionInfo, error) {
 		return nil, err
 	}
 	return ListSessionsIn(cache)
+}
+
+// SessionForRoot distinguishes an absent session from a held lock whose owner
+// metadata cannot be verified. List discovery may omit an unresolved root, but
+// a scoped control command must never report that occupied workspace as closed.
+func SessionForRoot(root string) (SessionInfo, bool, error) {
+	cache, err := sessionCacheDir()
+	if err != nil {
+		return SessionInfo{}, false, err
+	}
+	if _, err := os.Lstat(cache); err != nil {
+		if os.IsNotExist(err) {
+			return SessionInfo{}, false, nil
+		}
+		return SessionInfo{}, false, err
+	}
+	if err := ensureSessionCache(cache); err != nil {
+		return SessionInfo{}, false, err
+	}
+	path := filepath.Join(cache, fmt.Sprintf("%x.lock", sha256.Sum256([]byte(root))))
+	return activeSession(path)
 }
 
 // ListSessionsIn discovers a specific cache namespace without changing process environment.
