@@ -37,6 +37,8 @@ try:
         slaves = list(pool.map(lambda name: h.slave(name, desktop=True), ["alpha", "beta"]))
     state = until(lambda: h.request())
     first_master_pid = state["pid"]
+    assert h.request(write_delay=.1)["pid"] == first_master_pid
+    passed.append("accepted control connection waits for delayed client request bytes")
     assert not state["state"]["windows"], state
     assert len(h.request()["state"]["gateways"]) == 1
     if os.uname().sysname == "Darwin":

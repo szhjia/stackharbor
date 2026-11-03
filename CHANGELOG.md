@@ -6,6 +6,25 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-03
+
+### Fixed
+
+- Reset accepted desktop control sockets to blocking mode on macOS while
+  retaining bounded read/write timeouts. Darwin inherits the listener's
+  nonblocking flag; reading before a client sends its request previously closed
+  the connection early and intermittently made `stackharbor desktop` fail with
+  `broken pipe`. Add unit and native delayed-client regression coverage.
+- Publish the configured desktop control socket atomically, so concurrent cold
+  launches cannot observe the temporary permissions between bind and chmod.
+  Publication refuses to overwrite an endpoint created concurrently.
+
+### Upgrade notes
+
+- Upgrade CLI and desktop together to 0.9.1. Existing project registrations and
+  session protocol 1 remain supported. Desktop installers remain internal,
+  ad-hoc-signed test builds unless signing and notarization are configured.
+
 ## [0.9.0] - 2026-11-03
 
 ### Added
@@ -366,7 +385,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/szhjia/stackharbor/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/szhjia/stackharbor/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/szhjia/stackharbor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/szhjia/stackharbor/compare/v0.6.1...v0.7.0

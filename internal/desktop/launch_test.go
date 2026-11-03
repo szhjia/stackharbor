@@ -141,11 +141,18 @@ func TestDesktopLaunchRetryFixture(t *testing.T) {
 	if socket == "" {
 		return
 	}
-	listener, err := net.Listen("unix", socket)
+	pending := filepath.Join(filepath.Dir(socket), ".pending")
+	listener, err := net.Listen("unix", pending)
 	if err != nil {
 		os.Exit(2)
 	}
-	if err := os.Chmod(socket, 0600); err != nil {
+	if err := os.Chmod(pending, 0600); err != nil {
+		os.Exit(2)
+	}
+	if err := os.Link(pending, socket); err != nil {
+		os.Exit(2)
+	}
+	if err := os.Remove(pending); err != nil {
 		os.Exit(2)
 	}
 	count, _ := strconv.Atoi(os.Getenv("SH_DESKTOP_REQUEST_COUNT"))

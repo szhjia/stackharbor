@@ -79,11 +79,13 @@ class Harness:
             raise AssertionError(f"CLI {args} exited {result.returncode}: {result.stderr}\n{result.stdout}")
         return result
 
-    def request(self, action="inspect", background=True, namespace=None):
+    def request(self, action="inspect", background=True, namespace=None, write_delay=0):
         request = dict(protocol_version=1, build_version=self.version, namespace=str(namespace or self.namespace), background=background, action=action)
         with socket.socket(socket.AF_UNIX) as client:
             client.settimeout(30)
             client.connect(str(self.runtime / "master.sock"))
+            if write_delay:
+                time.sleep(write_delay)
             client.sendall(json.dumps(request).encode() + b"\n")
             result = json.loads(client.makefile("rb").readline(16385))
         assert not result.get("error"), result

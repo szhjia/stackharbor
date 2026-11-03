@@ -25,6 +25,35 @@ pub struct Control {
     inode: u64,
 }
 
+fn configure_stream(stream: &UnixStream) -> std::io::Result<()> {
+    // Darwin inherits O_NONBLOCK from the listener. A client may still be
+    // checking the endpoint identity before it sends its first byte.
+    stream.set_nonblocking(false)?;
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))
+}
+
+fn bind_listener(path: &std::path::Path) -> std::io::Result<UnixListener> {
+    // Keep the temporary name shorter than master.sock for Unix path limits.
+    // bind refuses collisions; publishing with link never replaces an endpoint
+    // that appeared after the stale-endpoint check.
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(std::io::Error::other)?
+        .subsec_nanos()
+        ^ std::process::id();
+    let temporary = path.with_file_name(format!(".{nonce:08x}"));
+    let listener = UnixListener::bind(&temporary)?;
+    let published = (|| {
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
+        listener.set_nonblocking(true)?;
+        fs::hard_link(&temporary, path)
+    })();
+    let _ = fs::remove_file(&temporary);
+    published?;
+    Ok(listener)
+}
+
 pub fn validate(request: &Request) -> Result<(), String> {
     if request.protocol_version != PROTOCOL_VERSION || request.build_version != BUILD_VERSION {
         return Err(
@@ -65,20 +94,20 @@ impl Control {
             }
             fs::remove_file(&path).map_err(|e| e.to_string())?;
         }
-        let listener = UnixListener::bind(&path).map_err(|e| e.to_string())?;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())?;
+        let listener = bind_listener(&path).map_err(|e| e.to_string())?;
         let inode = fs::symlink_metadata(&path)
             .map_err(|e| e.to_string())?
             .ino();
-        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
         let stop = Arc::new(AtomicBool::new(false));
         let done = stop.clone();
         let worker = std::thread::spawn(move || {
             while !done.load(Ordering::Acquire) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
-                        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                        let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+                        if let Err(error) = configure_stream(&stream) {
+                            eprintln!("Desktop control connection setup failed: {error}");
+                            continue;
+                        }
                         let mut line = String::new();
                         let request = BufReader::new(&stream)
                             .take(16385)
@@ -166,5 +195,75 @@ impl Drop for Control {
         {
             let _ = fs::remove_file(&self.path);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    fn directory() -> PathBuf {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let root = std::env::temp_dir().canonicalize().unwrap().join(format!(
+            "shc-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        private::directory(&root).unwrap()
+    }
+
+    #[test]
+    fn published_listener_is_private_and_accepts_connections() {
+        let root = directory();
+        let path = root.join("master.sock");
+        let listener = bind_listener(&path).unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        let mut client = UnixStream::connect(&path).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        configure_stream(&server).unwrap();
+        client.write_all(b"x").unwrap();
+        let mut byte = [0];
+        server.read_exact(&mut byte).unwrap();
+        assert_eq!(byte, *b"x");
+        drop((client, server, listener));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn publishing_listener_preserves_an_existing_endpoint() {
+        let root = directory();
+        let path = root.join("master.sock");
+        fs::write(&path, b"preserve").unwrap();
+        assert!(bind_listener(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"preserve");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn accepted_connection_waits_for_delayed_client_bytes() {
+        let (mut client, mut server) = UnixStream::pair().unwrap();
+        // Model Darwin's accepted socket even when this test runs on Linux.
+        server.set_nonblocking(true).unwrap();
+        configure_stream(&server).unwrap();
+        assert_eq!(server.read_timeout().unwrap(), Some(Duration::from_secs(2)));
+        assert_eq!(
+            server.write_timeout().unwrap(),
+            Some(Duration::from_secs(2))
+        );
+        let (ready, accepted) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            ready.send(()).unwrap();
+            let mut byte = [0];
+            server.read_exact(&mut byte).map(|_| byte)
+        });
+        accepted.recv().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        let written = client.write_all(b"x");
+        let received = worker.join().unwrap();
+        written.unwrap();
+        assert_eq!(received.unwrap(), *b"x");
     }
 }
