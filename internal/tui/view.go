@@ -292,42 +292,7 @@ func (m Model) render() string {
 	case m.help:
 		lines = []string{heading("Keyboard shortcuts"), "", "↑/↓ j/k select project or Docker · Home dashboard", "←/→ h/l select task, service or container · i details", "PageUp/PageDown log history or dashboard pages · End latest", "Dashboard: s start all · x stop all · r restart running set", "Project/service: s start or check · x stop · r restart", "Global actions show scope before confirmation", "Failed tasks block dependents; retry checks prerequisites again", "Port conflicts: review PID and confirm release before starting", "Shift+S/X/R: global aliases from any page", "Docker: ←/→ containers · s/x/r controls (confirm) · d quick access", "o open service URL · Tab projects/content on narrow screens", "? / Esc back · q / Ctrl-C quit"}
 	case m.confirm:
-		label := map[string]string{"start": "Start", "stop": "Stop", "restart": "Restart", "all-start": "Start all", "all-stop": "Stop all", "all-restart": "Restart all", "docker-start": "Start Docker", "docker-stop": "Stop Docker", "docker-restart": "Restart Docker"}[m.action]
-		lines = []string{heading("Confirm: " + label), "", "Selected scope: " + plain(fmt.Sprint(m.pending)), plain(m.status)}
-		if strings.HasPrefix(m.action, "all-") {
-			deps := []string{}
-			seen := map[string]bool{}
-			for _, v := range m.snapshot.Services {
-				for _, dep := range v.Spec.DockerDependsOn {
-					if !seen[dep] {
-						seen[dep] = true
-						deps = append(deps, dep)
-					}
-				}
-			}
-			if len(deps) > 0 {
-				lines = append(lines, "Docker dependencies: "+plain(strings.Join(deps, ", ")))
-			}
-		}
-		if strings.HasPrefix(m.action, "docker-") {
-			lines = append(lines, "Stopping a dependency container first stops its local dependents in this session.")
-			lines[2] = "Docker services: " + plain(strings.Join(m.pendingDocker, ", "))
-		}
-		if len(m.conflicts) > 0 {
-			lines = []string{heading("Release conflicting ports · " + label), "", "These processes will be terminated before starting selected services:"}
-			capacity := max(1, height-5)
-			if m.planned != nil {
-				lines = append(lines, "Launch scope: "+plain(fmt.Sprint(m.planned.Affected)))
-				capacity = max(1, height-6)
-			}
-			page := min(m.confirmOffset, (len(m.conflicts)-1)/capacity)
-			start := page * capacity
-			end := min(len(m.conflicts), start+capacity)
-			for _, c := range m.conflicts[start:end] {
-				lines = append(lines, plain(fmt.Sprintf("Port %d · PID %d · %s", c.Port, c.Identity.PID, c.Command)))
-			}
-			lines = append(lines, "", fmt.Sprintf("%d–%d / %d · PgUp/PgDn view · y confirm", start+1, end, len(m.conflicts)))
-		}
+		lines = m.confirmation()
 	case m.quitting:
 		lines = []string{heading("Quitting"), "", plain(m.status), "Waiting up to 30 seconds."}
 	default:

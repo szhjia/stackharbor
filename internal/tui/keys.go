@@ -151,8 +151,12 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.confirm {
+		_, rows := m.confirmationContent()
+		capacity := m.confirmationPageSize(len(rows))
+		last := max(0, (len(rows)-1)/capacity)
+		m.confirmOffset = min(max(0, m.confirmOffset), last)
 		if k == "pgdown" {
-			m.confirmOffset++
+			m.confirmOffset = min(last, m.confirmOffset+1)
 			return m, nil
 		}
 		if k == "pgup" {

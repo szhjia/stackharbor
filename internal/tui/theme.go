@@ -24,6 +24,7 @@ const (
 	green  = "#75C6A4"
 	amber  = "#E8BB71"
 	red    = "#E97676"
+	purple = "#C5A3E8"
 )
 
 func noColor() bool {
@@ -42,6 +43,8 @@ func (m Model) palette(color string) string {
 			return "#AA3038"
 		case accent:
 			return "#1E6091"
+		case purple:
+			return "#7545A0"
 		case muted:
 			return "#536372"
 		case "#344D63":

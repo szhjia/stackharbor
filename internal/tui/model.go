@@ -3,7 +3,6 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
-	"fmt"
 	"github.com/szhjia/stackharbor/internal/logs"
 	"github.com/szhjia/stackharbor/internal/model"
 	"io"
@@ -101,9 +100,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.confirm || len(v.plan.Conflicts) > 0 {
 			m.confirm = true
 			m.confirmOffset = 0
-			m.status = v.status + " · Plan scope: " + fmt.Sprint(v.plan.Affected)
+			m.status = v.status
 			if len(v.plan.Conflicts) > 0 {
-				m.status = "Confirm port release and launch scope: " + fmt.Sprint(v.plan.Affected)
+				m.status = "Confirm port release and launch scope"
 			}
 			return m, nil
 		}

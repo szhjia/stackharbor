@@ -6,6 +6,31 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-03
+
+### Changed
+
+- Simplify CLI action confirmations to a single list with the operation count,
+  application/service names, paths and declared ports. Remove the duplicate
+  Selected scope and Plan scope lists; display the retained execution plan once.
+- Cycle application paths through four readable colors in light and dark
+  terminals. Keep services from the same application in the same color, wrap
+  long paths and paginate confirmation details on smaller terminals.
+
+### Fixed
+
+- Preserve application names when service names default to `web` or `dev`, and
+  keep configured service names visible alongside their application names.
+- Bound confirmation paging so PageUp moves immediately after reaching the
+  final page. Preserve conflicting-process details before authorizing release.
+
+### Upgrade notes
+
+- Existing project registrations and session protocol 1 remain supported.
+  Restart StackHarbor to load the updated confirmation screen.
+- CLI and desktop versions must match. Desktop builds remain internal test
+  builds; the public CLI archives are independent of desktop installation.
+
 ## [0.9.1] - 2026-11-03
 
 ### Fixed
@@ -385,7 +410,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/szhjia/stackharbor/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/szhjia/stackharbor/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/szhjia/stackharbor/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/szhjia/stackharbor/compare/v0.7.0...v0.8.0

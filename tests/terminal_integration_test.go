@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 	"github.com/creack/pty"
 	"go.yaml.in/yaml/v3"
@@ -106,6 +107,11 @@ func terminalFixtureWithColors(t *testing.T, colors bool, ports ...int) (*exec.C
 	}
 	b, _ := yaml.Marshal(doc)
 	os.WriteFile(filepath.Join(root, "stackharbor.yaml"), b, 0600)
+	return terminalFixtureAtRoot(t, colors, root, pidfile)
+}
+
+func terminalFixtureAtRoot(t *testing.T, colors bool, root, pidfile string) (*exec.Cmd, *os.File, *os.File, *capture, string) {
+	t.Helper()
 	master, slave, e := pty.Open()
 	if e != nil {
 		t.Fatal(e)
@@ -161,6 +167,68 @@ func terminalFixtureWithColors(t *testing.T, colors bool, ports ...int) (*exec.C
 	wait(t, func() bool { return bytes.Contains([]byte(c.text()), []byte("Dashboard")) })
 	return cmd, master, slave, c, pidfile
 }
+
+func TestPTYDashboardConfirmationListsApplicationPaths(t *testing.T) {
+	root := t.TempDir()
+	pidfile := filepath.Join(root, "pid")
+	ports := map[string]int{}
+	for _, id := range []string{"alpha", "bravo", "charlie", "delta", "echo"} {
+		dir := filepath.Join(root, id)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ports[id] = listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+		doc := map[string]any{"version": 1, "project": map[string]string{"id": id, "name": "App " + id}, "services": map[string]any{"web": map[string]any{"run": map[string]any{"command": []string{os.Args[0]}}, "ports": []map[string]any{{"name": "http", "port": ports[id]}}, "env": map[string]string{"SH_TUI_FIXTURE": "1", "SH_PID_FILE": pidfile}}}}
+		b, err := yaml.Marshal(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "stackharbor.yaml"), b, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd, master, _, c, _ := terminalFixtureAtRoot(t, true, root, pidfile)
+	before := len(c.text())
+	master.Write([]byte("s"))
+	wait(t, func() bool {
+		text := ansi.Strip(c.text()[before:])
+		return strings.Contains(text, "Confirm: Start 5 services") && strings.Contains(text, "echo/web")
+	})
+	output := ansi.Strip(c.text()[before:])
+	for _, id := range []string{"alpha", "bravo", "charlie", "delta", "echo"} {
+		if !strings.Contains(output, id+"/web") || !strings.Contains(output, "App "+id) || !strings.Contains(output, strconv.Itoa(ports[id])) {
+			t.Fatalf("application %s is missing its name, path or port:\n%s", id, output)
+		}
+	}
+	if strings.Contains(output, "Selected scope") || strings.Contains(output, "Plan scope") {
+		t.Fatal("confirmation retained duplicate scope lists", output)
+	}
+	if _, err := os.Stat(pidfile); !os.IsNotExist(err) {
+		t.Fatal("preview started a service", err)
+	}
+	before = len(c.text())
+	master.Write([]byte("n"))
+	wait(t, func() bool { return strings.Contains(c.text()[before:], "Dashboard") })
+	if _, err := os.Stat(pidfile); !os.IsNotExist(err) {
+		t.Fatal("cancel started a service", err)
+	}
+	master.Write([]byte("q"))
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("confirmation fixture did not exit")
+	}
+}
 func TestPTYQuitStopsFixtureAndRestoresTerminal(t *testing.T) {
 	cmd, master, _, c, pidfile := terminalFixture(t)
 	if _, e := os.Stat(pidfile); e == nil {
@@ -194,7 +262,7 @@ func TestPTYQuitStopsFixtureAndRestoresTerminal(t *testing.T) {
 func TestSIGTERMStopsOwnedServices(t *testing.T) {
 	cmd, master, _, c, pidfile := terminalFixture(t)
 	master.Write([]byte("s"))
-	wait(t, func() bool { return bytes.Contains([]byte(c.text()), []byte("Confirm: Start all")) })
+	wait(t, func() bool { return bytes.Contains([]byte(c.text()), []byte("Confirm: Start 1 service")) })
 	master.Write([]byte("y"))
 	wait(t, func() bool { _, e := os.Stat(pidfile); return e == nil })
 	cmd.Process.Signal(syscall.SIGTERM)
