@@ -126,6 +126,22 @@ it("401 during stream recovery requests reauthentication", async () => {
   vi.useRealTimers();
 });
 
+it("disconnects while hidden and reconnects from the retained cursor when visible", () => {
+  let hidden = false;
+  vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+  const {cache} = setup();
+  const first = Source.all[0];
+  act(() => first.emit("inventory", {}, "global:9"));
+  cache.setQueryData(["inventory"], {});
+  act(() => { hidden = true; document.dispatchEvent(new Event("visibilitychange")); });
+  expect(first.close).toHaveBeenCalledTimes(1);
+  expect(Source.all).toHaveLength(1);
+  act(() => first.emit("inventory", {}, "global:ignored"));
+  act(() => { hidden = false; document.dispatchEvent(new Event("visibilitychange")); });
+  expect(Source.all).toHaveLength(2);
+  expect(new URL(Source.all[1].url, "http://local").searchParams.get("after")).toBe("global:9");
+});
+
 it.each(["inventory", "open"])(
   "quiet exact-session log recovery via %s clears unavailable only after a successful empty read",
   async (recovery) => {

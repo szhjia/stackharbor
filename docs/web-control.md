@@ -1,10 +1,13 @@
 # Local browser and CLI control
 
-StackHarbor keeps each workspace in its own foreground terminal session. The
-terminal, CLI and browser use the same session controller. Opening the browser
-starts no application. Keep the workspace terminal open; no daemon, automatic
-restart, interactive browser terminal, configuration editor, or data deletion is
-provided. macOS and Linux run with the current user's permissions.
+macOS app installations use a shared unprivileged Go engine. The app, CLI and
+browser use the same workspace controls; adding or opening a workspace starts
+nothing. Closing macOS clients leaves engine-owned services and accepted
+operations running. Linux and default source builds retain foreground terminal
+ownership, so keep those workspace terminals open. No automatic project restart,
+interactive browser terminal, configuration editor or data deletion is provided.
+All platforms run with the current user's permissions. See [desktop setup and
+recovery](desktop.md).
 
 ## Start a session, then control it
 
@@ -22,7 +25,10 @@ stackharbor kill --root /path/to/workspace --yes
 
 Targets come from `discover --json`; v2 services use `project/service/key`, tasks
 use `project/task/key`, resources use `resource/key`. v1 retains its original
-IDs. `start`, `stop`, `restart`, `release`, and `kill` control an existing session.
+IDs. Managed macOS `start --yes` creates/opens its session when needed, submits the
+action, then can exit while the engine keeps it running. `stop`, `restart`,
+`release` and `kill` select an existing session. Linux/legacy `start` also requires
+an existing foreground session.
 `plan start` is a configuration preview; `start --dry-run` asks the live session
 for its concrete 60-second plan. Review exact targets, affected dependencies,
 workspace/session identity, warnings and expiry. Noninteractive mutation requires
@@ -39,7 +45,11 @@ continues the launch. Use `--dry-run` to preview without stopping anything.
 Changed listeners invalidate the plan; protected Docker/SSH forwarders and
 unknown identities are refused.
 
-Opening an already occupied workspace with `stackharbor` displays its owner and
+Managed macOS `run`/`attach` connects to the existing workspace; `q`/Ctrl-C only
+detaches. Explicit `stop` or `kill --root ROOT --yes` closes the chosen scope.
+Use roots/session IDs for managed selection; the engine PID is shared.
+
+On Linux/default source builds, opening an occupied workspace displays its owner and
 close plan. Type `y`/`yes` and Enter to close it and reopen here, `f` and Enter to
 locate its existing terminal, or Enter/`n` to cancel. Reopening reloads and
 validates configuration, starts no applications automatically, and proceeds
@@ -82,8 +92,9 @@ users and programs can access this local control surface; it is not an
 OS-user authentication boundary.
 
 Overview, Workspaces, Resources and Operations show actual session snapshots.
-Metrics with no measurement show Unknown. Browser data refreshes every second;
-session discovery refreshes every two seconds. More than five seconds without a
+Metrics with no measurement show Unknown. Managed foreground observation targets two seconds and background observation
+ten seconds, while process exits and operation completion remain event driven.
+Browser/legacy gateway discovery retains its own polling cadence. More than five seconds without a
 valid snapshot marks it stale and disables mutation. Legacy/unsupported sessions
 show read-only metadata. Logs, cursor gaps, transport loss, partial inventory,
 unknown submission outcomes and disappeared sessions remain explicit. Browser
@@ -93,14 +104,18 @@ revalidates state. A lost acceptance response never authorizes automatic retry.
 ## Namespaces, ownership and persistence
 
 `STACKHARBOR_CACHE_DIR` selects the discovery namespace for sessions and gateways;
-all control commands must use the same value as their workspace terminals.
+all control commands must use the same value as the target workspace session.
+An unclean managed workspace requires explicit recovery: inspect
+`engine recover --root ROOT --dry-run --json`, stop recorded verified processes
+within authorized scope, then acknowledge only after manual review of unknown
+descendants. See [the separate recovery steps](desktop.md#daily-lifecycle).
 Workspace identity uses its canonical real root. Another cache namespace is an
 independent registry. Private runtime directories are 0700 and Unix sockets are
-0600; long paths use a private shortened socket location. The CLI connects
-straight to the session's Unix socket and does not depend on TCP/Web availability.
+0600; long paths use a private shortened socket location. Managed clients connect through the private engine Unix socket; legacy clients
+connect straight to each session socket. Neither depends on TCP/Web availability.
 Existing PID records are observed, never automatically adopted as managed apps.
 
-Close stops owned processes using the shared 30-second cleanup budget, restores
+Explicit workspace close stops owned processes using the shared 30-second cleanup budget, restores
 the terminal, and records a bound completion result. Persistent and observe-only
 Compose resources are retained. Explicit stop/restart of a managed resource has
 its own confirmation and shared-consumer checks. StackHarbor never deletes
@@ -133,8 +148,9 @@ protocol, index and bundle SHA256). `make check` also runs TypeScript, frontend
 tests, Go formatting/vet/all tests/race, and independent example modules. Missing
 assets fail Go embedding; mismatched manifests fail validation. Raw `go build`
 can reuse an existing bundle and does not prove source freshness; always use the
-supported pipeline for delivery. Packaging builds the frontend once before
-cross-compiling darwin/linux × arm64/amd64. Cross-compilation verifies packaging,
+supported pipeline for delivery. CLI packaging builds the frontend once before
+cross-compiling Linux arm64/amd64; native macOS app packaging bundles its matching
+engine and requires signed/notarized DMGs for public delivery. Cross-compilation verifies packaging,
 not another platform's runtime behavior. License texts ship in `licenses/`.
 
 For UI development start an independent gateway, then Vite with its exact port:

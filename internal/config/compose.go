@@ -81,6 +81,14 @@ func normalizeComposeScope(path, root string, r model.ResourceSpec) (docker.Comp
 }
 
 func ResourceProject(path, root string, c WorkspaceConfig) (model.Project, []model.Diagnostic) {
+	return ResourceProjectWithEnvironment(path, root, c, nil)
+}
+
+func ResourceProjectWithEnvironment(path, root string, c WorkspaceConfig, environment []string) (model.Project, []model.Diagnostic) {
+	return ResourceProjectInContext(context.Background(), path, root, c, environment)
+}
+
+func ResourceProjectInContext(ctx context.Context, path, root string, c WorkspaceConfig, environment []string) (model.Project, []model.Diagnostic) {
 	p := model.Project{ID: "_resources", Name: "Infrastructure", SourceFile: path}
 	var ds []model.Diagnostic
 	keys := []string{}
@@ -90,7 +98,10 @@ func ResourceProject(path, root string, c WorkspaceConfig) (model.Project, []mod
 	sort.Strings(keys)
 	seen := map[string]bool{}
 	resolved := map[string]*docker.ResolvedCompose{}
-	env := os.Environ()
+	env := environment
+	if env == nil {
+		env = os.Environ()
+	}
 	for _, k := range keys {
 		r := c.Resources[k]
 		bad := func(msg string) { ds = append(ds, model.Error(path, "resources."+k, msg)) }
@@ -155,7 +166,7 @@ func ResourceProject(path, root string, c WorkspaceConfig) (model.Project, []mod
 		}
 		key := scope.Key()
 		if resolved[key] == nil {
-			v, e := docker.Resolve(context.Background(), scope, env)
+			v, e := docker.Resolve(ctx, scope, env)
 			if e != nil {
 				bad(e.Error())
 				continue

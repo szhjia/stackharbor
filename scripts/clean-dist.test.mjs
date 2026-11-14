@@ -27,16 +27,18 @@ test('daily prune keeps the newest rollback and leaves releases and unrelated fi
   assert.deepEqual(readdirSync(dist).sort(), ['my-notes.txt', 'stackharbor', 'stackharbor.previous-cccccccc', 'stackharbor_0.1.0_linux_arm64.tar.gz'])
 }))
 
-test('release prune removes old platform archives only after the new release exists', () => fixture((dist) => {
+test('release prune requires both Linux archives and removes standalone macOS archives', () => fixture((dist) => {
   writeFileSync(path.join(dist, 'stackharbor_0.1.0_linux_arm64.tar.gz'), 'old')
   for (const target of ['darwin_arm64', 'darwin_amd64', 'linux_arm64', 'linux_amd64']) {
     writeFileSync(path.join(dist, `stackharbor_0.5.0_${target}.tar.gz`), 'current')
   }
   writeFileSync(path.join(dist, 'stackharbor_0.5.0_linux_arm64.tar.gz.extra'), 'keep')
+  writeFileSync(path.join(dist, 'StackHarbor_0.5.0_aarch64.dmg'), 'native-release')
   writeFileSync(path.join(dist, 'SHA256SUMS'), 'manifest')
-  assert.deepEqual(cleanDist(dist, 'release', '0.5.0'), ['stackharbor_0.1.0_linux_arm64.tar.gz'])
+  assert.deepEqual(cleanDist(dist, 'release', '0.5.0'), ['stackharbor_0.1.0_linux_arm64.tar.gz', 'stackharbor_0.5.0_darwin_amd64.tar.gz', 'stackharbor_0.5.0_darwin_arm64.tar.gz'])
   assert.equal(readFileSync(path.join(dist, 'stackharbor_0.5.0_linux_arm64.tar.gz'), 'utf8'), 'current')
   assert.equal(readFileSync(path.join(dist, 'SHA256SUMS'), 'utf8'), 'manifest')
+  assert.equal(readFileSync(path.join(dist, 'StackHarbor_0.5.0_aarch64.dmg'), 'utf8'), 'native-release')
   assert.equal(readFileSync(path.join(dist, 'stackharbor_0.5.0_linux_arm64.tar.gz.extra'), 'utf8'), 'keep')
 }))
 

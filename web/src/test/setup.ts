@@ -7,3 +7,4 @@ beforeEach(() => history.replaceState(null, "", "/"));
 
 // Recharts observes its container; jsdom has no layout engine.
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+globalThis.matchMedia = (query: string) => ({matches: false, media: query, addEventListener() {}, removeEventListener() {}}) as unknown as MediaQueryList;

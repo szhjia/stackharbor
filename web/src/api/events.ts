@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiFailure } from "./client";
 import { mergeLogPage, logKey } from "./logs";
 import { terminalStates, type LogPage, type LogState, type Operation } from "./types";
+import { openEventStream, type EventStream } from "./transport";
 export function useEvents(
   enabled: boolean,
   initialCursor: string | undefined,
@@ -19,8 +20,9 @@ export function useEvents(
   useEffect(() => {
     if (!enabled || !initialCursor) return;
     let disposed = false;
-    let source: EventSource | undefined;
+    let source: EventStream | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let reconnects = 0;
     cursor.current = initialCursor;
     const revalidateUnavailableLogs = () => {
       if (!sid) return;
@@ -36,6 +38,7 @@ export function useEvents(
     };
     const invalidate = () => {
       void query.invalidateQueries({ queryKey: ["inventory"] });
+      void query.invalidateQueries({ queryKey: ["workspaces"] });
       void query.invalidateQueries({ queryKey: ["operations"] });
       void query.invalidateQueries({
         queryKey: ["operation"],
@@ -46,7 +49,9 @@ export function useEvents(
       revalidateUnavailableLogs();
     };
     const connect = () => {
-      if (disposed) return;
+      if (disposed || document.hidden) return;
+      clearTimeout(timer);
+      source?.close();
       const params = new URLSearchParams({ after: cursor.current });
       if (sid) {
         params.set("session_id", sid);
@@ -54,8 +59,11 @@ export function useEvents(
         const log = query.getQueryData<LogState>(logKey(sid, target));
         if (log?.cursor) params.set("log_after", log.cursor);
       }
-      source = new EventSource("/api/v1/events?" + params.toString());
-      source.onopen = () => {
+      const stream = openEventStream("/api/v1/events?" + params.toString());
+      source = stream;
+      stream.onopen = () => {
+        if (disposed || source !== stream) return;
+        reconnects = 0;
         setStatus("Live");
         revalidateUnavailableLogs();
         void query.invalidateQueries({
@@ -65,7 +73,8 @@ export function useEvents(
         });
       };
       const event = (name: string, callback: (data: any) => void) =>
-        source!.addEventListener(name, (e) => {
+        stream.addEventListener(name, (e) => {
+          if (disposed || source !== stream || document.hidden) return;
           const m = e as MessageEvent;
           if (m.lastEventId) cursor.current = m.lastEventId;
           try {
@@ -116,31 +125,46 @@ export function useEvents(
           }));
         invalidate();
       });
-      source.onerror = () => {
-        source?.close();
+      stream.onerror = () => {
+        if (disposed || source !== stream || document.hidden) return;
+        stream.close();
         setStatus("Reconnecting");
+        clearTimeout(timer);
         timer = setTimeout(async () => {
           try {
             await api.session();
-            if (!disposed) {
+            if (!disposed && !document.hidden) {
               invalidate();
               connect();
             }
           } catch (e) {
-            if (disposed) return;
+            if (disposed || document.hidden) return;
             if (e instanceof ApiFailure && e.status === 401) {
               setStatus("Authentication expired");
               expired.current();
             } else timer = setTimeout(connect, 2000);
           }
-        }, 1000);
+        }, Math.min(1000 * 2 ** reconnects++, 10000));
       };
     };
+    const visibility = () => {
+      clearTimeout(timer);
+      source?.close();
+      source = undefined;
+      if (document.hidden) setStatus("Paused");
+      else {
+        setStatus("Connecting");
+        invalidate();
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", visibility);
     connect();
     return () => {
       disposed = true;
       source?.close();
       clearTimeout(timer);
+      document.removeEventListener("visibilitychange", visibility);
     };
     // Bootstrap cursor seeds this stream; later invalidations keep the received cursor.
   }, [enabled, Boolean(initialCursor), sid, target, query]);

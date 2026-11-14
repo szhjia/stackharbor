@@ -14,7 +14,9 @@ if ! sh scripts/release-notes.sh "$version" > "$notes"; then rm -f "$notes"; exi
 mv -f "$notes" dist/RELEASE_NOTES.md
 stage=$(mktemp -d "${TMPDIR:-/tmp}/stackharbor-release.XXXXXXXX")
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
-for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
+# Public macOS releases are signed/notarized app DMGs built natively by make desktop.
+# Do not publish standalone Darwin CLI archives that bypass mandatory app setup.
+for target in linux/arm64 linux/amd64; do
   goos=${target%/*}; goarch=${target#*/}
   archive="stackharbor_${version}_${goos}_${goarch}.tar.gz"
   printf 'Building %s\n' "$archive"
@@ -29,5 +31,5 @@ for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
   COPYFILE_DISABLE=1 tar -czf "dist/$archive" -C "$stage" stackharbor .stackharbor-tool LICENSE README.md README.zh-CN.md CHANGELOG.md RELEASE_NOTES.md CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES skills examples licenses scripts docs
   if [ "$goos" = "$(go env GOOS)" ] && [ "$goarch" = "$(go env GOARCH)" ]; then native=$(mktemp dist/.stackharbor.XXXXXXXX); cp "$stage/stackharbor" "$native"; chmod 755 "$native"; mv -f "$native" dist/stackharbor; fi
 done
-(cd dist; if command -v sha256sum >/dev/null 2>&1; then sha256sum "stackharbor_${version}_"*.tar.gz > SHA256SUMS; else shasum -a 256 "stackharbor_${version}_"*.tar.gz > SHA256SUMS; fi)
+(cd dist; if command -v sha256sum >/dev/null 2>&1; then sha256sum "stackharbor_${version}_linux_"*.tar.gz > SHA256SUMS; else shasum -a 256 "stackharbor_${version}_linux_"*.tar.gz > SHA256SUMS; fi)
 node scripts/clean-dist.mjs release "$version"

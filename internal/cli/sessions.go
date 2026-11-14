@@ -16,7 +16,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/supervisor"
 )
 
-func runSessions(ctx context.Context, root string, jsonMode bool, focus int, out, errOut io.Writer) int {
+func runSessions(ctx context.Context, root string, jsonMode bool, focus string, in io.Reader, out, errOut io.Writer) int {
 	if root != "" {
 		var err error
 		root, err = filepath.Abs(root)
@@ -39,20 +39,56 @@ func runSessions(ctx context.Context, root string, jsonMode bool, focus int, out
 			sessions = append(sessions, s)
 		}
 	}
-	if focus > 0 {
-		for _, s := range sessions {
-			if s.PID != focus {
-				continue
+	if focus != "" {
+		pid, numeric := strconv.Atoi(focus)
+		focusRoot := ""
+		if filepath.IsAbs(focus) || strings.HasPrefix(focus, ".") {
+			focusRoot, err = filepath.Abs(focus)
+			if err == nil {
+				focusRoot, err = filepath.EvalSymlinks(focusRoot)
 			}
-			if err := focusTerminal(ctx, s); err != nil {
-				fmt.Fprintf(errOut, "Could not locate PID %d (TTY %q): %s\n", focus, s.TTY, err)
-				return 1
+			if err != nil {
+				return controlFailure(errOut, err)
 			}
-			fmt.Fprintf(out, "Located existing session: %q (PID %d, TTY %q)\n", s.Root, s.PID, s.TTY)
-			return 0
 		}
-		fmt.Fprintf(errOut, "No active StackHarbor session with PID %d; run stackharbor sessions\n", focus)
-		return 1
+		matches := []supervisor.SessionInfo{}
+		for _, s := range sessions {
+			if s.SessionID == focus || focusRoot != "" && s.Root == focusRoot {
+				matches = append(matches, s)
+			}
+		}
+		byPID := len(matches) == 0 && numeric == nil
+		if byPID {
+			for _, s := range sessions {
+				if s.PID == pid {
+					matches = append(matches, s)
+				}
+			}
+		}
+		if len(matches) == 0 {
+			fmt.Fprintf(errOut, "No active StackHarbor session matches %q; run stackharbor sessions\n", focus)
+			return 1
+		}
+		for _, s := range matches {
+			if byPID && s.OwnerKind == "engine" {
+				fmt.Fprintln(errOut, "The engine PID is shared; select a workspace root or session ID with --focus")
+				return 2
+			}
+		}
+		if len(matches) != 1 {
+			fmt.Fprintln(errOut, "Session selection is ambiguous; use a workspace root or session ID")
+			return 2
+		}
+		s := matches[0]
+		if s.OwnerKind == "engine" {
+			return attachSession(ctx, s, "", in, out, errOut)
+		}
+		if err := focusTerminal(ctx, s); err != nil {
+			fmt.Fprintf(errOut, "Could not locate session %s (PID %d, TTY %q): %s\n", s.SessionID, s.PID, s.TTY, err)
+			return 1
+		}
+		fmt.Fprintf(out, "Located existing session: %q (PID %d, TTY %q)\n", s.Root, s.PID, s.TTY)
+		return 0
 	}
 	if jsonMode {
 		if err := json.NewEncoder(out).Encode(sessions); err != nil {
@@ -66,7 +102,7 @@ func runSessions(ctx context.Context, root string, jsonMode bool, focus int, out
 		return 0
 	}
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "PID\tTTY\tTERMINAL\tSTARTED\tWORKSPACE")
+	fmt.Fprintln(table, "SESSION\tPID\tTTY\tTERMINAL\tSTARTED\tWORKSPACE")
 	for _, s := range sessions {
 		started := "—"
 		if !s.StartedAt.IsZero() {
@@ -76,13 +112,14 @@ func runSessions(ctx context.Context, root string, jsonMode bool, focus int, out
 		if s.PID > 0 {
 			pid = strconv.Itoa(s.PID)
 		}
-		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", pid, displaySessionField(s.TTY), displaySessionField(s.Terminal), started, displaySessionField(s.Root))
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", displaySessionField(s.SessionID), pid, displaySessionField(s.TTY), displaySessionField(s.Terminal), started, displaySessionField(s.Root))
 	}
 	if err := table.Flush(); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	fmt.Fprintln(out, "Locate a window: stackharbor sessions --focus PID (macOS Terminal)")
+	fmt.Fprintln(out, "Attach to a managed workspace: stackharbor sessions --focus SESSION_ID (or ROOT)")
+	fmt.Fprintln(out, "Locate a legacy window: stackharbor sessions --focus PID (macOS Terminal)")
 	return 0
 }
 
@@ -130,6 +167,9 @@ const focusTerminalScript = `on run argv
 end run`
 
 func focusTerminal(ctx context.Context, s supervisor.SessionInfo) error {
+	if s.OwnerKind == "engine" {
+		return fmt.Errorf("the engine has no owning terminal; use stackharbor attach --root %q", s.Root)
+	}
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("window location currently supports macOS Terminal; use the listed PID and TTY")
 	}
@@ -149,7 +189,7 @@ func focusTerminal(ctx context.Context, s supervisor.SessionInfo) error {
 	}
 	found := false
 	for _, current := range active {
-		if current.PID == s.PID && current.ProcessCreatedMillis == s.ProcessCreatedMillis && current.TTY == s.TTY {
+		if current.Root == s.Root && current.SessionID == s.SessionID && current.PID == s.PID && current.ProcessCreatedMillis == s.ProcessCreatedMillis && current.TTY == s.TTY {
 			found = true
 			break
 		}

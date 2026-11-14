@@ -1,5 +1,5 @@
 import { usePreferences } from "../lib/preferences";
-import { Link, matchRoutes, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
+import { matchRoutes, Outlet, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import brandMark from "../assets/stackharbor-favicon.png";
@@ -17,13 +17,13 @@ import { Sidebar } from "./Sidebar";
 import { AppHeader } from "./AppHeader";
 import { AppContent } from "./AppContent";
 import { readTrackedOperations, rememberTrackedOperations } from "../lib/operation-tracking";
+import { useConsoleNotifications } from "../lib/console-notifications";
 
 export interface ConsoleContext {
   data: Inventory;
   sessions: Session[];
   current?: Session;
   sessionID?: string;
-  now: number;
   status: string;
   planning: boolean;
   requestPlans: (requests: ActionRequest[]) => Promise<void>;
@@ -61,7 +61,6 @@ export function AppShell() {
   const [auth, setAuth] = useState<"pending" | "ready" | "expired">("pending");
   const [authError, setAuthError] = useState("");
   const authStarted = useRef(false);
-  const [now, setNow] = useState(Date.now());
   const [plans, setPlans] = useState<Planned[]>();
   const [planning, setPlanning] = useState(false);
   const planningRef = useRef(false);
@@ -81,10 +80,6 @@ export function AppShell() {
         setAuthError(actionableError(e));
         setAuth("expired");
       });
-  }, []);
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
   }, []);
   const inventory = useQuery({
     queryKey: ["inventory"],
@@ -190,6 +185,17 @@ export function AppShell() {
     }
     navigate("/operations");
   }
+  useConsoleNotifications({
+    error,
+    results,
+    collectionError: data?.collection_error?.message,
+    partial: data?.partial && !data.collection_error,
+    inventoryError: inventory.error ? actionableError(inventory.error) : "",
+    tr,
+    setError,
+    setResults,
+    navigate,
+  });
   if (auth !== "ready")
     return (
       <main className="auth-page">
@@ -216,7 +222,7 @@ export function AppShell() {
       </main>
     );
   const context: ConsoleContext | undefined = data ? {
-    data, sessions, current, sessionID, now, status,
+    data, sessions, current, sessionID, status,
     planning, requestPlans, tracked, setError, tab, logTarget,
     onTabChange: (next) => { if (sessionID) navigate(workspacePath(sessionID, next)); },
     onTargetChange: (target) => setSearch(target ? {target} : {}, {replace: true}),
@@ -228,30 +234,6 @@ export function AppShell() {
       <main id="main" className="main">
         <AppHeader sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} page={page} sessionID={sessionID} workspace={current?.root.split("/").filter(Boolean).at(-1)} tab={tab} status={status} refreshing={inventory.isFetching} onRefresh={() => void inventory.refetch()} />
         <AppContent>
-        {error ? (
-          <Notice title={tr("Request requires attention")} danger>
-            {error}
-            <Button variant="ghost" onClick={() => setError("")}>{tr("Dismiss")}</Button>
-          </Notice>
-        ) : null}
-        {results.length ? (
-          <Notice title={tr("Per-session requests")}>
-            {results.map((r, i) => (
-              <p key={i}>{r}</p>
-            ))}
-            <div className="action-list"><Button variant="link" asChild><Link to="/operations">{tr("Inspect operations")}</Link></Button><Button variant="ghost" onClick={() => setResults([])}>{tr("Dismiss")}</Button></div>
-          </Notice>
-        ) : null}
-        {data?.collection_error ? (
-          <Notice title={tr("Inventory discovery unavailable")}>
-            {data.collection_error.message}{tr(". Retained records and totals may be incomplete.")}{" "}</Notice>
-        ) : data?.partial ? (
-          <Notice title={tr("Partial observation")}>{tr("Some sessions or metrics are unavailable. Retained observations may be stale.")}{" "}</Notice>
-        ) : null}
-        {inventory.error ? (
-          <Notice title={tr("Inventory unavailable")}>
-            {actionableError(inventory.error)}{tr(". Retrying discovery.")}{" "}</Notice>
-        ) : null}
           {page === "Settings" ? <Outlet /> : !context ? (
             <section aria-label={tr("Loading inventory")}>
               <Skeleton className="h-20 w-full" />

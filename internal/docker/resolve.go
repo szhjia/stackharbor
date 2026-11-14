@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/execenv"
 	"github.com/szhjia/stackharbor/internal/model"
 	"go.yaml.in/yaml/v3"
 	"io"
@@ -88,7 +89,7 @@ func Resolve(ctx context.Context, s ComposeScope, env []string) (*ResolvedCompos
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", append(s.Args(), "config", "--format", "json")...)
+	cmd := execenv.CommandContext(ctx, env, s.ProjectDirectory, "docker", append(s.Args(), "config", "--format", "json")...)
 	cmd.Dir = s.ProjectDirectory
 	cmd.Env = append([]string{}, env...)
 	cmd.WaitDelay = time.Second
@@ -166,7 +167,7 @@ func NewResolved(s ComposeScope, env []string, r *ResolvedCompose) *Manager {
 		}
 	}
 	m.run = func(ctx context.Context, args ...string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, "docker", args...)
+		cmd := execenv.CommandContext(ctx, m.env, s.ProjectDirectory, "docker", args...)
 		cmd.Dir = s.ProjectDirectory
 		cmd.Env = append([]string{}, m.env...)
 		cmd.WaitDelay = time.Second

@@ -147,6 +147,61 @@ func Launch(ctx context.Context, background bool) error {
 	if err := graphicalEnvironment(runtime.GOOS, os.Getenv); err != nil {
 		return err
 	}
+	if runtime.GOOS == "darwin" {
+		return launchMacOS(ctx, background, "/usr/bin/open")
+	}
+	return launchLegacy(ctx, background)
+}
+
+// The macOS shell owns its native singleton and window lifetime. LaunchServices
+// handoff is the launcher result; the modern shell has no legacy master socket.
+func launchMacOS(ctx context.Context, background bool, opener string) error {
+	budget, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	app, err := installedExecutable()
+	if err != nil {
+		return err
+	}
+	bundle := filepath.Dir(filepath.Dir(filepath.Dir(app)))
+	if filepath.Base(filepath.Dir(app)) != "MacOS" || !strings.HasSuffix(bundle, ".app") {
+		return errors.New("macOS desktop executable must be inside its installed .app bundle")
+	}
+	environment := desktopEnvironment("")
+	probe := exec.CommandContext(budget, app, "--desktop-version")
+	probe.Env = environment
+	probe.Dir = filepath.Dir(app)
+	version, err := probe.Output()
+	if err != nil || strings.TrimSpace(string(version)) != buildinfo.Version {
+		return errors.New("installed desktop is incompatible; install matching desktop/CLI builds")
+	}
+	ns, err := namespace()
+	if err != nil {
+		return err
+	}
+	// LaunchServices otherwise ignores new argv for an already-running app.
+	// The native singleton receives this transient forwarder's namespace and
+	// foreground intent before it initializes another window or engine.
+	args := []string{"-n", "-a", bundle}
+	if background {
+		args = append(args, "-g")
+	}
+	args = append(args, "--args", "--namespace", ns)
+	if background {
+		args = append(args, "--background")
+	}
+	cmd := exec.CommandContext(budget, opener, args...)
+	cmd.Env = environment
+	cmd.Dir = filepath.Dir(app)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if budget.Err() != nil {
+			return fmt.Errorf("desktop launch timed out or was cancelled: %w", budget.Err())
+		}
+		return fmt.Errorf("desktop LaunchServices handoff failed: %w (%s)", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func launchLegacy(ctx context.Context, background bool) error {
 	dir, err := runtimeDirectory()
 	if err != nil {
 		return err
@@ -217,21 +272,6 @@ func Launch(ctx context.Context, background bool) error {
 	spawn := func() (<-chan error, error) {
 		env := desktopEnvironment(dir)
 		cmd := exec.Command(app, "--background")
-		bundle := filepath.Dir(filepath.Dir(filepath.Dir(app)))
-		if runtime.GOOS == "darwin" && filepath.Base(filepath.Dir(app)) == "MacOS" && strings.HasSuffix(bundle, ".app") {
-			// LaunchServices completes the native application's launch event
-			// sequence. Directly executing a bundle's Mach-O can leave AppKit
-			// waiting for launch events during rapid quit/reopen cycles.
-			// Keep the launcher alive until its native instance exits. An
-			// asynchronous `open` success is not a failed/forwarded instance;
-			// treating it as one would launch extra copies while AppKit starts.
-			args := []string{"-W", "-n", "-g", "-j", "-a", bundle}
-			for _, entry := range env {
-				args = append(args, "--env", entry)
-			}
-			args = append(args, "--args", "--background")
-			cmd = exec.Command("/usr/bin/open", args...)
-		}
 		cmd.Env = env
 		cmd.Dir = filepath.Dir(app)
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}

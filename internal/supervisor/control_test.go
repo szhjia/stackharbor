@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func TestControlPlanIgnoresMetricsAndBindsGeneration(t *testing.T) {
+func TestControlPlanIgnoresMetricsAndCachedResourceIdentityAndBindsGeneration(t *testing.T) {
 	s, _ := setup(t, service("app/a"), service("app/b", "app/a"))
 	b := NewControlBackend(s, control.Identity{SessionID: "s"})
 	req := control.PlanRequest{Action: "start", Targets: []string{"app/b"}}
@@ -52,10 +52,11 @@ func TestControlPlanIgnoresMetricsAndBindsGeneration(t *testing.T) {
 	before = q.Fingerprint
 	s.mu.Lock()
 	s.entries["app/a"].resourceIdentity = "container-v2"
+	s.dockerRows = []model.DockerSnapshot{{Service: "app/a", ID: "container-v2"}}
 	s.mu.Unlock()
 	q, _ = b.PlanState(context.Background(), req)
-	if before == q.Fingerprint {
-		t.Fatal("container identity not bound")
+	if before != q.Fingerprint {
+		t.Fatal("cached resource identity invalidated plan")
 	}
 }
 func TestControlValidatesAllTargetsBeforeWrites(t *testing.T) {

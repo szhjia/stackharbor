@@ -78,6 +78,11 @@ func (c *Coordinator) Submit(ctx context.Context, req SubmitRequest) (Operation,
 	if p.request.Action != "close" && len(c.queue) >= maximumQueued {
 		return Operation{}, apiError("queue_full", "Operation queue is full")
 	}
+	if c.opts.BeforeSubmit != nil {
+		if err := c.opts.BeforeSubmit(p.request); err != nil {
+			return Operation{}, err
+		}
+	}
 	o := c.newRecordLocked(p, req.IdempotencyKey)
 	if p.request.Action == "close" {
 		c.beginCloseLocked(o.ID)
@@ -256,7 +261,19 @@ func (c *Coordinator) work() {
 				}
 			}
 			c.mu.Lock()
-			c.finishLocked(r, results, err)
+			finishedAt := c.opts.Now().UTC()
+			if closing && c.opts.CommitClose != nil {
+				proposed := outcome(r.public, completeTargetResults(r, results, err), err, finishedAt)
+				if commitErr := c.opts.CommitClose(c.closeContext, copyOperation(proposed)); commitErr != nil {
+					err = apiError("close_finalization_failed", errors.Join(err, commitErr).Error())
+					for i := range results {
+						results[i].State = "failed"
+						results[i].Error = apiError("close_finalization_failed", err.Error())
+					}
+					finishedAt = c.opts.Now().UTC()
+				}
+			}
+			c.finishLockedAt(r, results, err, finishedAt)
 			o := copyOperation(r.public)
 			if closing && o.Error != nil {
 				value := *o.Error
@@ -275,7 +292,15 @@ func (c *Coordinator) work() {
 	}
 }
 func (c *Coordinator) finishLocked(r *operationRecord, results []TargetResult, err error) {
+	c.finishLockedAt(r, results, err, c.opts.Now().UTC())
+}
+func (c *Coordinator) finishLockedAt(r *operationRecord, results []TargetResult, err error, at time.Time) {
 	r.cancel = nil
+	r.public = outcome(r.public, completeTargetResults(r, results, err), err, at)
+	c.terminals = append(c.terminals, r.public.ID)
+	c.pruneLocked()
+}
+func completeTargetResults(r *operationRecord, results []TargetResult, err error) []TargetResult {
 	if len(results) == 0 && err != nil {
 		targets := r.plan.public.Affected
 		if len(targets) == 0 {
@@ -294,9 +319,7 @@ func (c *Coordinator) finishLocked(r *operationRecord, results []TargetResult, e
 			results = append(results, TargetResult{Target: target, State: state, Error: &value})
 		}
 	}
-	r.public = outcome(r.public, results, err, c.opts.Now().UTC())
-	c.terminals = append(c.terminals, r.public.ID)
-	c.pruneLocked()
+	return results
 }
 func (c *Coordinator) pruneLocked() {
 	now := c.opts.Now()

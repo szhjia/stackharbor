@@ -38,18 +38,21 @@ func (s *discoveryCache) Connect(ctx context.Context, i supervisor.SessionInfo) 
 }
 
 type liveInventory struct {
-	mu        sync.RWMutex
-	now       func() time.Time
-	source    *discoveryCache
-	collector *inventory.Collector
-	collect   func(context.Context) (inventory.Inventory, error)
-	hub       *EventHub
-	current   inventory.Inventory
-	ready     bool
+	wake               chan struct{}
+	workspaceCatalogue bool
+	mu                 sync.RWMutex
+	now                func() time.Time
+	source             *discoveryCache
+	collector          *inventory.Collector
+	collect            func(context.Context) (inventory.Inventory, error)
+	hub                *EventHub
+	current            inventory.Inventory
+	ready              bool
+	interval           func() time.Duration
 }
 
 func newLiveInventory(source inventory.Source, collect func(context.Context) (inventory.Inventory, error), hub *EventHub) *liveInventory {
-	l := &liveInventory{now: time.Now, collect: collect, hub: hub, current: inventory.Inventory{Sessions: []inventory.Session{}, Resources: []inventory.Resource{}}}
+	l := &liveInventory{now: time.Now, collect: collect, hub: hub, wake: make(chan struct{}, 1), current: inventory.Inventory{Sessions: []inventory.Session{}, Resources: []inventory.Resource{}}}
 	l.source = &discoveryCache{source: source, now: func() time.Time { return l.now() }}
 	l.collector = inventory.New(l.source, inventory.Options{})
 	return l
@@ -63,6 +66,9 @@ func (l *liveInventory) refresh(ctx context.Context) {
 	// stretch the one-second refresh cadence into repeated two-second waves.
 	request, cancel := context.WithTimeout(ctx, statusInterval)
 	out, err := collect(request)
+	if l.workspaceCatalogue {
+		out.Capabilities = []string{"workspace_catalogue"}
+	}
 	cancel()
 	if ctx.Err() != nil {
 		return
@@ -110,13 +116,21 @@ func (l *liveInventory) snapshot() inventory.Inventory {
 	now := l.now()
 	for i := range out.Sessions {
 		s := &out.Sessions[i]
-		s.Stale = s.Snapshot == nil || s.Snapshot.ObservedAt.IsZero() || now.Sub(s.Snapshot.ObservedAt) > staleAfter
+		threshold := staleAfter
+		if l.interval != nil {
+			threshold = max(threshold, 3*l.interval())
+		}
+		s.Stale = s.Snapshot == nil || s.Snapshot.ObservedAt.IsZero() || now.Sub(s.Snapshot.ObservedAt) > threshold
 	}
 	return inventory.Project(out)
 }
 func (l *liveInventory) run(ctx context.Context) {
 	l.refresh(ctx)
-	ticker := time.NewTicker(statusInterval)
+	interval := statusInterval
+	if l.interval != nil {
+		interval = l.interval()
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -124,6 +138,26 @@ func (l *liveInventory) run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			l.refresh(ctx)
+			if l.interval != nil {
+				ticker.Reset(l.interval())
+			}
+		case <-l.wake:
+			l.refresh(ctx)
+			if l.interval != nil {
+				ticker.Reset(l.interval())
+			}
+		}
+	}
+}
+
+func (g *Gateway) wakePresentation() {
+	g.liveMu.RLock()
+	live := g.live
+	g.liveMu.RUnlock()
+	if live != nil {
+		select {
+		case live.wake <- struct{}{}:
+		default:
 		}
 	}
 }
@@ -136,7 +170,13 @@ func (g *Gateway) Start(ctx context.Context) {
 		g.liveMu.Unlock()
 		return
 	}
-	g.live = newLiveInventory(registrySource{g.options.Namespace}, g.options.Collect, g.hub)
+	source := g.options.Source
+	if source == nil {
+		source = registrySource{g.options.Namespace}
+	}
+	g.live = newLiveInventory(source, g.options.Collect, g.hub)
+	g.live.interval = g.options.LiveInterval
+	g.live.workspaceCatalogue = g.options.WorkspaceHandler != nil
 	live := g.live
 	g.liveMu.Unlock()
 	go live.run(ctx)

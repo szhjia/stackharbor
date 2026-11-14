@@ -32,6 +32,7 @@ fn readiness_requires_matching_build_namespace_and_exact_loopback() {
         error: None,
     };
     assert!(ready.validate(&namespace).is_ok());
+    assert!(ready.owned);
     for url in [
         "https://127.0.0.1:16800/",
         "http://localhost:16800/",
@@ -52,6 +53,7 @@ fn readiness_requires_matching_build_namespace_and_exact_loopback() {
     fs::remove_dir(namespace).unwrap();
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn control_rejects_incompatible_versions_and_unsafe_namespace() {
     let namespace = dir();

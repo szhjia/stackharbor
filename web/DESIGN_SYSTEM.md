@@ -34,11 +34,14 @@ while choosing a denser 12px default for this data-heavy console.
 | Change | Token family / example |
 | --- | --- |
 | Brand, surfaces, text, borders, status | `--primary`, `--card`, `--muted-foreground`, `--destructive` |
+| Sidebar and independent log output | `--sidebar`, `--sidebar-foreground`, `--log-surface`, `--log-foreground` |
 | Font sizes, weight, tracking | `--type-sm`, `--type-body`, `--type-lg`, `--font-weight-heading`, `--tracking-table` |
 | Padding and gaps | `--spacing`, `--space-3`, `--space-6` |
 | Card/control shape | `--radius`, `--radius-panel`, `--control-radius-sm` |
 | Shell, tables and overlays | `--sidebar-expanded-width`, `--info-popover-width`, `--dialog-max-width` |
-| Layering, shadows, animation | `--z-overlay`, `--shadow-md`, `--motion-fast`, `--motion-layout` |
+| Layering, shadows, animation | `--z-overlay`, `--shadow-md`, `--motion-fast` |
+
+Shared controls list their transition properties explicitly and use `duration-(--motion-fast)`; do not use `transition-all` or hard-coded easing. Reduced-motion behavior remains centralized in `app.css`. Sidebar collapse applies immediately without width, label, or menu-geometry transitions, so items cannot jump during the interaction.
 | Responsive boundaries | `mobile` / `desktop` (640px), `summary-stack` (760px), `compact` (900px) |
 
 Spacing aliases derive from `--spacing` (e.g. `--space-3 = 3 × --spacing`).
@@ -118,7 +121,11 @@ routes (Workbench, Workspaces, Resources, Operations, Settings and four workspac
 overflow and runtime errors, and exercises shared popovers, action menus, review
 dialogs, focus return and sidebar toggles. It also mutates spacing, typography,
 primary color and radius tokens to prove propagation through both application
-CSS and utility components, and checks dark surface separation.
+CSS and utility components, and checks dark surface separation. Targeted checks
+verify light-sidebar contrast and log-surface independence, the five-second stale
+boundary, SSE-driven operation refresh with disconnected fallback, localized
+table names and column scopes, and explicit/reduced motion. `result.json` groups
+these outcomes and records API request counts and screenshot paths.
 
 The existing React tests continue to cover connection recovery, routing, stale
 state, unknown metrics, ownership, log targets and confirmation safeguards. The
@@ -148,7 +155,12 @@ content unchanged. Date formatting follows the selected language.
 
 The settings route can render before inventory discovery completes. The browser
 check also covers its footer placement, keyboard input, reload persistence and
-light/dark layouts at desktop and mobile sizes.
+light/dark layouts at desktop and mobile sizes. `resolvedTheme` exposes the
+provider's resolved appearance to one root Sonner `Toaster`, avoiding a second
+system-theme listener. Inventory, request and operation-result notices use
+stable IDs at bottom-right; collection errors take precedence over the generic
+partial-observation notice. Full-page authentication errors retain their inline
+recovery action.
 
 ## Workbench
 
@@ -160,12 +172,19 @@ physical resources by memory. Unknown, non-finite and negative samples are
 excluded; a measured zero remains valid. No historical trend or
 host-capacity percentage is inferred from snapshot data.
 
-Every number is also visible as text: memory ranking rows carry an inline
-bar sized by the `--bar` custom property, and session health is a plain
-`dl` of three counts. Metric cards are single links to existing inspection
-flows. With no sessions and no resources the whole page collapses into one
-combined empty state instead of one per card. Runtime controls continue to
-require the existing plan review.
+Every number is also visible as text: memory ranking rows carry a track and
+inline bar sized by the `--bar` custom property, and session health is a plain
+`dl` of three counts. Ranking labels lead with the first readable node name and
+an additional-association count; workspace, resource type and compact PID or
+container identity form the secondary line. Full internal identifiers remain in
+the linked resource inspection flow rather than the ranking row. The attention
+region is rendered only when issues exist. The memory card grows with the
+remaining viewport height and has a 400px minimum; its labelled,
+keyboard-focusable content region scrolls independently while the header and
+footer remain visible. Metric cards are single links to
+existing inspection flows. With no sessions and
+no resources the whole page collapses into one combined empty state instead of
+one per card. Runtime controls continue to require the existing plan review.
 
 ## Navigation vocabulary
 
@@ -207,7 +226,10 @@ count and jump-to-latest action restore following. Auto-scroll stays within the
 log container. Switching the exact session/target resets viewing controls.
 
 Operation rows show workspace, creation/update times, exact-target log links and
-bookmarkable `session`/`operation` lookup parameters. This browser tab retains up
+bookmarkable `session`/`operation` lookup parameters. While SSE is live, inventory
+events invalidate operation queries without timer polling; disconnected sessions
+use a five-second fallback, and failed exact lookups retain bounded exponential
+backoff. Terminal operations stop refreshing. This browser tab retains up
 to 100 accepted operation identities in session storage across reloads, including
 when a session leaves discovery. These are lookup keys, not cached success
 claims, approval credentials or permanent history. Results still depend on the
@@ -218,6 +240,13 @@ and larger touch areas instead of repeating every table label vertically.
 The initial empty state supplies a copyable foreground-session command.
 
 ## Build dependency boundary
+
+Route pages load through `React.lazy` and standard dynamic `import()` while the
+shared shell remains mounted. Vite uses Oxc for JavaScript minification and
+Lightning CSS for CSS minification; `cssCodeSplit` remains enabled. The build
+runs `scripts/web-bundle-budget.mjs`, which requires multiple JavaScript chunks
+and rejects any chunk larger than 500 kB. Keep route boundaries before adding
+manual vendor chunks; formatting remains outside Vite's responsibilities.
 
 The shadcn CLI is not an application dependency. Copied UI components use the
 unchanged, licensed stylesheet at `vendor/shadcn/tailwind.css`; see its README

@@ -2,6 +2,23 @@ export interface APIError {
   code: string;
   message: string;
 }
+export interface WorkspaceSession {
+  session_id: string;
+  root: string;
+  workspace_id: string;
+  namespace_id?: string;
+  pid: number;
+  protocol_version: number;
+}
+export interface WorkspaceEntry {
+  root: string;
+  namespace: string;
+  workspace?: string;
+  state: string;
+  session?: WorkspaceSession;
+  issues?: string[];
+}
+export interface WorkspaceCatalogue { workspaces: WorkspaceEntry[] }
 export interface Identity {
   workspace_id: string;
   session_id: string;
@@ -84,6 +101,7 @@ export interface MetricTotal {
   sampled_at: string | null;
 }
 export interface Inventory {
+  capabilities?: string[];
   sessions: Session[];
   resources: Resource[];
   totals: { processes: MetricTotal; containers: MetricTotal };

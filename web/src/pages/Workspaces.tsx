@@ -45,7 +45,7 @@ export function Workspaces({
       },
       {
         id: "state",
-        header: tr("Connection"),
+        header: tr("Status"),
         accessorFn: (s) => connectionState(s, now),
         cell: ({ row }) => (
           <span title={row.original.error?.message}>
@@ -53,13 +53,13 @@ export function Workspaces({
           </span>
         ),
       },
-      ...([['services', 'Service / resource nodes'], ['tasks', 'Tasks'], ['runningServices', 'Ready services'], ['abnormal', 'Abnormal nodes']] as const).map(([id, label]) => ({
+      ...([['services', 'Nodes'], ['tasks', 'Tasks'], ['runningServices', 'Ready'], ['abnormal', 'Issues']] as const).map(([id, label]) => ({
         id, header: tr(label),
         cell: ({row}: {row: {original: WorkspaceRow}}) => <span className="mono table-count" data-attention={(id === "abnormal" && Boolean(row.original.summary?.abnormal)) || undefined}>{row.original.summary?.[id] ?? tr("Unknown")}</span>,
       })),
       {
         id: "observed",
-        header: tr("Last observation"),
+        header: tr("Last seen"),
         cell: ({ row }) => (
           <span className="caption">
             {row.original.snapshot

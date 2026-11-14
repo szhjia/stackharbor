@@ -17,10 +17,12 @@ export interface Tracked {
 export function Operations({
   sessions,
   tracked,
+  connected,
   onError,
 }: {
   sessions: Session[];
   tracked: Tracked[];
+  connected: boolean;
   onError: (s: string) => void;
 }) {
   const {t: tr, language} = usePreferences();
@@ -36,7 +38,7 @@ export function Operations({
       queryKey: ["operations", s.identity.session_id],
       queryFn: () => api.operations(s.identity.session_id),
       retry: false,
-      refetchInterval: 1000,
+      refetchInterval: connected ? false : 5000,
     })),
   });
   const exact = useQueries({
@@ -46,7 +48,7 @@ export function Operations({
       retry: false,
       refetchInterval: (q: Query<Operation>) => {
         if (terminalStates.has(q.state.data?.state ?? "")) return false;
-        if (!q.state.error) return 1000;
+        if (!q.state.error) return connected ? false : 5000;
         // A missing exact session cannot answer repeated lookups. Keep the
         // unknown outcome available for explicit retry or connection recovery.
         if (!sessions.some(s => s.identity.session_id === o.session_id && s.available)

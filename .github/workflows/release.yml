@@ -7,10 +7,22 @@ permissions:
 jobs:
   check:
     uses: ./.github/workflows/check.yml
-  publish:
+  macos:
     needs: check
+    uses: ./.github/workflows/desktop.yml
+    with:
+      public_release: true
+    secrets:
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  publish:
+    needs: [check, macos]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
     steps:
@@ -37,12 +49,19 @@ jobs:
         run: |
           STACKHARBOR_RELEASE_VERSION="$RELEASE_VERSION" go test ./tests -run '^TestRelease' -count=1
           cd dist && sha256sum -c SHA256SUMS
+      - name: Download verified signed macOS artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: stackharbor-macos-*-signed
+          path: dist/macos
+      - name: Validate and stage both public DMGs
+        run: python3 scripts/stage-macos-release.py --directory dist/macos --output dist --version "$RELEASE_VERSION" --commit "$GITHUB_SHA"
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" dist/stackharbor_"$RELEASE_VERSION"_*.tar.gz dist/SHA256SUMS \
+          gh release create "$RELEASE_TAG" dist/stackharbor_"$RELEASE_VERSION"_linux_*.tar.gz dist/StackHarbor_"$RELEASE_VERSION"_*.dmg dist/desktop-*-build.json dist/SHA256SUMS \
             --verify-tag --latest --title "StackHarbor $RELEASE_TAG" --notes-file dist/RELEASE_NOTES.md
       - name: Remove erroneous historical release and tag
         if: env.RELEASE_VERSION == '0.3.0'

@@ -58,8 +58,8 @@ it("shows readiness and resource health failures on the workbench and clears the
   expect(within(attention).queryByText("No connection issues or current node failures.")).not.toBeInTheDocument();
   vi.mocked(api.inventory).mockResolvedValue({...data, sessions: [{...data.sessions[0], snapshot: {...data.sessions[0].snapshot!, nodes: [{...node, state: "running", reason: ""}, {...resource, state: "available", reason: ""}]}}]});
   await userEvent.click(screen.getByRole("button", {name: "Refresh"}));
-  expect(await within(attention).findByText("No connection issues or current node failures.")).toBeVisible();
-  expect(within(attention).queryByText(node.reason)).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("region", {name: "Needs your attention"})).not.toBeInTheDocument());
+  expect(screen.queryByText(node.reason)).not.toBeInTheDocument();
 });
 it("workbench links current failed nodes directly to filtered services and provides a terminal command when empty", async () => {
   const node = {id: "app/api", name: "API", project_id: "app", kind: "service", state: "failed", reason: "Port occupied", ownership: "session", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: []};
@@ -95,23 +95,52 @@ it("overview summarizes unique workspaces, session health and shared resources w
   expect(screen.queryByText("Shared resources")).not.toBeInTheDocument();
   expect(screen.queryByText("Unknown identity")).not.toBeInTheDocument();
   expect(screen.getAllByRole("link", {name: "Operations"})).toHaveLength(1);
-  expect(screen.getByText("Partial observation")).toBeVisible();
+  expect(screen.getByText("Partial observation")).toBeInTheDocument();
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+});
+it("workbench presents concise memory ranking identities and a compact healthy summary", async () => {
+  const apiNode = {id: "app/api", name: "API", project_id: "app", kind: "service", state: "running", reason: "", ownership: "session", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: []};
+  const web = {...apiNode, id: "app/web", name: "Web"};
+  const item = {id: "process:777:very-long-internal-identity", kind: "process", identity_known: true, pid: 777,
+    metric: {known: true, partial: false, sampled_at: null, rss_bytes: 100 * 1048576, cpu_percent: 1, uptime_millis: null},
+    references: [{session_id: "exact", workspace_id: "workspace", node_ids: ["app/api", "app/web"], nodes: []}]};
+  const unknown = {...item, id: "unknown:0:process:1", identity_known: false, pid: undefined, references: [], metric: {...item.metric, rss_bytes: 50 * 1048576}};
+  vi.mocked(api.inventory).mockResolvedValue({sessions: [{...fixture, snapshot: {...fixture.snapshot!, nodes: [apiNode, web]}}], resources: [item, unknown], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"});
+  mount("/");
+  const ranking = await screen.findByRole("region", {name: "Memory hotspots"});
+  const link = within(ranking).getByRole("link", {name: "API"});
+  expect(link).toHaveAttribute("href", `/resources?q=${encodeURIComponent(item.id)}`);
+  const row = link.closest("li")!;
+  expect(row).toHaveTextContent("+1");
+  expect(row).toHaveTextContent("1 more associated nodes");
+  expect(row).toHaveTextContent("fixture");
+  expect(row).toHaveTextContent("Process");
+  expect(row).toHaveTextContent("PID 777");
+  expect(row).toHaveTextContent("100.0 MiB");
+  expect(row).not.toHaveTextContent(item.id);
+  const unknownLink = within(ranking).getByRole("link", {name: "Unassigned resource"});
+  expect(unknownLink).not.toHaveAttribute("title");
+  expect(unknownLink.closest("li")).toHaveTextContent("Unknown identity");
+  expect(unknownLink.closest("li")).not.toHaveTextContent(unknown.id);
+  expect(ranking).toHaveClass("workbench-memory-card");
+  expect(within(ranking).getByRole("region", {name: "Memory ranking list"})).toHaveAttribute("tabindex", "0");
+  expect(screen.queryByRole("region", {name: "Needs your attention"})).not.toBeInTheDocument();
 });
 it.each([false, true])("workbench excludes healthy observe listeners while preserving real conflicts (conflict: %s)", async withConflict => {
   const observer = {id: "app/db", name: "Observed database", project_id: "app", kind: "service", state: "running", reason: "External service · read-only dependency", ownership: "external", allowed_actions: [], depends_on: [], resource_refs: [], metric: {known: false, partial: false, rss_bytes: null, cpu_percent: null, uptime_millis: null, sampled_at: null}, ports: [{port: 5432, status: "external", reason: "", resource_refs: []}]};
   const conflict = {...observer, id: "app/api", name: "API conflict", ownership: "session", reason: "", ports: [{port: 5173, status: "external", reason: "Occupied", resource_refs: []}]};
   vi.mocked(api.inventory).mockResolvedValue({sessions: [{...fixture, snapshot: {...fixture.snapshot!, observed_at: new Date().toISOString(), nodes: withConflict ? [observer, conflict] : [observer]}}], resources: [], totals: {processes: total, containers: total}, partial: false, collected_at: new Date().toISOString(), event_cursor: "event:1"});
   mount("/");
-  const attention = await screen.findByRole("region", {name: "Needs your attention"});
-  expect(within(attention).queryByText("Observed database")).not.toBeInTheDocument();
-  expect(within(attention).getByText(withConflict ? "1" : "0", {selector: '[data-slot="badge"]'})).toBeVisible();
   if (withConflict) {
+    const attention = await screen.findByRole("region", {name: "Needs your attention"});
+    expect(within(attention).queryByText("Observed database")).not.toBeInTheDocument();
+    expect(within(attention).getByText("1", {selector: '[data-slot="badge"]'})).toBeVisible();
     expect(within(attention).getByText(":5173 · Occupied")).toBeVisible();
     expect(within(attention).getByRole("link", {name: /API conflict/})).toHaveAttribute("href", "/workspaces/exact?q=app%2Fapi");
   } else {
-    expect(within(attention).getByText("No connection issues or current node failures.")).toBeVisible();
-    expect(within(attention).queryByText("running")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", {name: "Memory hotspots"})).toBeVisible();
+    expect(screen.queryByText("Observed database")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", {name: "Needs your attention"})).not.toBeInTheDocument();
   }
 });
 it("direct menu URLs render their page and expose native navigation links", async () => {
@@ -121,8 +150,8 @@ it("direct menu URLs render their page and expose native navigation links", asyn
   fireEvent.click(screen.getByRole("link", {name: "Workspaces"}));
   expect(location.pathname).toBe("/workspaces");
   expect(await screen.findByRole("heading", {name: "Workspaces"})).toBeVisible();
-  expect(screen.getByRole("link", {name: "/owned/fixture"})).toHaveAttribute("href", "/workspaces/exact");
-  expect(screen.getAllByRole("columnheader").map((column) => column.textContent)).toEqual(["Workspace", "Terminal", "PID", "Session", "Connection", "Service / resource nodes", "Tasks", "Ready services", "Abnormal nodes", "Last observation"]);
+  expect(await screen.findByRole("link", {name: "/owned/fixture"})).toHaveAttribute("href", "/workspaces/exact");
+  expect((await screen.findAllByRole("columnheader")).map((column) => column.textContent)).toEqual(["Workspace", "Terminal", "PID", "Session", "Status", "Nodes", "Tasks", "Ready", "Issues", "Last seen"]);
   expect(api.bootstrap).toHaveBeenCalledTimes(1);
   expect(screen.getAllByRole("button", {name: "Refresh"})).toHaveLength(1);
 });
@@ -130,8 +159,8 @@ it("workspace tabs and log target survive remount from a deep URL", async () => 
   const view = mount("/workspaces/exact/logs?target=app%2Fapi");
   expect(await screen.findByRole("heading", {name: "Logs", level: 1})).toBeVisible();
   expect(await screen.findByRole("link", {name: "fixture"})).toHaveAttribute("href", "/workspaces/exact");
-  expect(screen.getByRole("tab", {name: "Logs"})).toHaveAttribute("aria-selected", "true");
-  expect(screen.getByRole("combobox", {name: "Log target"})).toHaveTextContent("app/api");
+  expect(await screen.findByRole("tab", {name: "Logs"})).toHaveAttribute("aria-selected", "true");
+  expect(await screen.findByRole("combobox", {name: "Log target"})).toHaveTextContent("app/api");
   await userEvent.click(screen.getByRole("tab", {name: "Tasks"}));
   expect(location.pathname).toBe("/workspaces/exact/tasks");
   expect(location.search).toBe("");
@@ -174,7 +203,7 @@ it("settings lives in the sidebar footer, works collapsed and persists preferenc
   expect(settings).toHaveAttribute("title", "Settings");
   await userEvent.click(settings);
   expect(location.pathname).toBe("/settings");
-  expect(settings).toHaveAttribute("aria-current", "page");
+  await waitFor(() => expect(settings).toHaveAttribute("aria-current", "page"));
   await choosePreference("Interface language", "zh-CN");
   expect(screen.getByRole("heading", {name: "设置", level: 1})).toBeVisible();
   expect(screen.getByRole("link", {name: "工作区"})).toBeVisible();
@@ -218,11 +247,11 @@ it("settings can be opened directly before the inventory is available", async ()
 });
 it("follows system appearance from first paint and updates only while selected", async () => {
   let dark = true;
-  const listeners = new Set<() => void>();
+  const listeners = new Set<(event: {matches: boolean}) => void>();
   const media = {
     get matches() { return dark; },
-    addEventListener: vi.fn((_event: string, listener: () => void) => listeners.add(listener)),
-    removeEventListener: vi.fn((_event: string, listener: () => void) => listeners.delete(listener)),
+    addEventListener: vi.fn((_event: string, listener: (event: {matches: boolean}) => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_event: string, listener: (event: {matches: boolean}) => void) => listeners.delete(listener)),
   } as unknown as MediaQueryList;
   vi.stubGlobal("matchMedia", vi.fn(() => media));
   try {
@@ -232,11 +261,11 @@ it("follows system appearance from first paint and updates only while selected",
     const view = mount("/settings");
     expect(await screen.findByRole("combobox", {name: "Appearance"})).toHaveTextContent("Follow system");
     expect(localStorage.getItem("stackharbor.theme")).toBeNull();
-    act(() => { dark = false; listeners.forEach(listener => listener()); });
+    act(() => { dark = false; listeners.forEach(listener => listener({matches: dark})); });
     expect(document.documentElement).not.toHaveClass("dark");
     expect(document.documentElement.style.colorScheme).toBe("light");
     await choosePreference("Appearance", "light");
-    act(() => { dark = true; listeners.forEach(listener => listener()); });
+    act(() => { dark = true; listeners.forEach(listener => listener({matches: dark})); });
     expect(document.documentElement).not.toHaveClass("dark");
     await choosePreference("Appearance", "system");
     expect(document.documentElement).toHaveClass("dark");

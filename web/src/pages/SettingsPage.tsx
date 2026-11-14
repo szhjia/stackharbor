@@ -1,6 +1,7 @@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "../components/ui/select";
 import { Panel } from "../components/Panel";
 import { usePreferences, type FontSize, type Language, type Theme } from "../lib/preferences";
+import { DesktopSettings } from "../desktop/Setup";
 
 export function SettingsPage() {
   const {language, theme, fontSize, setLanguage, setTheme, setFontSize, t} = usePreferences();
@@ -56,5 +57,6 @@ export function SettingsPage() {
         </Select>
       </div>
     </Panel>
+    <DesktopSettings />
   </section>;
 }

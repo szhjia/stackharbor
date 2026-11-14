@@ -29,8 +29,8 @@ async function mount(sessions: Session[] = []) {
   vi.spyOn(api, "operations").mockResolvedValue([]);
   cache = new QueryClient({defaultOptions: {queries: {retry: false}}});
   function Harness() {
-    useEvents(true, "event:1", undefined, () => {});
-    return <Operations sessions={sessions} tracked={[{session_id: "exact", id: "op"}]} onError={() => {}} />;
+    const status = useEvents(true, "event:1", undefined, () => {});
+    return <Operations sessions={sessions} tracked={[{session_id: "exact", id: "op"}]} connected={status === "Live"} onError={() => {}} />;
   }
   render(<QueryClientProvider client={cache}><MemoryRouter><Harness /></MemoryRouter></QueryClientProvider>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -43,6 +43,36 @@ async function tick(seconds: number) {
     await vi.advanceTimersByTimeAsync(10);
   });
 }
+
+it("does not poll list or exact operations on a timer while SSE is live", async () => {
+  const list = vi.spyOn(api, "operations").mockResolvedValue([operation]);
+  const exact = vi.spyOn(api, "operation").mockResolvedValue(operation);
+  await mount([session]);
+  await act(async () => { Source.current.onopen?.(); await vi.advanceTimersByTimeAsync(0); });
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(exact).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(6000);
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(exact).toHaveBeenCalledTimes(1);
+  await act(async () => { Source.current.inventory(); await vi.advanceTimersByTimeAsync(10); });
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(exact).toHaveBeenCalledTimes(2);
+});
+
+it("uses a five-second fallback only while SSE is not live", async () => {
+  const list = vi.spyOn(api, "operations").mockResolvedValue([operation]);
+  const exact = vi.spyOn(api, "operation").mockResolvedValue(operation);
+  await mount([session]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(4999); });
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(exact).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(exact).toHaveBeenCalledTimes(2);
+});
 
 it("leaves an ended session's missing outcome unknown without polling it on every inventory update", async () => {
   const read = vi.spyOn(api, "operation").mockRejectedValue(unavailable);

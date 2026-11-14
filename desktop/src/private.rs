@@ -8,10 +8,12 @@ pub fn directory(path: &Path) -> Result<PathBuf, String> {
     ensure(path, true)
 }
 
+#[cfg(any(target_os = "linux", test))]
 pub fn registry(path: &Path) -> Result<PathBuf, String> {
     ensure(path, false)
 }
 
+#[cfg(target_os = "linux")]
 pub fn runtime_directory() -> Result<PathBuf, String> {
     let path = std::env::var_os("STACKHARBOR_DESKTOP_RUNTIME_DIR")
         .map(PathBuf::from)

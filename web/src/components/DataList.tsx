@@ -82,7 +82,7 @@ export function DataList<T extends RowData>({
         <span className="caption list-count" role="status">{tr("{count} of {total} records", {count: table.getRowModel().rows.length, total: data.length})}</span>
         {toolbar}
       </div> : null}
-      <Table>
+      <Table aria-label={tr(label)}>
         <TableHeader>
           {table.getHeaderGroups().map((g) => (
             <TableRow key={g.id}>

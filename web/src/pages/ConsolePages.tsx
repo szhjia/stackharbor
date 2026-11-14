@@ -6,10 +6,15 @@ import { Resources } from "./Resources";
 import { Operations } from "./Operations";
 import { WorkspaceDetail } from "./WorkspaceDetail";
 import { Notice } from "../components/Notice";
+import { useNow } from "../lib/use-now";
+import { WorkspaceCatalogue } from "../desktop/WorkspaceCatalogue";
+import { isDesktop } from "../desktop/bridge";
 
 export function WorkspacesPage() {
-  const {sessions, now} = useConsole();
+  const {sessions, data} = useConsole();
+  const now = useNow();
   return <section className="route-page">
+    {isDesktop() || data.capabilities?.includes("workspace_catalogue") ? <WorkspaceCatalogue /> : null}
     <Workspaces
       sessions={sessions}
       now={now}
@@ -18,7 +23,8 @@ export function WorkspacesPage() {
 }
 export function WorkspacePage() {
   const {t: tr, language} = usePreferences();
-  const {current, sessionID, data, sessions, now, status, requestPlans, tab, logTarget, onTabChange, onTargetChange} = useConsole();
+  const {current, sessionID, data, sessions, status, requestPlans, tab, logTarget, onTabChange, onTargetChange} = useConsole();
+  const now = useNow();
   return (
     <section className="route-page">
       {current ? (
@@ -47,8 +53,8 @@ export function ResourcesPage() {
   return <Resources resources={data.resources} sessions={sessions} />;
 }
 export function OperationsPage() {
-  const {sessions, tracked, setError} = useConsole();
-  return <Operations sessions={sessions} tracked={tracked} onError={setError} />;
+  const {sessions, tracked, status, setError} = useConsole();
+  return <Operations sessions={sessions} tracked={tracked} connected={status === "Live"} onError={setError} />;
 }
 export function NotFoundPage() {
   const {t: tr, language} = usePreferences();

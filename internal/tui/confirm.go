@@ -121,6 +121,14 @@ func (m Model) confirmationContent() (string, []string) {
 	prose := func(text string) {
 		lines = append(lines, strings.Split(ansi.Wrap(plain(text), m.pageWidth(), ""), "\n")...)
 	}
+	if m.planned != nil && m.planned.RequiresConfirmation {
+		for _, warning := range m.planned.Warnings {
+			prose(warning)
+		}
+		if len(m.planned.Warnings) > 0 {
+			lines = append(lines, "")
+		}
+	}
 	if len(m.conflicts) > 0 {
 		title = "Release conflicting ports · " + verb + " " + strings.Join(parts, " · ")
 		prose("These processes will be terminated before starting selected services:")

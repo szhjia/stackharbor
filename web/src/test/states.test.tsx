@@ -108,12 +108,20 @@ it("collection failure with zero rows stays failed partial state", async () => {
     }),
   );
   app();
-  expect(
-    await screen.findByText("Inventory discovery unavailable"),
-  ).toBeVisible();
+  const title = await screen.findByText("Inventory discovery unavailable");
+  expect(title).toBeInTheDocument();
+  expect(title.closest("[data-sonner-toast]")).not.toBeNull();
+  expect(title.closest(".console-notice")).toBeNull();
+  expect(screen.queryByText("Partial observation")).not.toBeInTheDocument();
+  const toaster = document.querySelector("[data-sonner-toaster]");
+  expect(toaster).toHaveAttribute("data-x-position", "right");
+  expect(toaster).toHaveAttribute("data-y-position", "bottom");
   expect(
     screen.getByText(/Retained records and totals may be incomplete/),
-  ).toBeVisible();
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: "Refresh"}));
+  fireEvent.click(screen.getByRole("button", {name: "Refresh"}));
+  expect(screen.getAllByText("Inventory discovery unavailable")).toHaveLength(1);
 });
 it("stale and unsupported sessions are labeled where connection state is shown", () => {
   const stale = session({ stale: true });

@@ -1,15 +1,29 @@
 #!/bin/sh
-# Download a verified release. Never uses sudo or replaces an existing command.
+# Linux release installer. macOS installation is owned by the signed desktop app.
 set -eu
 if [ "${1:-}" = --help ]; then
-  printf 'Usage: sh install-release.sh [VERSION [BIN_DIR]]\nDefaults: latest, ~/.local/bin. Supports macOS/Linux arm64/amd64.\n'
+  printf 'Usage: sh install-release.sh [VERSION [BIN_DIR]]\nDefaults: latest, ~/.local/bin. Linux arm64/amd64; macOS uses the signed DMG app.\n'
   exit 0
 fi
 if [ "$#" -gt 2 ]; then printf 'Expected [VERSION [BIN_DIR]]\n' >&2; exit 2; fi
 version=${1:-latest}
 bin_dir=${2:-"$HOME/.local/bin"}
 repo=https://github.com/szhjia/stackharbor
-case "$(uname -s)" in Darwin) platform=darwin;; Linux) platform=linux;; *) printf 'Unsupported operating system\n' >&2; exit 1;; esac
+case "$(uname -s)" in
+  Darwin)
+    if [ "$version" != latest ]; then
+      pinned=${version#v}
+      if ! printf '%s\n' "$pinned" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then printf 'Expected a stable version such as 0.1.0\n' >&2; exit 2; fi
+      release_url="$repo/releases/tag/v$pinned"
+    else release_url="$repo/releases/latest"; fi
+    printf 'Install StackHarbor for macOS from the signed/notarized DMG:\n%s\n' "$release_url"
+    printf 'Move StackHarbor.app to /Applications or ~/Applications, then open it.\n'
+    printf 'First-launch setup installs the matching CLI and skill after agreement. Login startup defaults off.\n'
+    printf 'This script did not download, install or modify anything. Historical CLI-only installers remain on their original release tags.\n'
+    exit 0;;
+  Linux) platform=linux;;
+  *) printf 'Unsupported operating system\n' >&2; exit 1;;
+esac
 case "$(uname -m)" in arm64|aarch64) arch=arm64;; x86_64|amd64) arch=amd64;; *) printf 'Unsupported architecture\n' >&2; exit 1;; esac
 for tool in curl tar; do command -v "$tool" >/dev/null 2>&1 || { printf 'Required command: %s\n' "$tool" >&2; exit 1; }; done
 if command -v sha256sum >/dev/null 2>&1; then checksum=sha256sum

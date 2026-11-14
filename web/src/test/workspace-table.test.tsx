@@ -5,6 +5,7 @@ import type {Node, Session, Resource} from "../api/types";
 import {Workspaces} from "../pages/Workspaces";
 import {Resources} from "../pages/Resources";
 import {summarizeWorkspaceNodes} from "../lib/workspace-summary";
+import {PreferencesProvider} from "../lib/preferences";
 
 const metric = {known: false, partial: false, sampled_at: null, rss_bytes: null, cpu_percent: null, uptime_millis: null};
 const identity = {session_id: "session-a", workspace_id: "workspace", protocol_version: 1, capabilities: []};
@@ -14,6 +15,7 @@ const session: Session = {identity, root: "/projects/long-parent/api", terminal:
 }};
 it("flattens workspace identity and node counts into individually readable columns", () => {
   render(<MemoryRouter><Workspaces sessions={[session]} now={Date.now()} /></MemoryRouter>);
+  expect(screen.getAllByRole("columnheader").map(header => header.textContent)).toEqual(["Workspace", "Terminal", "PID", "Session", "Status", "Nodes", "Tasks", "Ready", "Issues", "Last seen"]);
   const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
   expect(cells.map(cell => cell.textContent).slice(0, 9)).toEqual(["api", "Terminal", "123", "session-a", "Live", "2", "2", "1", "2"]);
   expect(within(cells[0]).getByRole("link", {name: session.root})).toHaveAttribute("href", "/workspaces/session-a");
@@ -34,8 +36,8 @@ it("labels non-task totals separately from probe-verified service readiness", ()
   const nodes: Node[] = [node, {...node, id: "unprobed", state: "started"}, {...node, id: "db", kind: "resource", state: "available"}, {...node, id: "task", kind: "task", state: "succeeded"}];
   expect(summarizeWorkspaceNodes(nodes)).toEqual({services: 3, tasks: 1, runningServices: 1, abnormal: 0});
   render(<MemoryRouter><Workspaces sessions={[{...session, snapshot: {...session.snapshot!, nodes}}]} now={Date.now()} /></MemoryRouter>);
-  expect(screen.getByRole("columnheader", {name: "Service / resource nodes"})).toBeVisible();
-  expect(screen.getByRole("columnheader", {name: "Ready services"})).toBeVisible();
+  expect(screen.getByRole("columnheader", {name: "Nodes"})).toBeVisible();
+  expect(screen.getByRole("columnheader", {name: "Ready"})).toBeVisible();
   expect(screen.getByText(/Node totals include services and registered resources/)).toBeVisible();
   expect(screen.queryByRole("button", {name: /close selected/i})).not.toBeInTheDocument();
 });
@@ -52,13 +54,31 @@ it("shows compact workspace names in resources without duplicating shared physic
   render(<MemoryRouter><Resources resources={[resource]} sessions={[session, second]} /></MemoryRouter>);
   expect(screen.getAllByRole("row")).toHaveLength(2);
   const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
-  const links = within(cells[2]).getAllByRole("link");
+  expect(cells[0]).toHaveTextContent("api+1");
+  expect(cells[0]).toHaveTextContent("1 more associated nodes");
+  const links = within(cells[1]).getAllByRole("link");
   expect(links.map(link => link.textContent)).toEqual(["api", "api"]);
   expect(links.map(link => link.getAttribute("href"))).toEqual(["/workspaces/session-a", "/workspaces/session-b"]);
   expect(links.map(link => link.getAttribute("title"))).toEqual([session.root, second.root]);
-  expect(within(cells[3]).getAllByRole("button")).toHaveLength(2);
-  fireEvent.click(within(cells[3]).getByRole("button", {name: `Show 1 nodes for ${session.root}`}));
-  expect(within(cells[3]).getByRole("link", {name: session.root})).toHaveAttribute("href", "/workspaces/session-a");
-  expect(within(cells[3]).getByRole("link", {name: "Logs for api"})).toHaveAttribute("href", "/workspaces/session-a/logs?target=api");
+  expect(within(cells[2]).getAllByRole("button")).toHaveLength(2);
+  fireEvent.click(within(cells[2]).getByRole("button", {name: `Show 1 nodes for ${session.root}`}));
+  expect(within(cells[2]).getByRole("link", {name: session.root})).toHaveAttribute("href", "/workspaces/session-a");
+  expect(within(cells[2]).getByRole("link", {name: "Logs for api"})).toHaveAttribute("href", "/workspaces/session-a/logs?target=api");
   expect(screen.getAllByRole("row")).toHaveLength(2);
+});
+it("names the data table and identifies every column header", () => {
+  render(<MemoryRouter><Workspaces sessions={[session]} now={Date.now()} /></MemoryRouter>);
+  expect(screen.getByRole("table", {name: "workspaces"})).toBeVisible();
+  for (const header of screen.getAllByRole("columnheader")) {
+    expect(header).toHaveAttribute("scope", "col");
+  }
+});
+it("localizes the data table accessible name", () => {
+  localStorage.setItem("stackharbor.language", "zh-CN");
+  try {
+    render(<PreferencesProvider><MemoryRouter><Workspaces sessions={[session]} now={Date.now()} /></MemoryRouter></PreferencesProvider>);
+    expect(screen.getByRole("table", {name: "工作区"})).toBeVisible();
+  } finally {
+    localStorage.clear();
+  }
 });

@@ -21,6 +21,12 @@ type Lock struct {
 }
 
 func Acquire(root string) (*Lock, error) {
+	return AcquireIn(root, "", false)
+}
+
+// AcquireIn reserves an explicit namespace. Managed metadata advertises its
+// protocol before legacy signal clients can observe the occupied lock.
+func AcquireIn(root, namespace string, managed bool) (*Lock, error) {
 	real, e := filepath.EvalSymlinks(root)
 	if e != nil {
 		return nil, e
@@ -30,6 +36,9 @@ func Acquire(root string) (*Lock, error) {
 		return nil, e
 	}
 	cache, e := sessionCacheDir()
+	if namespace != "" {
+		cache, e = namespace, nil
+	}
 	if e != nil {
 		return nil, e
 	}
@@ -45,6 +54,9 @@ func Acquire(root string) (*Lock, error) {
 		return nil, e
 	}
 	path := filepath.Join(cache, fmt.Sprintf("%x.lock", sha256.Sum256([]byte(real))))
+	if managed {
+		return acquireManaged(real, cache, path, nil)
+	}
 	fd, e := syscall.Open(path, syscall.O_CREAT|syscall.O_RDWR|syscall.O_NOFOLLOW|syscall.O_CLOEXEC|syscall.O_NONBLOCK, 0600)
 	if e != nil {
 		return nil, e
@@ -67,6 +79,12 @@ func Acquire(root string) (*Lock, error) {
 		return nil, fmt.Errorf("Session lock failed for %q: %w", real, e)
 	}
 	info := currentSessionInfo(real)
+	if managed {
+		info.OwnerKind = "engine"
+		info.ProtocolVersion = 1
+		info.TTY = ""
+		info.Terminal = ""
+	}
 	info.CacheDir = cache
 	info.WorkspaceID = fmt.Sprintf("%x", sha256.Sum256([]byte(real)))
 	info.NamespaceID = fmt.Sprintf("%x", sha256.Sum256([]byte(cache)))

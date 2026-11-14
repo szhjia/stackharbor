@@ -11,30 +11,36 @@ type Identity struct {
 }
 
 type Snapshot struct {
-	Identity    Identity     `json:"identity"`
-	Revision    uint64       `json:"revision"`
-	ObservedAt  time.Time    `json:"observed_at"`
-	Nodes       []Node       `json:"nodes"`
-	Processes   []Process    `json:"processes"`
-	Containers  []Container  `json:"containers"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
+	Identity          Identity     `json:"identity"`
+	Revision          uint64       `json:"revision"`
+	ObservedAt        time.Time    `json:"observed_at"`
+	Nodes             []Node       `json:"nodes"`
+	Processes         []Process    `json:"processes"`
+	Containers        []Container  `json:"containers"`
+	Diagnostics       []Diagnostic `json:"diagnostics"`
+	ComposeConfigured bool         `json:"compose_configured,omitempty"`
 }
 
 type Node struct {
-	DependsOn      []string `json:"depends_on"`
-	ID             string   `json:"id"`
-	ProjectID      string   `json:"project_id"`
-	Name           string   `json:"name"`
-	Kind           string   `json:"kind"`
-	State          string   `json:"state"`
-	Reason         string   `json:"reason"`
-	Ownership      string   `json:"ownership"`
-	AllowedActions []string `json:"allowed_actions"`
-	ResourceRefs   []string `json:"resource_refs"`
-	Metric         Metric   `json:"metric"`
-	MetricSource   string   `json:"metric_source,omitempty"`
-	MetricError    string   `json:"metric_error,omitempty"`
-	Ports          []Port   `json:"ports"`
+	Version          int      `json:"version,omitempty"`
+	AllActions       *bool    `json:"all_actions,omitempty"`
+	ObservedState    string   `json:"observed_state,omitempty"`
+	ObservedReason   string   `json:"observed_reason,omitempty"`
+	ReadinessChecked bool     `json:"readiness_checked,omitempty"`
+	DependsOn        []string `json:"depends_on"`
+	ID               string   `json:"id"`
+	ProjectID        string   `json:"project_id"`
+	Name             string   `json:"name"`
+	Kind             string   `json:"kind"`
+	State            string   `json:"state"`
+	Reason           string   `json:"reason"`
+	Ownership        string   `json:"ownership"`
+	AllowedActions   []string `json:"allowed_actions"`
+	ResourceRefs     []string `json:"resource_refs"`
+	Metric           Metric   `json:"metric"`
+	MetricSource     string   `json:"metric_source,omitempty"`
+	MetricError      string   `json:"metric_error,omitempty"`
+	Ports            []Port   `json:"ports"`
 }
 
 type Metric struct {

@@ -52,10 +52,10 @@ func TestDesktopSidecarPipeEOFDoesNotStopTerminalOwnedService(t *testing.T) {
 	case <-time.After(8 * time.Second):
 		t.Fatal("sidecar did not stop")
 	}
-	snapshot, err := client.Snapshot(context.Background())
-	if err != nil || len(snapshot.Processes) == 0 {
-		t.Fatalf("terminal-owned service lost: %+v %v", snapshot, err)
-	}
+	wait(t, func() bool {
+		snapshot, err := client.Snapshot(context.Background())
+		return err == nil && len(snapshot.Processes) > 0
+	})
 	op := submitRemoteClose(t, client)
 	assertRemoteExit(t, terminal, info, pidfile, op)
 }

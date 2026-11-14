@@ -12,6 +12,10 @@ import (
 // runKill preserves only the legacy, identity-checked signal path. Modern hosts
 // always close through a retained plan/operation and durable completion journal.
 func runKill(ctx context.Context, expected supervisor.SessionInfo, timeout time.Duration, jsonMode bool, out, errOut io.Writer) int {
+	if expected.OwnerKind == "engine" {
+		fmt.Fprintln(errOut, "Managed workspaces must close through their session API; engine PID will not be signalled")
+		return 2
+	}
 	root := expected.Root
 	if !jsonMode {
 		fmt.Fprintf(out, "Closing legacy StackHarbor session for %q...\n", root)

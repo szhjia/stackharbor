@@ -21,10 +21,11 @@ type Controller interface {
 
 // PlannedAction is a retained authorization, not a request to recompute scope.
 type PlannedAction struct {
-	ID, Key   string
-	Affected  []model.ServiceID
-	Conflicts []model.PortConflict
-	Warnings  []string
+	ID, Key              string
+	Affected             []model.ServiceID
+	Conflicts            []model.PortConflict
+	Warnings             []string
+	RequiresConfirmation bool
 }
 type planningController interface {
 	PlanAction(context.Context, string, []model.ServiceID, []string) (PlannedAction, error)
@@ -97,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.planned = &v.plan
 		m.action, m.pending, m.pendingDocker = v.action, v.ids, v.docker
 		m.conflicts = v.plan.Conflicts
-		if v.confirm || len(v.plan.Conflicts) > 0 {
+		if v.confirm || v.plan.RequiresConfirmation || len(v.plan.Conflicts) > 0 {
 			m.confirm = true
 			m.confirmOffset = 0
 			m.status = v.status

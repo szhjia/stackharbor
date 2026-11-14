@@ -4,6 +4,18 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      public_release:
+        type: boolean
+        default: false
+    secrets:
+      APPLE_CERTIFICATE_P12: {required: false}
+      APPLE_CERTIFICATE_PASSWORD: {required: false}
+      APPLE_SIGNING_IDENTITY: {required: false}
+      APPLE_ID: {required: false}
+      APPLE_PASSWORD: {required: false}
+      APPLE_TEAM_ID: {required: false}
 permissions:
   contents: read
 concurrency:
@@ -11,9 +23,13 @@ concurrency:
   cancel-in-progress: true
 jobs:
   core:
+    if: ${{ !inputs.public_release }}
     uses: ./.github/workflows/check.yml
   desktop:
+    if: ${{ !inputs.public_release }}
     needs: core
+    env:
+      STACKHARBOR_DESKTOP_DISTRIBUTION: internal
     strategy:
       fail-fast: false
       matrix:
@@ -46,9 +62,24 @@ jobs:
       - name: Install packaged Linux desktop and CLI
         if: runner.os == 'Linux'
         run: sudo dpkg -i dist/desktop/*/*.deb
-      - name: Native lifecycle smoke (macOS)
+      - name: Build isolated native test provider (macOS)
         if: runner.os == 'macOS'
-        run: python3 scripts/desktop-smoke.py
+        working-directory: desktop
+        env:
+          STACKHARBOR_DESKTOP_DISTRIBUTION: internal
+          APPLE_SIGNING_IDENTITY: '-'
+          APPLE_ID: ''
+          APPLE_PASSWORD: ''
+          APPLE_TEAM_ID: ''
+        run: npm run tauri -- build --debug --ci --bundles app
+      - name: Isolated native acceptance (macOS)
+        if: runner.os == 'macOS'
+        run: python3 scripts/desktop-native-smoke.py --app desktop/target/debug/bundle/macos/StackHarbor.app --output "$RUNNER_TEMP/desktop-native.json"
+      - name: Managed engine lifecycle (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          target=$(cat desktop/generated/target)
+          python3 scripts/engine-lifecycle-smoke.py --binary "desktop/binaries/stackharbor-$target" --output "$RUNNER_TEMP/engine-lifecycle.json"
       - name: Native lifecycle smoke (Linux)
         if: runner.os == 'Linux'
         env:
@@ -71,3 +102,109 @@ jobs:
             dist/desktop/
             _runtime_verification/desktop/
           if-no-files-found: error
+
+  signed-macos:
+    # Called only by the checked tag-release workflow, never by PR/internal CI.
+    if: ${{ inputs.public_release && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    environment: macos-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      STACKHARBOR_DESKTOP_DISTRIBUTION: release
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate protected release inputs
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          for name in APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then printf 'Missing protected release secret: %s\n' "$name" >&2; exit 1; fi
+          done
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          source_version=$(sed -n 's/^var Version = "\([^"]*\)"$/\1/p' internal/buildinfo/version.go)
+          [ "$source_version" = "${GITHUB_REF_NAME#v}" ] || exit 1
+          [ "$APPLE_TEAM_ID" = 28CG45X4J3 ] || exit 1
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy && rustup override set 1.95.0
+      - name: Import temporary signing identity
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          signing_keychain="$RUNNER_TEMP/stackharbor-signing.keychain-db"
+          certificate_path="$RUNNER_TEMP/stackharbor-signing.p12"
+          keychain_password=$(openssl rand -hex 24)
+          printf '::add-mask::%s\n' "$keychain_password"
+          printf '%s' "$APPLE_CERTIFICATE_P12" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$signing_keychain"
+          security set-keychain-settings -lut 3600 "$signing_keychain"
+          security unlock-keychain -p "$keychain_password" "$signing_keychain"
+          security import "$certificate_path" -k "$signing_keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$signing_keychain"
+          security list-keychains -d user -s "$signing_keychain" "$HOME/Library/Keychains/login.keychain-db"
+      - name: Build signed and notarized DMG
+        run: make desktop
+      - name: Verify signed DMG and notarization ticket
+        run: |
+          found=0
+          while IFS= read -r -d '' dmg; do
+            found=$((found + 1))
+            codesign --verify --strict "$dmg"
+            xcrun stapler validate "$dmg"
+            spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          done < <(find dist/desktop -path '*-release/*.dmg' -print0)
+          [ "$found" -eq 1 ] || exit 1
+      - name: Build isolated native test provider
+        working-directory: desktop
+        env:
+          STACKHARBOR_DESKTOP_DISTRIBUTION: internal
+          APPLE_SIGNING_IDENTITY: '-'
+          APPLE_ID: ''
+          APPLE_PASSWORD: ''
+          APPLE_TEAM_ID: ''
+        run: npm run tauri -- build --debug --ci --bundles app
+      - name: Isolated native release acceptance
+        run: python3 scripts/desktop-native-smoke.py --app desktop/target/debug/bundle/macos/StackHarbor.app --output "$RUNNER_TEMP/desktop-native.json"
+      - name: Release engine fixture acceptance
+        run: |
+          target=$(cat desktop/generated/target)
+          python3 scripts/engine-lifecycle-smoke.py --binary "desktop/binaries/stackharbor-$target" --output "$RUNNER_TEMP/engine-lifecycle.json"
+      - name: Keep verified public macOS installers
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stackharbor-macos-${{ matrix.os }}-signed
+          path: dist/desktop/*-release/
+          if-no-files-found: error
+      - name: Keep release verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stackharbor-macos-${{ matrix.os }}-evidence
+          path: |
+            ${{ runner.temp }}/engine-lifecycle.json
+            ${{ runner.temp }}/desktop-native.json
+          if-no-files-found: ignore
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/stackharbor-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/stackharbor-signing.p12"

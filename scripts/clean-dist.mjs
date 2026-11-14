@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const backupName = /^stackharbor\.previous-[a-f0-9]{8,64}$/
 const archiveName = /^stackharbor_(\d+\.\d+\.\d+)_(darwin|linux)_(arm64|amd64)\.tar\.gz$/
-const targets = ['darwin_arm64', 'darwin_amd64', 'linux_arm64', 'linux_amd64']
+const targets = ['linux_arm64', 'linux_amd64']
 
 export function cleanDist(dist, mode, version) {
   if (!['prune', 'release', 'all'].includes(mode)) throw new Error('Expected prune, release, or all')
@@ -36,7 +36,7 @@ export function cleanDist(dist, mode, version) {
     if (!files.some((entry) => entry.name === 'SHA256SUMS')) throw new Error('Cannot prune before release is complete: SHA256SUMS is missing')
     for (const entry of files) {
       const match = archiveName.exec(entry.name)
-      if (match && match[1] !== version) removed.push(entry.name)
+      if (match && (match[1] !== version || match[2] === 'darwin')) removed.push(entry.name)
     }
   }
 

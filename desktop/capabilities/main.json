@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "packed-main",
+  "description": "Only the local packed main WebView can receive native events. Native commands additionally verify its exact origin.",
+  "platforms": ["macOS"],
+  "windows": ["main-*"],
+  "local": true,
+  "permissions": ["core:event:default"]
+}

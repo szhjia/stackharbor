@@ -1,9 +1,16 @@
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+#[cfg(any(target_os = "linux", test))]
+use serde::Deserialize;
+#[cfg(target_os = "linux")]
+use serde::Serialize;
+#[cfg(any(target_os = "linux", test))]
+use std::path::Path;
+use std::path::PathBuf;
 
+#[cfg(any(target_os = "linux", test))]
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const BUILD_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg(target_os = "linux")]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
@@ -15,6 +22,7 @@ pub struct Request {
     pub action: String,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Serialize)]
 pub struct Reply {
     pub pid: u32,
@@ -26,6 +34,7 @@ pub struct Reply {
     pub state: Option<MasterSnapshot>,
 }
 
+#[cfg(target_os = "linux")]
 impl Reply {
     pub fn new(error: Option<String>) -> Self {
         Self {
@@ -38,6 +47,7 @@ impl Reply {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Serialize)]
 pub struct GatewaySnapshot {
     pub namespace: String,
@@ -46,6 +56,7 @@ pub struct GatewaySnapshot {
     pub pid: Option<u32>,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Serialize)]
 pub struct WindowSnapshot {
     pub label: String,
@@ -53,12 +64,14 @@ pub struct WindowSnapshot {
     pub url: String,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Serialize)]
 pub struct MasterSnapshot {
     pub gateways: Vec<GatewaySnapshot>,
     pub windows: Vec<WindowSnapshot>,
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Deserialize)]
 pub struct BackendReady {
     #[serde(default)]
@@ -76,6 +89,7 @@ pub struct BackendReady {
     pub error: Option<String>,
 }
 
+#[cfg(any(target_os = "linux", test))]
 impl BackendReady {
     pub fn validate(&self, namespace: &Path) -> Result<tauri::Url, String> {
         if let Some(error) = &self.error {
@@ -130,6 +144,7 @@ pub fn default_namespace() -> Result<PathBuf, String> {
     Ok(cache_dir()?.join("stackharbor"))
 }
 
+#[cfg(any(target_os = "linux", test))]
 pub fn same_origin(a: &tauri::Url, b: &tauri::Url) -> bool {
     a.origin() == b.origin() && b.username().is_empty() && b.password().is_none()
 }

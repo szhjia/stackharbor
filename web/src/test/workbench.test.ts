@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { Inventory, Node, Resource, Session } from "../api/types";
-import { summarizeWorkbench } from "../lib/workbench";
+import { presentWorkbenchResource, summarizeWorkbench } from "../lib/workbench";
 
 const now = Date.parse("2026-10-09T10:00:00Z");
 const total = {count: 0, known_memory_count: 0, known_cpu_count: 0, memory_bytes: null, cpu_percent: null, partial: false, sampled_at: null};
@@ -79,4 +79,42 @@ it("surfaces current node failures and port conflicts without treating stopped n
   expect(summary.runtimeIssues.map(issue => issue.node?.id)).toEqual(["api", "conflict"]);
   expect(summary.runtimeIssues[0].session.identity.session_id).toBe("fresh");
   expect(summary.attention.map(s => s.identity.session_id)).toEqual(["stale"]);
+});
+it("presents a single associated node with readable workspace and process identity", () => {
+  const current = session("a");
+  current.root = "/work/easy";
+  current.snapshot!.nodes = [{...externalListenerNode(), id: "app/api", name: "API", ports: []}];
+  const item = resource("process:42", 100);
+  item.pid = 42;
+  item.references = [{session_id: "a", workspace_id: "w", node_ids: ["app/api"], nodes: []}];
+  expect(presentWorkbenchResource(item, [current])).toEqual({title: "API", additionalAssociations: 0, workspace: "easy", identity: "PID 42", fullTitle: "easy / API"});
+});
+it("counts every association across nodes and sessions without merging same-named nodes", () => {
+  const first = session("a");
+  const second = session("b");
+  first.root = "/work/one";
+  second.root = "/work/two";
+  first.snapshot!.nodes = [{...externalListenerNode(), id: "app/api", name: "API", ports: []}, {...externalListenerNode(), id: "app/web", name: "Web", ports: []}];
+  second.snapshot!.nodes = [{...externalListenerNode(), id: "app/api", name: "API", ports: []}];
+  const item = resource("process:42", 100);
+  item.pid = 42;
+  item.references = [
+    {session_id: "a", workspace_id: "w", node_ids: ["app/api", "app/web"], nodes: []},
+    {session_id: "b", workspace_id: "w", node_ids: ["app/api"], nodes: []},
+  ];
+  expect(presentWorkbenchResource(item, [first, second])).toEqual({title: "API", additionalAssociations: 2, workspace: "one, two", identity: "PID 42", fullTitle: "one / API, one / Web, two / API"});
+});
+it("uses compact physical identities when no nodes are associated", () => {
+  const container = resource("container:full", 100);
+  container.kind = "container";
+  container.container_id = "1234567890abcdef";
+  expect(presentWorkbenchResource(container, [])).toEqual({title: "1234567890ab", additionalAssociations: 0, workspace: "", identity: "1234567890ab", fullTitle: "1234567890ab"});
+  const unknown = resource("unknown:0:process:1", 100);
+  unknown.identity_known = false;
+  expect(presentWorkbenchResource(unknown, [])).toEqual({title: "", additionalAssociations: 0, workspace: "", identity: "", fullTitle: ""});
+  const current = session("a");
+  current.root = "/work/easy";
+  current.snapshot!.nodes = [{...externalListenerNode(), id: "app/api", name: "API", ports: []}];
+  unknown.references = [{session_id: "a", workspace_id: "w", node_ids: ["app/api"], nodes: []}];
+  expect(presentWorkbenchResource(unknown, [current])).toEqual({title: "API", additionalAssociations: 0, workspace: "easy", identity: "", fullTitle: "easy / API"});
 });

@@ -16,8 +16,7 @@ export function Sidebar({page, sessionCount, collapsed}: {page: string; sessionC
         <header className="sidebar-header">
         <Link to="/" className="brand" aria-label={tr("StackHarbor home")} title={collapsed ? "StackHarbor" : undefined}>
           <img src={brandMark} alt="" />
-          <span>{tr("StackHarbor")}<small>{tr("LOCAL CONTROL")}</small>
-          </span>
+          <span>{tr("StackHarbor")}</span>
         </Link>
         </header>
         <NavigationMenu viewport={false} className="console-nav">

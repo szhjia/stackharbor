@@ -19,7 +19,7 @@ AI coding tools make it easier to turn ideas into applications, but each app add
 - **Keep existing project workflows.** Register the foreground commands your apps already use, keeping their languages, package managers, and startup contracts.
 - **Make running state clear.** Show observed services, listening ports, port ownership, and logs. When a measurement is unavailable, show it as unknown. Keep session-owned processes and external services distinct.
 - **Make operations explicit.** Opening the console starts nothing. Before stopping or restarting dependencies, show what will be affected; before releasing an external port, check the process identity.
-- **Respect different lifecycles.** Handle persistent databases, one-time tasks, and long-running services separately. Normal exit cleans up session-owned processes while retaining persistent resources.
+- **Respect different lifecycles.** Handle persistent databases, one-time tasks, and long-running services separately. Explicit workspace close cleans up session-owned processes while retaining persistent resources; managed macOS client exit only detaches.
 - **Give humans and agents the same contract.** Versioned YAML, machine-readable discovery and validation, read-only plans, and a bundled skill make project setup inspectable and repeatable.
 
 ## Core advantages
@@ -37,17 +37,33 @@ Choose StackHarbor to keep track of a growing collection of local apps: which se
 | Tool | Main focus | StackHarbor's focus by comparison |
 | --- | --- | --- |
 | [Process Compose](https://github.com/F1bonacc1/process-compose) | General local process orchestration, including dependencies, health checks, recovery, a TUI, REST API, and MCP integration | Project discovery, reusable registrations, service/port visibility, and explicit session control for daily development |
-| [dekit (the next version of mprocs)](https://github.com/pvolok/dekit) | Process management for development and production, with dependency handling, crash recovery, background running, and a CLI for humans and agents | A foreground local console whose normal exit cleans up its owned processes and retains persistent resources |
+| [dekit (the next version of mprocs)](https://github.com/pvolok/dekit) | Process management for development and production, with dependency handling, crash recovery, background running, and a CLI for humans and agents | Reusable project registrations, an independent macOS engine and explicit workspace close; Linux retains foreground session ownership |
 | [Overmind](https://github.com/DarthSim/overmind) | Procfile-based process management and interactive access through tmux | YAML project registrations and a workspace overview, without requiring tmux |
 | [Tilt](https://github.com/tilt-dev/tilt) | A development loop that watches code, builds container images, and updates environments using Kubernetes or Compose | Direct use of existing local foreground commands, with optional Compose resources |
 
-StackHarbor uses one terminal binary, does not require tmux, and needs Docker only for apps with Compose resources. It combines project discovery, service and port visibility, reusable commands, and explicit session ownership. Choose the tool that fits your workflow; the related tools also support local operation and coding agents.
+StackHarbor uses a matching CLI and macOS app, does not require tmux, and needs Docker only for apps with Compose resources. It combines project discovery, service and port visibility, reusable commands, and explicit session ownership. Choose the tool that fits your workflow; the related tools also support local operation and coding agents.
 
 ## Install
 
-### Release binary on macOS or Linux
+### macOS app
 
-Prebuilt releases support Apple Silicon/Intel macOS and arm64/amd64 Linux. Running the binary does not require Go. Download and inspect the installer, then install the latest stable release:
+On macOS 14+ (Apple Silicon or Intel), install the signed/notarized DMG from
+[Releases](https://github.com/szhjia/stackharbor/releases). Move StackHarbor.app to
+`/Applications` or `~/Applications`, then open it. First-launch setup discloses
+and installs the matching CLI in `~/.local/bin` and full agent skill in
+`~/.agents/skills` after accepting the versioned agreement. Login startup is
+optional and defaults off. Existing unowned entries require an explicit backed-up
+migration; PATH changes are previewed before application.
+
+A shared user engine owns macOS sessions. App/terminal/TUI exit leaves services
+running; `q`/Ctrl-C detaches. Explicit `stop` or `kill --root ROOT --yes` stops the
+selected scope. Login and reboot never replay project starts. See
+[desktop setup, recovery and uninstall](docs/desktop.md).
+
+### Linux release binary
+
+Linux arm64/amd64 releases run without Go or Node. Inspect the installer, then
+install the latest stable release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/szhjia/stackharbor/main/scripts/install-release.sh -o /tmp/stackharbor-install.sh
@@ -56,24 +72,28 @@ export PATH="$HOME/.local/bin:$PATH"
 stackharbor --version
 ```
 
-The installer selects your platform, verifies the archive against the release's SHA256 manifest, and installs to `~/.local/bin` without sudo. It refuses to overwrite an existing command. Add the PATH line to your shell configuration if needed. To choose a release and destination:
+The installer checks the release SHA256 manifest and installs to `~/.local/bin`
+without sudo, refusing existing commands or symlinks. A pinned release and custom
+directory use `sh /tmp/stackharbor-install.sh VERSION BIN_DIR`. On macOS this
+script only prints the matching DMG release page and performs no installation.
+Historical binary-only installers remain on their original release tags.
 
-```sh
-sh /tmp/stackharbor-install.sh 0.2.0 "$HOME/.local/bin"
-```
-
-You can also download an archive and `SHA256SUMS` from [Releases](https://github.com/szhjia/stackharbor/releases), verify it, extract it, and run `sh scripts/install.sh` inside the extracted directory. For upgrades, inspect the existing installation and move the old binary aside before reinstalling; keep it for rollback. Releases are not Apple-notarized.
-
-A real terminal is required for workspace sessions; the bundled browser gateway can be launched from another terminal. Release runtime needs neither Node nor Go. `ps` is used for process trees; install `lsof` for listener ownership (unknown if unavailable). Linux uses `xdg-open` to open URLs. Managed apps still need their own runtime dependencies. Docker is optional, for Compose resources only.
+Linux archives include `scripts/install.sh` and the complete optional skill.
+Inspect the current installation and retain a backup before upgrading. Linux
+sessions remain terminal-owned: keep their terminal open. The optional browser
+gateway can run separately. `ps` observes process trees; install `lsof` for
+listener ownership (unknown if unavailable). Linux uses `xdg-open` for URLs.
+Managed applications require their own runtime dependencies. Docker is optional,
+for Compose resources only.
 
 Services are refused before launch if process-tree inspection is unavailable.
 Allow process inspection in your execution environment and install `ps` (`procps`
 on Linux). If inspection fails during shutdown, StackHarbor still refreshes known
 process identities and reports that descendant cleanup could not be verified.
 
-### Optional coding-agent skill
+### Coding-agent skill
 
-Install the bundled skill through the open skills CLI (requires Node.js/npm):
+macOS app setup installs the bundled skill. For Linux or a separate skill installation, use the open skills CLI (requires Node.js/npm):
 
 ```sh
 npx skills add szhjia/stackharbor
@@ -144,9 +164,17 @@ After registration, use **s / x / r** on the dashboard for all apps, or on a pro
 
 ### Find and close workspace sessions
 
-Different workspaces can run simultaneously. Opening the same workspace again shows its existing session's path, PID, terminal and close plan. Enter `y` or `yes` to close that session and reopen the console in the current terminal, `f` to locate its existing window, or Enter/`n` to cancel. Closing waits for its owned services to stop; reopening starts no applications automatically. Other workspaces are unaffected. A changed owner or an unresolved close stops recovery instead of retrying termination.
+Different workspaces can run simultaneously. Managed macOS `run`/`attach` opens
+or attaches to the same workspace session; opening starts no application.
+`q`/Ctrl-C detaches and keeps services running. Use `stackharbor sessions --json`
+to list sessions and `stackharbor sessions --focus SESSION_ID` (or a workspace
+root) to attach. The engine PID is shared and cannot select a workspace.
 
-Use `stackharbor sessions` to list active sessions, `stackharbor sessions --json` for JSON, or `stackharbor sessions --focus PID` to locate a window. Other terminals and Linux show observed PID/TTY details; automatic window selection currently supports macOS Terminal.
+Linux and legacy source sessions remain terminal-owned. Reopening shows the
+existing owner and close plan; confirm to close it and reopen, or decline to
+preserve it. `sessions --focus PID` locates a legacy macOS Terminal window.
+Closing waits for owned services and affects no other workspace; reopening
+starts nothing. Unknown or changed identities stop recovery.
 
 Run `stackharbor kill` in a project directory to close that workspace's existing session and clean up its owned services. Other workspaces are unaffected. Use `stackharbor kill --root /path/to/workspace` to select a workspace explicitly.
 
@@ -175,23 +203,23 @@ For Docker-backed apps, verify `docker compose version` and `docker info` before
 | PageUp / PageDown / End | Log history or dashboard pages / latest |
 | Tab | Switch sidebar/content on narrow terminals |
 | ? / Esc | Help / dismiss overlay |
-| q / Ctrl-C | Stop session-owned processes and exit |
+| q / Ctrl-C | Managed macOS: detach; Linux/legacy source: close owned processes and exit |
 
 Stopping or restarting affected dependencies requires confirmation. Persistent resources have separate controls; quitting does not automatically stop Docker containers or delete their data.
 
 ## Scope and limits
 
-StackHarbor runs local foreground processes with your user permissions; it is not a sandbox. Normal shutdown targets session-owned processes, with a shared 30-second cleanup budget. External port conflicts require explicit confirmation before release, with process identity checked again before signaling. Unobservable detached daemons are unsupported.
+StackHarbor runs local foreground processes with your user permissions; it is not a sandbox. Explicit workspace shutdown targets session-owned processes, with a shared 30-second cleanup budget. External port conflicts require explicit confirmation before release, with process identity checked again before signaling. Unobservable detached daemons are unsupported.
 
-Readiness probes are loopback-only. Logs are bounded (2,000 lines / 2 MiB per service, 16 MiB total) and terminal control sequences are stripped. RSS may double-count shared pages; process CPU can exceed 100%. External service measurements are read-only. Set `NO_COLOR` to disable colors; `STACKHARBOR_CACHE_DIR` overrides the session-lock/history cache directory.
+Readiness probes are loopback-only. Logs are bounded (2,000 lines / 2 MiB per service, 16 MiB per session, plus a 32 MiB engine bound) and terminal control sequences are stripped. RSS may double-count shared pages; process CPU can exceed 100%. External service measurements are read-only. Set `NO_COLOR` to disable colors; `STACKHARBOR_CACHE_DIR` overrides the session-lock/history cache directory.
 
 Docker resource metrics refresh through batched `docker stats` samples. Registered Compose resources and uniquely associated external forwarded endpoints show memory and CPU on the Dashboard, project details, and Docker panel; failed samples display unknown values with a reason. See the [usage guide](docs/usage.zh-CN.md#docker-依赖) for metric semantics.
 
-This early release does not provide Windows support, background supervision, or automatic restart after application failure. Development commands such as `pnpm dev` retain their own file watching and HMR. StackHarbor does not add a watcher to arbitrary commands or rebuild adopted containers; register the project's foreground development watcher for source reload. See [hot reload diagnosis](skills/stackharbor/references/hot-reload.md). Configuration validation does not prove an application's real startup or migration behavior.
+Windows and automatic project restart after failure are unsupported. macOS app sessions run in the shared background engine; Linux/source legacy sessions retain foreground ownership. Development commands such as `pnpm dev` retain their own file watching and HMR. StackHarbor does not add a watcher to arbitrary commands or rebuild adopted containers; register the project's foreground development watcher for source reload. See [hot reload diagnosis](skills/stackharbor/references/hot-reload.md). Configuration validation does not prove an application's real startup or migration behavior.
 
 ## Development and contributing
 
-To build from a checkout, install Go 1.26+, Node 26.9.0 (see `.node-version`), npm and Make:
+Source builds retain legacy session lifetimes unless `STACKHARBOR_ENGINE_MODE=managed` is set; production macOS demand launch requires app setup. To build from a checkout, install Go 1.26+, Node 26.9.0 (see `.node-version`), npm and Make:
 
 ```sh
 make build
@@ -206,13 +234,13 @@ make run ARGS="--root /path/to/workspace"
 | `make demo` | Build and open the portable demo |
 | `make install` | Build and install to `~/.local/bin` |
 | `make check` | Frontend types/tests/build, Go formatting/vet/tests/race and examples |
-| `make release VERSION=0.2.0` | Package all four platform targets and version-specific release notes |
+| `make release VERSION=0.2.0` | Package Linux arm64/amd64 archives and version-specific release notes; macOS uses `make desktop` |
 
-Successful builds keep only the newest `dist/stackharbor.previous-*` rollback copy. Successful releases also remove archives from other versions after all four new archives and checksums are present. `make clean` removes everything in the root `dist/`; it does not affect the installed command or the frontend bundle under `internal/web/dist/`.
+Successful builds keep only the newest `dist/stackharbor.previous-*` rollback copy. Successful releases also remove archives from other versions after both Linux archives and checksums are present; current Darwin CLI archives are removed. `make clean` removes everything in the root `dist/`; it does not affect the installed command or the frontend bundle under `internal/web/dist/`.
 
 Without Make: `sh scripts/web-build.sh`, then `go build -o dist/stackharbor ./cmd/stackharbor`. Supported delivery paths rebuild and validate the embedded frontend; raw Go builds do not prove bundle freshness.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CHANGELOG.md](CHANGELOG.md). CI checks macOS and Linux; version tags publish archives and checksums through GitHub Actions.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CHANGELOG.md](CHANGELOG.md). CI checks macOS and Linux. Public macOS delivery additionally requires signed/notarized native DMGs and installation/lifecycle acceptance; packaging alone does not establish release readiness.
 
 ## Star history
 
@@ -226,12 +254,19 @@ The chart is generated by Star History from public GitHub star data and may take
 
 ## Browser and existing-session CLI control
 
-An optional macOS/Linux desktop master embeds this console in a native WebView
-and includes a matching CLI. Project terminals keep service ownership; quitting
-desktop does not stop them. See [desktop installation and lifecycle](docs/desktop.md).
-Windows is not supported in desktop v1.
+The macOS app embeds the React console and connects through a private native
+proxy to its shared Go engine. Linux retains its optional legacy desktop master.
+Adding/opening a workspace starts no project services. Closing a managed macOS
+client leaves services running; explicit stop/close controls the selected scope.
+See [desktop installation and lifecycle](docs/desktop.md).
 
-Keep a workspace terminal open, then run `stackharbor web` from another terminal. The local gateway defaults to 127.0.0.1:16800; `--port 0 --no-open` selects a free port and prints an ordinary local URL. Any browser on this machine can open the URL without manual authentication. Stopping this gateway preserves applications. CLI `status/start/stop/restart/release/logs/operations/kill` connects directly to existing sessions; noninteractive writes need `--yes`, and `--dry-run` previews a concrete plan. See [web and CLI control](docs/web-control.md) for confirmation, namespaces, persistence, automatic local connection recovery and frontend development.
+Run `stackharbor web` for the optional local browser gateway. It defaults to
+127.0.0.1:16800; `--port 0 --no-open` prints an ordinary free-port URL. Opening a
+browser needs no manual authentication. Stopping the gateway preserves independent
+sessions. CLI `status/start/stop/restart/release/logs/operations/kill` uses the same
+control contracts. Managed macOS `start --yes` can open a session without a TUI;
+accepted writes survive client exit. Noninteractive writes need `--yes`, and
+`--dry-run` previews a concrete plan. See [web and CLI control](docs/web-control.md).
 
 ## Compose multi-file resources
 

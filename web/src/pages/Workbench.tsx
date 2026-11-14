@@ -3,7 +3,7 @@ import { ArrowUpRight, Activity, Boxes, FolderOpen, MemoryStick } from "lucide-r
 import type { CSSProperties } from "react";
 import { useConsole } from "../layout/AppShell";
 import { usePreferences } from "../lib/preferences";
-import { summarizeWorkbench } from "../lib/workbench";
+import { presentWorkbenchResource, summarizeWorkbench } from "../lib/workbench";
 import { workspacePath } from "../routes";
 import { sessionStale } from "../api/types";
 import { memory, cpu } from "../components/MetricView";
@@ -11,9 +11,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, 
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "../components/ui/empty";
 import { Badge } from "../components/ui/badge";
 import { CopyButton } from "../components/CopyButton";
+import { useNow } from "../lib/use-now";
 
 export function WorkbenchPage() {
-  const {data, now} = useConsole();
+  const {data} = useConsole();
+  const now = useNow();
   const {t: tr, language} = usePreferences();
   const stats = summarizeWorkbench(data, now);
   const number = (value: number) => value.toLocaleString(language);
@@ -35,15 +37,11 @@ export function WorkbenchPage() {
     {name: tr("Unavailable"), value: stats.unavailable, fill: "var(--destructive)"},
   ];
   const topMemory = stats.topMemory;
-  const ranking = topMemory.map((r, index) => ({
+  const ranking = topMemory.map((resource, index) => ({
     name: `${index + 1}`,
-    label: r.references.flatMap(ref => {
-      const session = data.sessions.find(s => s.identity.session_id === ref.session_id);
-      const workspace = session?.root.split("/").filter(Boolean).at(-1) || ref.workspace_id;
-      return ref.node_ids.map(id => `${workspace} / ${session?.snapshot?.nodes.find(node => node.id === id)?.name || id}`);
-    }).filter((v, i, a) => a.indexOf(v) === i).join(", ") || r.id,
-    resource: r,
-    share: topMemory[0].metric.rss_bytes! > 0 ? Math.round((r.metric.rss_bytes! / topMemory[0].metric.rss_bytes!) * 100) : 0,
+    presentation: presentWorkbenchResource(resource, data.sessions),
+    resource,
+    share: topMemory[0].metric.rss_bytes! > 0 ? Math.round((resource.metric.rss_bytes! / topMemory[0].metric.rss_bytes!) * 100) : 0,
   }));
   const metrics = [
     {label: tr("Workspaces"), value: number(stats.workspaceCount), detail: tr("{count} discovered sessions", {count: data.sessions.length}), icon: FolderOpen, href: "/workspaces"},
@@ -64,31 +62,32 @@ export function WorkbenchPage() {
         </Card>
       </Link>)}
     </div>
-    <Card role="region" aria-labelledby="attention-title" className={issues.length ? "attention-card" : "attention-summary"}>
-      <CardHeader><CardTitle><h2 id="attention-title">{tr("Needs your attention")}</h2></CardTitle><CardDescription>{tr(issues.length ? "Connection issues, current node failures and port conflicts." : "No connection issues or current node failures.")}</CardDescription><CardAction><Badge variant={issues.length ? "destructive" : "secondary"}>{number(issues.length)}</Badge></CardAction></CardHeader>
-      {issues.length ? <>
-        <CardContent><ul className="workbench-attention">{issues.slice(0, 5).map(({session, node, reason}, index) => <li key={`${session.identity.session_id}/${node?.id ?? index}`}>
-          <Link to={workspacePath(session.identity.session_id, node?.kind === "task" ? "tasks" : "services") + (node ? `?q=${encodeURIComponent(node.id)}` : "")}>
-            <span><strong>{node?.name || node?.id || session.root.split("/").filter(Boolean).at(-1) || session.root}</strong><small className="caption">{session.root}{node ? ` · ${tr(node.kind === "task" ? "Task" : "Service")}` : ""}</small><span className="attention-reason">{reason}</span></span>
-            {node ? <Badge variant="destructive">{tr(node.state)}</Badge> : null}<ArrowUpRight aria-hidden="true" />
-          </Link>
-        </li>)}</ul></CardContent>
-        <CardFooter><Link className="workbench-link" to="/workspaces">{tr("Open workspaces")}<ArrowUpRight aria-hidden="true" /></Link></CardFooter>
-      </> : null}
-    </Card>
+    {issues.length ? <Card role="region" aria-labelledby="attention-title" className="attention-card">
+      <CardHeader><CardTitle><h2 id="attention-title">{tr("Needs your attention")}</h2></CardTitle><CardDescription>{tr("Connection issues, current node failures and port conflicts.")}</CardDescription><CardAction><Badge variant="destructive">{number(issues.length)}</Badge></CardAction></CardHeader>
+      <CardContent><ul className="workbench-attention">{issues.slice(0, 5).map(({session, node, reason}, index) => <li key={`${session.identity.session_id}/${node?.id ?? index}`}>
+        <Link to={workspacePath(session.identity.session_id, node?.kind === "task" ? "tasks" : "services") + (node ? `?q=${encodeURIComponent(node.id)}` : "")}>
+          <span><strong>{node?.name || node?.id || session.root.split("/").filter(Boolean).at(-1) || session.root}</strong><small className="caption">{session.root}{node ? ` · ${tr(node.kind === "task" ? "Task" : "Service")}` : ""}</small><span className="attention-reason">{reason}</span></span>
+          {node ? <Badge variant="destructive">{tr(node.state)}</Badge> : null}<ArrowUpRight aria-hidden="true" />
+        </Link>
+      </li>)}</ul></CardContent>
+      <CardFooter><Link className="workbench-link" to="/workspaces">{tr("Open workspaces")}<ArrowUpRight aria-hidden="true" /></Link></CardFooter>
+    </Card> : null}
     <div className="workbench-secondary">
-      <Card role="region" aria-labelledby="memory-ranking-title">
+      <Card role="region" aria-labelledby="memory-ranking-title" className="workbench-memory-card">
         <CardHeader><CardTitle><h2 id="memory-ranking-title">{tr("Memory hotspots")}</h2></CardTitle><CardDescription>{tr("Top 5 physical resources · current sample · MiB")}</CardDescription><CardAction><Badge variant="secondary">{tr("Snapshot")}</Badge></CardAction></CardHeader>
-        <CardContent>
+        <CardContent className="workbench-memory-content" role="region" aria-label={tr("Memory ranking list")} tabIndex={0}>
           {ranking.length ? <ol className="workbench-ranking" aria-label={tr("Memory hotspots")}>
-            {ranking.map(({resource, label, name, share}) => <li key={resource.id} style={{"--bar": `${share}%`} as CSSProperties}>
-              <span className="mono">{name}</span>
+            {ranking.map(({resource, presentation, name, share}) => <li key={resource.id} style={{"--bar": `${share}%`} as CSSProperties}>
+              <span className="mono workbench-rank-number">{name}</span>
               <div className="workbench-rank-main">
-                <span className="workbench-rank-bar" aria-hidden="true" />
-                <Link className="workbench-resource-name" title={label} to={`/resources?q=${encodeURIComponent(resource.id)}`}>{label}</Link>
-                <small className="caption">{tr(resource.kind === "process" ? "Process" : resource.kind === "container" ? "Container" : resource.kind)} · <span className="mono">{resource.id}</span>{resource.metric.partial ? ` · ${tr("Partial sample")}` : ""}</small>
+                <div className="workbench-rank-title">
+                  <Link className="workbench-resource-name" title={presentation.fullTitle || undefined} to={`/resources?q=${encodeURIComponent(resource.id)}`}>{presentation.title || tr("Unassigned resource")}</Link>
+                  {presentation.additionalAssociations ? <span className="workbench-rank-count"><span aria-hidden="true">+{presentation.additionalAssociations}</span><span className="sr-only">{tr("{count} more associated nodes", {count: presentation.additionalAssociations})}</span></span> : null}
+                </div>
+                <small className="caption">{presentation.workspace || tr("Unknown")} · {tr(resource.kind === "process" ? "Process" : resource.kind === "container" ? "Container" : resource.kind)} · <span className="mono">{presentation.identity || tr("Unknown identity")}</span>{resource.metric.partial ? ` · ${tr("Partial sample")}` : ""}</small>
+                <span className="workbench-rank-track" aria-hidden="true"><span className="workbench-rank-bar" /></span>
               </div>
-              <strong className="mono">{tr(memory(resource.metric.rss_bytes))}</strong>
+              <strong className="mono workbench-rank-value">{tr(memory(resource.metric.rss_bytes))}</strong>
             </li>)}
           </ol> : <Empty><EmptyHeader><EmptyTitle>{tr("No memory samples yet")}</EmptyTitle><EmptyDescription>{tr("Measured resources will appear here. Unknown values are not counted as zero.")}</EmptyDescription></EmptyHeader></Empty>}
         </CardContent>

@@ -23,14 +23,23 @@ type Backend interface {
 	Execute(context.Context, PlanRequest, PlanState) ([]TargetResult, error)
 }
 type Options struct {
-	Now   func() time.Time
-	NewID func() string
+	// BeforeSubmit persists managed mutation intent before an operation can run.
+	BeforeSubmit func(PlanRequest) error
+	Now          func() time.Time
+	NewID        func() string
 	// OnClosed runs after the close result is stored, without the coordinator lock.
 	// It is notification/finalization, never a request to recursively clean up.
 	OnClosed func(Operation)
-	// FinalizeClose persists the proposed close outcome and finalizes the backend.
-	// The public close operation stays running until this hook returns.
+	// FinalizeClose prepares durable finalization intent and finalizes the backend
+	// outside the operation publication lock. The public close operation stays
+	// running; terminal journal publication belongs in CommitClose.
 	FinalizeClose func(context.Context, Operation) error
+	// CommitClose publishes the terminal close journal while the coordinator's
+	// operation publication lock is held, immediately before storing that same
+	// terminal outcome. Readers cannot observe a committed journal and a running
+	// operation. This bounded hook must not call back into the coordinator.
+	// Failure is published as close_finalization_failed, never success.
+	CommitClose func(context.Context, Operation) error
 }
 type storedPlan struct {
 	public                   Plan

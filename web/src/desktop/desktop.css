@@ -1,0 +1,24 @@
+@reference "../styles/tokens.css";
+.desktop-setup-page { max-width: var(--desktop-setup-width); margin: 0 auto; padding: clamp(var(--space-4), 4vw, var(--space-10)); display: grid; gap: var(--space-5); }
+.desktop-section { padding: var(--space-5); display: grid; gap: var(--space-4-5); min-width: 0; }
+.desktop-section h1 { font-size: var(--type-page); font-weight: var(--font-weight-heading); }
+.desktop-section h2, .desktop-maintenance > h2, .workspace-catalogue h2 { font-size: var(--type-heading); font-weight: var(--font-weight-semibold); }
+.desktop-section h3 { font-size: var(--type-heading); font-weight: var(--font-weight-semibold); }
+.desktop-section p, .workspace-catalogue p { line-height: 1.6; }
+.desktop-status, .desktop-maintenance { display: grid; gap: var(--space-4); }
+.desktop-facts { display: grid; grid-template-columns: minmax(var(--table-value-width), auto) minmax(0, 1fr); column-gap: var(--space-5); row-gap: var(--space-2); }
+.desktop-facts dt { color: var(--muted-foreground); }
+.desktop-facts dd, .desktop-section code { overflow-wrap: anywhere; }
+.desktop-agreement { max-height: var(--desktop-agreement-height); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--muted); padding: var(--space-4); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); font-size: var(--type-sm); line-height: 1.6; }
+.desktop-check { display: flex; align-items: flex-start; gap: var(--space-2-5); line-height: 1.6; }
+.desktop-check input { margin-top: var(--space-1); flex-shrink: 0; accent-color: var(--primary); }
+.desktop-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2-5); }
+.desktop-section ul { padding-left: var(--space-5); list-style: disc; }
+.workspace-catalogue { display: grid; gap: var(--space-3-5); }
+.workspace-catalogue-form { display: flex; gap: var(--space-2-5); flex-wrap: wrap; align-items: end; }
+.workspace-catalogue-form label { flex: 1 1 var(--ownership-width); display: grid; gap: var(--space-1-5); }
+.desktop-section .workspace-catalogue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2-5); }
+.workspace-catalogue-item { border: var(--border-width) solid var(--border); border-radius: var(--radius-md); padding: var(--space-3-5); display: grid; gap: var(--space-2-5); }
+.workspace-catalogue-identity { display: flex; gap: var(--space-2-5); align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
+.workspace-catalogue-meta { color: var(--muted-foreground); font-size: var(--type-sm); }
+@variant mobile { .desktop-facts { grid-template-columns: 1fr; gap: var(--space-1); } .desktop-facts dd { margin-bottom: var(--space-2); } .desktop-section { padding: var(--space-4); } }

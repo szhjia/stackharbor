@@ -76,6 +76,9 @@ func terminateSession(ctx context.Context, root string, expected *SessionInfo) (
 }
 
 func signalSession(ctx context.Context, info SessionInfo, verify func(context.Context, SessionInfo) error, signal func(int, syscall.Signal) error) error {
+	if info.OwnerKind == "engine" {
+		return fmt.Errorf("Managed workspaces must close through their session API; shared engine PID was preserved")
+	}
 	if info.PID <= 0 || info.ProcessCreatedMillis <= 0 {
 		return fmt.Errorf("Session owner could not be identified; no signal sent")
 	}
@@ -92,9 +95,15 @@ func signalSession(ctx context.Context, info SessionInfo, verify func(context.Co
 }
 
 func verifySessionOwner(ctx context.Context, info SessionInfo) error {
+	if info.OwnerKind == "engine" {
+		return fmt.Errorf("Refusing to signal a shared engine")
+	}
 	current, active, err := activeSession(info.lockPath)
 	if err != nil {
 		return err
+	}
+	if current.OwnerKind == "engine" {
+		return fmt.Errorf("Refusing to signal a shared engine")
 	}
 	if !active || current.PID != info.PID || current.ProcessCreatedMillis != info.ProcessCreatedMillis || current.SessionID != info.SessionID {
 		return fmt.Errorf("Workspace session changed or ended")

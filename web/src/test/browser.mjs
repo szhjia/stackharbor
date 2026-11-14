@@ -7,7 +7,7 @@ const url = await readFile(
 );
 const out = resolve("../docs/verification/task9");
 await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ channel: process.env.CI ? undefined : 'chrome', headless: true });
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
 });

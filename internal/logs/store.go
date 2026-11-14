@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"github.com/szhjia/stackharbor/internal/model"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,8 +14,13 @@ type Entry struct {
 	ProjectID    string
 	ServiceID    model.ServiceID
 	Stream, Text string
+	appendOrder  uint64
 }
+
+var appendOrder atomic.Uint64
+
 type Store struct {
+	budget            atomic.Pointer[Budget]
 	mu                sync.Mutex
 	all               *list.List
 	by                map[model.ServiceID][]*list.Element
@@ -35,6 +41,9 @@ func (s *Store) remove(e *list.Element) {
 	n := len(v.Text) + 256
 	s.all.Remove(e)
 	s.total -= n
+	if budget := s.budget.Load(); budget != nil {
+		budget.total -= n
+	}
 	s.bytes[v.ServiceID] -= n
 	s.by[v.ServiceID] = s.by[v.ServiceID][1:]
 	s.dropped[v.ServiceID]++
@@ -47,12 +56,38 @@ func (s *Store) remove(e *list.Element) {
 	}
 }
 func (s *Store) Append(e Entry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	for {
+		budget := s.budget.Load()
+		if budget != nil {
+			budget.mu.Lock()
+			s.mu.Lock()
+			if s.budget.Load() != budget {
+				s.mu.Unlock()
+				budget.mu.Unlock()
+				continue
+			}
+			s.appendLocked(e)
+			s.mu.Unlock()
+			budget.enforceLocked()
+			budget.mu.Unlock()
+			return
+		}
+		s.mu.Lock()
+		if s.budget.Load() != nil {
+			s.mu.Unlock()
+			continue
+		}
+		s.appendLocked(e)
+		s.mu.Unlock()
+		return
+	}
+}
+func (s *Store) appendLocked(e Entry) {
 	e.Text = Sanitize(e.Text)
 	e.Text = truncateLine(e.Text)
 	s.version++
 	e.Sequence = s.version
+	e.appendOrder = appendOrder.Add(1)
 	if e.Time.IsZero() {
 		e.Time = time.Now()
 	}
@@ -60,6 +95,9 @@ func (s *Store) Append(e Entry) {
 	s.by[e.ServiceID] = append(s.by[e.ServiceID], el)
 	n := len(e.Text) + 256
 	s.total += n
+	if budget := s.budget.Load(); budget != nil {
+		budget.total += n
+	}
 	s.bytes[e.ServiceID] += n
 	for len(s.by[e.ServiceID]) > 2000 || s.bytes[e.ServiceID] > 2*1024*1024 {
 		s.remove(s.by[e.ServiceID][0])

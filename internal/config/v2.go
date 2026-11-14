@@ -27,12 +27,19 @@ func readEnvFile(path string) ([]byte, error) {
 }
 
 func validateV2(path, root string, f projectFile) (model.Project, []model.Diagnostic) {
+	return validateV2WithEnvironment(path, root, f, nil)
+}
+
+func validateV2WithEnvironment(path, root string, f projectFile, environment []string) (model.Project, []model.Diagnostic) {
 	p := model.Project{ID: f.Project.ID, Name: f.Project.Name, SourceFile: path}
 	ds := []model.Diagnostic{}
 	bad := func(field, msg string) { ds = append(ds, model.Error(path, field, msg)) }
 	inputFiles := []string{path}
 	env := map[string]string{}
-	for _, pair := range os.Environ() {
+	if environment == nil {
+		environment = os.Environ()
+	}
+	for _, pair := range environment {
 		k, v, ok := strings.Cut(pair, "=")
 		if ok {
 			env[k] = v

@@ -67,6 +67,7 @@ type Session struct {
 	Error     *control.APIError `json:"error,omitempty"`
 }
 type Inventory struct {
+	Capabilities    []string          `json:"capabilities,omitempty"`
 	Sessions        []Session         `json:"sessions"`
 	Resources       []Resource        `json:"resources"`
 	Totals          Totals            `json:"totals"`

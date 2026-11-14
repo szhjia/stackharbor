@@ -109,7 +109,7 @@ export async function checkLiveControl(page, fixture, out) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [fixture, out = '/tmp/stackharbor-live-control'] = process.argv.slice(2);
   if (!fixture) throw Error('Pass the TestBrowserFixture directory');
-  const browser = await chromium.launch({headless: true});
+  const browser = await chromium.launch({ channel: process.env.CI ? undefined : 'chrome',headless: true});
   try {
     const page = await browser.newPage();
     try { console.log(await checkLiveControl(page, fixture, out)); }

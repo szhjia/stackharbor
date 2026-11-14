@@ -12,7 +12,7 @@ import (
 // observation timestamp. Process metrics use separate physical samples.
 func ProjectSnapshot(identity Identity, snapshot model.Snapshot) Snapshot {
 	identity.Capabilities = append([]string{}, identity.Capabilities...)
-	out := Snapshot{Identity: identity, ObservedAt: snapshot.ObservedAt.UTC(), Nodes: []Node{}, Processes: []Process{}, Containers: []Container{}, Diagnostics: []Diagnostic{}}
+	out := Snapshot{Identity: identity, ObservedAt: snapshot.ObservedAt.UTC(), Nodes: []Node{}, Processes: []Process{}, Containers: []Container{}, Diagnostics: []Diagnostic{}, ComposeConfigured: snapshot.DockerFile != ""}
 	redact := snapshotRedactor(snapshot)
 	processes := map[string]bool{}
 	for _, service := range snapshot.Services {
@@ -27,6 +27,9 @@ func ProjectSnapshot(identity Identity, snapshot model.Snapshot) Snapshot {
 			ownership = "external"
 		}
 		node := Node{ID: string(spec.ID), ProjectID: spec.ProjectID, Name: redact(spec.Name), Kind: kind, State: service.State, Reason: redact(service.Reason), Ownership: ownership, AllowedActions: nodeActions(service, readOnly), ResourceRefs: []string{}, Metric: projectMetric(service.Metric), MetricSource: service.MetricSource, MetricError: redact(service.MetricError), Ports: []Port{}}
+		allActions := spec.InAllActions()
+		node.Version, node.AllActions = spec.Version, &allActions
+		node.ObservedState, node.ObservedReason, node.ReadinessChecked = service.ObservedState, redact(service.ObservedReason), service.ReadinessChecked
 		node.DependsOn = []string{}
 		for _, id := range spec.DependsOn {
 			node.DependsOn = appendUnique(node.DependsOn, string(id))

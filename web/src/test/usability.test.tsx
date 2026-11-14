@@ -79,7 +79,7 @@ it("searches operation action and target, shows timestamps and links failures to
   const current = session();
   const op: Operation = {id: "op1", session_id: "exact", action: "restart", state: "failed", created_at: "2026-10-15T01:00:00Z", updated_at: "2026-10-15T01:01:00Z", results: [{target: "frontend/web", state: "failed"}]};
   vi.spyOn(api, "operations").mockResolvedValue([op]);
-  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><Operations sessions={[current]} tracked={[]} onError={() => {}} /></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><Operations sessions={[current]} tracked={[]} connected onError={() => {}} /></MemoryRouter></QueryClientProvider>);
   const filter = await screen.findByRole("textbox", {name: "Filter operations"});
   fireEvent.change(filter, {target: {value: "frontend/web"}});
   expect(screen.getByRole("link", {name: "Logs for frontend/web"})).toHaveAttribute("href", "/workspaces/exact/logs?target=frontend%2Fweb");
@@ -90,7 +90,7 @@ it("searches operation action and target, shows timestamps and links failures to
 it("recovers a bookmarked exact operation even after its session leaves discovery", async () => {
   const operation: Operation = {id: "ended-op", session_id: "ended-session", action: "close", state: "succeeded", created_at: "2026-10-15T01:00:00Z", updated_at: "2026-10-15T01:01:00Z", results: []};
   vi.spyOn(api, "operation").mockResolvedValue(operation);
-  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/operations?session=ended-session&operation=ended-op&q=ended-op"]}><Operations sessions={[]} tracked={[]} onError={() => {}} /></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/operations?session=ended-session&operation=ended-op&q=ended-op"]}><Operations sessions={[]} tracked={[]} connected onError={() => {}} /></MemoryRouter></QueryClientProvider>);
   expect(await screen.findByRole("link", {name: "ended-op"})).toHaveAttribute("href", "/operations?session=ended-session&operation=ended-op&q=ended-op");
   expect(api.operation).toHaveBeenCalledWith("ended-session", "ended-op");
 });

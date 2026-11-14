@@ -5,7 +5,13 @@ import { fileURLToPath, URL } from "node:url";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  build: { outDir: "../internal/web/dist", emptyOutDir: true },
+  build: {
+    outDir: "../internal/web/dist",
+    emptyOutDir: true,
+    minify: "oxc",
+    cssMinify: "lightningcss",
+    cssCodeSplit: true,
+  },
   server: {
     port: 5173,
     strictPort: true,

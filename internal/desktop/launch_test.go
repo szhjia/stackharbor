@@ -128,7 +128,7 @@ func TestLaunchRetriesNativeForwarderThatExitsBeforeEndpointExists(t *testing.T)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := Launch(ctx, true); err != nil {
+	if err := launchLegacy(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(marker); err != nil {
@@ -198,7 +198,7 @@ func TestConcurrentColdLaunchesStartOneNativeProcess(t *testing.T) {
 	defer cancel()
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {
-		go func() { results <- Launch(ctx, true) }()
+		go func() { results <- launchLegacy(ctx, true) }()
 	}
 	for i := 0; i < 2; i++ {
 		if err := <-results; err != nil {

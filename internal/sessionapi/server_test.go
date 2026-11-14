@@ -130,7 +130,7 @@ func TestLongSocketPathFallback(t *testing.T) {
 	id := control.Identity{WorkspaceID: info.WorkspaceID, SessionID: info.SessionID, ProtocolVersion: ProtocolVersion}
 	c := control.New(id, testBackend{id}, control.Options{})
 	defer c.Close(context.Background())
-	s, err := Listen(context.Background(), Registration{info, l.PublishEndpoint}, c)
+	s, err := Listen(context.Background(), Registration{Info: info, PublishEndpoint: l.PublishEndpoint}, c)
 	if err != nil {
 		t.Fatal(err)
 	}

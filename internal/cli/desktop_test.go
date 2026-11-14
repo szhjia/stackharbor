@@ -86,9 +86,7 @@ func TestOccupiedUnverifiableSessionIsNotReportedAsAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	completion, _ := json.Marshal(map[string]any{"id": "known-close", "session_id": info.SessionID, "workspace_id": info.WorkspaceID, "action": "close", "state": "succeeded", "updated_at": time.Now().UTC()})
-	if err := os.WriteFile(filepath.Join(dir, info.SessionID+".json"), completion, 0600); err != nil {
-		t.Fatal(err)
-	}
+	writeDurableCLICompletion(t, dir, info.SessionID+".json", completion)
 	out.Reset()
 	errs.Reset()
 	if code := Run(context.Background(), []string{"operations", "--root", root, "--id", "known-close", "--json"}, strings.NewReader(""), &out, &errs); code != 0 || !strings.Contains(out.String(), "succeeded") {

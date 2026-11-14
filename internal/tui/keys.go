@@ -136,6 +136,9 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		m.conflicts = nil
 		m.planned = nil
 		m.status = "Stopping processes started in this session…"
+		if client, ok := m.controller.(interface{ Detachable() bool }); ok && client.Detachable() {
+			m.status = "Detaching from workspace…"
+		}
 		return m, m.command("quit", nil)
 	}
 	if m.quitting {

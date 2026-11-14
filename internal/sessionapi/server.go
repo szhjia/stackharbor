@@ -21,6 +21,7 @@ import (
 type Registration struct {
 	Info            supervisor.SessionInfo
 	PublishEndpoint func(supervisor.Endpoint) error
+	OnRequest       func(*http.Request) (func(), error)
 }
 
 // Response is the shared JSON envelope. Errors always carry a stable APIError code.
@@ -36,6 +37,7 @@ type Handshake struct {
 	ProcessCreatedMillis int64  `json:"process_created_millis"`
 }
 type Server struct {
+	onRequest  func(*http.Request) (func(), error)
 	http       *http.Server
 	listener   *net.UnixListener
 	path       string
@@ -94,6 +96,7 @@ func Listen(ctx context.Context, registration Registration, controller *control.
 		return nil, err
 	}
 	s := &Server{listener: listener, path: path, inode: inode, controller: controller, done: make(chan struct{}), handshake: Handshake{Identity: id, Root: info.Root, NamespaceID: info.NamespaceID, PID: info.PID, ProcessCreatedMillis: info.ProcessCreatedMillis}}
+	s.onRequest = registration.OnRequest
 	s.http = &http.Server{Handler: http.TimeoutHandler(http.HandlerFunc(s.serve), 10*time.Second, `{"error":{"code":"unavailable","message":"request timed out"}}`), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 * 1024}
 	go func() { defer close(s.done); s.http.Serve(listener) }()
 	if err = registration.PublishEndpoint(supervisor.Endpoint{SocketPath: path, ProtocolVersion: ProtocolVersion, Capabilities: id.Capabilities}); err != nil {
@@ -189,6 +192,14 @@ func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	return false
 }
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	if s.onRequest != nil {
+		done, err := s.onRequest(r)
+		if err != nil {
+			failure(w, err)
+			return
+		}
+		defer done()
+	}
 	switch r.URL.Path {
 	case "/v1/identity":
 		if requireMethod(w, r, "GET") {

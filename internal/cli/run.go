@@ -10,6 +10,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/buildinfo"
 	"github.com/szhjia/stackharbor/internal/desktop"
 	"github.com/szhjia/stackharbor/internal/discovery"
+	"github.com/szhjia/stackharbor/internal/engine"
 	"github.com/szhjia/stackharbor/internal/graph"
 	"github.com/szhjia/stackharbor/internal/logs"
 	"github.com/szhjia/stackharbor/internal/model"
@@ -18,13 +19,17 @@ import (
 	"github.com/szhjia/stackharbor/internal/tui"
 	"io"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
 const usage = `StackHarbor — terminal console for monorepos
-Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web|desktop] [options]
+Usage: stackharbor [run|attach|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web|desktop|engine] [options]
   desktop                              Open the installed desktop console
   run --no-desktop                     Terminal only; do not launch desktop
+  attach                               Attach to a workspace terminal console
+  engine serve|ensure|status|stop|recover Manage the shared desktop engine
   web [--port PORT] [--no-open]           Loopback gateway (16800; 0 chooses a free port)
   web --dev-origin http://127.0.0.1:5173  Explicit Vite proxy development mode
   --root PATH          Project root (default: current directory)
@@ -35,7 +40,8 @@ Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions
   task run TASK                          Run an explicit task and its dependencies
   history                                Read redacted action and task history (JSON)
   sessions [--json]                       List active workspace sessions
-  sessions --focus PID                    Locate an existing macOS Terminal tab
+  sessions --focus SESSION_ID|ROOT        Attach to a managed workspace console
+  sessions --focus PID                    Locate a legacy macOS Terminal tab
   status [--all] [--json]                 Query existing sessions
   start|stop|restart --target NODE        Control an existing workspace session
   release --target NODE --port PORT      Release declared conflicts without starting
@@ -48,12 +54,16 @@ Usage: stackharbor [run|discover|validate|init|plan|doctor|task|history|sessions
   init --write         Write unambiguous drafts without overwriting files
   --project PATH       Limit init to the selected candidate directory
 Services do not start automatically. Interactive mode: s start, x stop, ? help, q quit.
+Managed terminal exit only detaches; use stop or kill --root PATH for explicit shutdown.
 Existing workspace: review its owner and close plan, then confirm to reopen here.
 Start/restart plans include declared external port conflicts; confirmation releases and launches.
 `
 
 func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
 	commandName, controlArgs := extractCommand(args)
+	if commandName == "engine" {
+		return runEngine(ctx, controlArgs, in, out, errOut)
+	}
 	if commandName == "desktop" {
 		return runDesktop(ctx, controlArgs, out, errOut)
 	}
@@ -74,7 +84,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 	jsonMode := fs.Bool("json", false, "JSON")
 	version := fs.Bool("version", false, "version")
 	noDesktop := fs.Bool("no-desktop", false, "do not launch the desktop app")
-	focus := fs.Int("focus", 0, "session PID to focus")
+	focus := fs.String("focus", "", "session ID, root or legacy PID to focus")
 	help := fs.Bool("help", false, "help")
 	fs.BoolVar(help, "h", false, "help")
 	dry := fs.Bool("dry-run", false, "dry run")
@@ -120,21 +130,22 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		fmt.Fprintln(errOut, "--no-desktop is only valid for run")
 		return 2
 	}
-	if command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "discover" && command != "validate" && command != "init" {
+	if command != "sessions" && command != "task" && command != "history" && command != "plan" && command != "doctor" && command != "run" && command != "attach" && command != "discover" && command != "validate" && command != "init" {
 		fmt.Fprintln(errOut, "Unknown command:", command)
 		return 2
 	}
 	focusSet := false
 	fs.Visit(func(f *flag.Flag) { focusSet = focusSet || f.Name == "focus" })
-	if focusSet && (command != "sessions" || *focus <= 0 || *jsonMode) {
-		fmt.Fprintln(errOut, "Use sessions --focus <positive PID> without --json")
+	pid, pidErr := strconv.Atoi(*focus)
+	if focusSet && (command != "sessions" || strings.TrimSpace(*focus) == "" || pidErr == nil && pid <= 0 || *jsonMode) {
+		fmt.Fprintln(errOut, "Use sessions --focus <session ID, root or positive legacy PID> without --json")
 		return 2
 	}
 	if command != "init" && (*dry || *write || *project != "") {
 		fmt.Fprintln(errOut, "init options are only valid for init")
 		return 2
 	}
-	if command == "run" && *jsonMode {
+	if (command == "run" || command == "attach") && *jsonMode {
 		fmt.Fprintln(errOut, "Use discover --json or validate --json")
 		return 2
 	}
@@ -147,11 +158,32 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 			fmt.Fprintln(errOut, "sessions accepts --root, --json or --focus PID")
 			return 2
 		}
-		return runSessions(ctx, *root, *jsonMode, *focus, out, errOut)
+		return runSessions(ctx, *root, *jsonMode, *focus, in, out, errOut)
 	}
-	if command == "run" && (!terminal(in) || !terminal(out)) {
+	if (command == "run" || command == "attach") && (!terminal(in) || !terminal(out)) {
 		fmt.Fprintln(errOut, "Interactive mode requires a terminal; use stackharbor discover or validate.")
 		return 2
+	}
+	if (command == "run" || command == "attach") && engine.ManagedEnabled() {
+		return runManaged(ctx, *root, *workspace, in, out, errOut)
+	}
+	if command == "task" && engine.ManagedEnabled() {
+		return runManagedTask(ctx, *root, *workspace, *target, *jsonMode, in, out, errOut)
+	}
+	if command == "attach" {
+		canonical, err := resolveControlRoot(*root, *workspace)
+		if err != nil {
+			return controlFailure(errOut, err)
+		}
+		info, found, err := selectControlSession(canonical)
+		if err != nil {
+			return controlFailure(errOut, err)
+		}
+		if !found {
+			fmt.Fprintf(errOut, "No active StackHarbor session for %q.\n", canonical)
+			return 1
+		}
+		return attachSession(ctx, info, *workspace, in, out, errOut)
 	}
 	loadWorkspace := func() model.Workspace {
 		w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})

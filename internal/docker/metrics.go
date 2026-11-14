@@ -35,8 +35,7 @@ func (m *Manager) SampleMetrics(ctx context.Context, rows []model.DockerSnapshot
 	}
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	args := append([]string{"stats", "--no-stream", "--no-trunc", "--format", "{{json .}}"}, ids...)
-	raw, err := m.run(ctx, args...)
+	raw, err := m.sampleStats(ctx, ids)
 	metrics, metricErrors := map[string]model.Metric{}, map[string]string{}
 	if err == nil {
 		dec := json.NewDecoder(bytes.NewReader(raw))

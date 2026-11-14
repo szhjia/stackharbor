@@ -37,24 +37,31 @@ export function initializePreferences() {
 type Translator = (text: string, values?: Record<string, string | number>) => string;
 const interpolate: Translator = (text, values) => text.replace(/\{(\w+)\}/g, (match, key) => String(values?.[key] ?? match));
 const Preferences = createContext({
-  language: "en" as Language, theme: "system" as Theme, fontSize: "sm" as FontSize,
+  language: "en" as Language, theme: "system" as Theme, resolvedTheme: "light" as "light" | "dark", fontSize: "sm" as FontSize,
   setLanguage: (_value: Language) => {}, setTheme: (_value: Theme) => {}, setFontSize: (_value: FontSize) => {}, t: interpolate,
 });
 export function PreferencesProvider({children}: {children: ReactNode}) {
   const [language, updateLanguage] = useState<Language>(() => read(languageKey) === "zh-CN" ? "zh-CN" : "en");
   const [theme, updateTheme] = useState<Theme>(readTheme);
   const [fontSize, updateFontSize] = useState<FontSize>(readFontSize);
-  useLayoutEffect(() => applyPreferences(language, theme, fontSize), [language, theme, fontSize]);
+  const [resolvedTheme, updateResolvedTheme] = useState<"light" | "dark">(() => document.documentElement.classList.contains("dark") ? "dark" : "light");
+  useLayoutEffect(() => {
+    applyPreferences(language, theme, fontSize);
+    updateResolvedTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+  }, [language, theme, fontSize]);
   useEffect(() => {
     if (theme !== "system" || !window.matchMedia) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () => applyTheme("system");
+    const update = () => {
+      applyTheme("system");
+      updateResolvedTheme(document.documentElement.classList.contains("dark") ? "dark" : "light");
+    };
     media.addEventListener("change", update);
     update();
     return () => media.removeEventListener("change", update);
   }, [theme]);
   const t: Translator = useCallback((text, values) => interpolate(language === "zh-CN" ? zhCN[text] ?? text : text, values), [language]);
-  return <Preferences.Provider value={{language, theme, fontSize, t,
+  return <Preferences.Provider value={{language, theme, resolvedTheme, fontSize, t,
     setLanguage: (value) => { updateLanguage(value); save(languageKey, value); },
     setTheme: (value) => { updateTheme(value); save(themeKey, value); },
     setFontSize: (value) => { updateFontSize(value); save(fontSizeKey, value); },

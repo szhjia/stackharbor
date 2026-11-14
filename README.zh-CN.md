@@ -1,8 +1,9 @@
 # StackHarbor · 栈港
 
-可选的 macOS/Linux 桌面 master 使用 Tauri v2 嵌入现有 Web，支持后台驻留、全局统计
-及页面控制现有项目会话。项目终端继续持有服务；退出 master 不会停止项目。
-详见[桌面版安装、生命周期和构建](docs/desktop.md)。首版不支持 Windows。
+macOS 14+ 通过签名并公证的 DMG 应用安装。首次设置会安装匹配的 CLI 和完整技能，
+可选登录启动默认关闭。共享 Go 引擎独立持有项目会话，关闭 App、窗口或终端不会停止服务；
+只有明确的停止或关闭工作区操作才会清理对应范围。Linux 保留现有 CLI/Web 和可选桌面行为。
+详见[桌面版安装、生命周期和构建](docs/desktop.md)。不支持 Windows。
 
 **一个轻量的本地开发控制台，开发者和 Coding Agent 都可以使用。**
 
@@ -23,7 +24,7 @@ AI 编程工具让想法变成应用越来越容易。应用多了以后，启�
 - **不改现有启动方式。** 注册应用已有的前台命令，保留各工程的语言、包管理器和启动约定。
 - **显示实际运行状态。** 展示观测到的服务、监听端口、端口归属和日志。无法取得的指标显示为未知，并明确区分本会话进程与外部服务。
 - **操作前说明影响。** 打开控制台不会启动服务。停止或重启依赖前，显示影响范围；释放外部端口前，核对进程身份。
-- **区分不同生命周期。** 分别处理持久数据库、一次性任务和常驻服务；正常退出时清理本会话进程，保留持久资源。
+- **区分不同生命周期。** 分别处理持久数据库、一次性任务和常驻服务；明确关闭工作区时清理本会话进程，保留持久资源；macOS 托管模式退出客户端只会断开连接。
 - **人和 Agent 使用同一套约定。** YAML 配置有版本号，发现和校验结果可以机器读取，依赖计划只读；配套技能帮助双方检查配置，并按相同步骤接入工程。
 
 ## 核心优势
@@ -49,9 +50,21 @@ StackHarbor 只需一个终端二进制，无需 tmux，只有使用 Compose 资
 
 ## 安装
 
-### 在 macOS 或 Linux 安装发行版
+### macOS 应用
 
-发行包支持 Apple Silicon / Intel Mac，以及 arm64 / amd64 Linux。运行二进制不需要 Go。下载并查看安装脚本后，安装最新稳定版：
+macOS 14+ 支持 Apple Silicon 和 Intel。请从 [Releases](https://github.com/szhjia/stackharbor/releases)
+下载对应的签名、公证 DMG，将 StackHarbor.app 移至 `/Applications` 或 `~/Applications`
+后打开。首次设置展示版本化协议及外部集成，接受后必须安装 `~/.local/bin/stackharbor`
+和 `~/.agents/skills/stackharbor`。可选登录启动默认关闭，PATH 配置修改会先预览。
+已有非本应用管理的文件、目录或链接需要明确接受备份迁移，不会静默覆盖。
+
+共享用户引擎持有 macOS 工作区。`q`/Ctrl-C 仅离开 TUI；关闭终端或 App 仍会保留服务。
+使用 `stop` 或 `kill --root ROOT --yes` 明确停止指定范围。登录和重启电脑不会自动重放
+项目启动。升级、异常恢复与卸载见[桌面版说明](docs/desktop.md)。
+
+### Linux 发行二进制
+
+Linux arm64/amd64 发行版运行时不需要 Go 或 Node。先检查安装器，再执行：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/szhjia/stackharbor/main/scripts/install-release.sh -o /tmp/stackharbor-install.sh
@@ -60,21 +73,19 @@ export PATH="$HOME/.local/bin:$PATH"
 stackharbor --version
 ```
 
-安装器识别平台，使用发行版的 SHA256 清单验证下载包，默认安装到 `~/.local/bin`，不使用 sudo，也不会覆盖已有命令。需要时将 PATH 配置加入 shell 配置文件。如需指定版本和安装目录：
-
-```sh
-sh /tmp/stackharbor-install.sh 0.2.0 "$HOME/.local/bin"
-```
-
-也可以从 [Releases](https://github.com/szhjia/stackharbor/releases) 下载压缩包和 `SHA256SUMS`，校验、解压后，在解压目录执行 `sh scripts/install.sh`。升级前检查现有安装，将旧二进制备份后再安装，以便需要时恢复旧版本。发行包尚未经过 Apple 公证。
+安装器用发行版 SHA256 清单验证下载包，不使用 sudo，并拒绝覆盖已有命令或链接。
+`sh /tmp/stackharbor-install.sh VERSION BIN_DIR` 可指定版本和目录。该脚本在 macOS 上
+只显示对应 DMG 发行页，不下载或安装。历史 CLI 安装器保留在原发行标签中。
+Linux 压缩包仍包含 `scripts/install.sh` 和完整可选技能；升级前检查现有安装并保留备份。
+Linux 会话仍由前台终端持有，需要保留终端运行。
 
 启动服务前必须能检查进程树；权限不足或缺少 `ps` 时会拒绝启动。请在执行环境中允许进程检查，Linux 需安装 `procps`。关闭期间若检查失败，StackHarbor 仍会刷新已知进程身份，并明确报告无法确认后代进程已完整清理。
 
 交互模式需要真实终端。工具用 `ps` 观察进程树，安装 `lsof` 后可识别实际监听者；未安装时，端口归属显示为未知。Linux 打开网址需要 `xdg-open`。应用仍需自己的运行依赖；Docker 只在使用 Compose 资源时需要。
 
-### 可选：安装 Coding Agent 技能
+### Coding Agent 技能
 
-通过 skills CLI 安装技能（需要 Node.js/npm）：
+macOS 应用设置会安装配套技能。Linux 或独立技能安装可使用 skills CLI（需要 Node.js/npm）：
 
 ```sh
 npx skills add szhjia/stackharbor
@@ -145,9 +156,15 @@ YAML 中的端口只描述应用预期监听的端口，不会修改应用本身
 
 ### 找回与关闭工作区会话
 
-不同工作区可以同时打开。再次打开同一工作区时，会显示已有会话的路径、PID、终端和关闭计划。输入 `y` 或 `yes` 并回车，会关闭旧会话，等待其服务清理完成，再在当前终端重新打开控制台；输入 `f` 并回车可定位旧窗口，直接回车或输入 `n` 则取消。重新打开控制台不会自动启动应用，其他工作区不受影响。如果会话身份发生变化，或无法确认关闭结果，StackHarbor 会停止恢复，不会反复终止新出现的会话。
+不同工作区可以同时打开。macOS 托管模式中，`run`/`attach` 打开或连接已有工作区会话，
+打开不会启动应用，`q`/Ctrl-C 只断开连接并保留服务。可用 `stackharbor sessions --json`
+查看会话，使用 `stackharbor sessions --focus SESSION_ID` 或工作区根路径连接。
+多个工作区共享引擎 PID，不能用它选择或关闭单个工作区。
 
-窗口太多时可用 `stackharbor sessions` 查看所有活动会话，或用 `stackharbor sessions --focus PID` 找回窗口；`--json` 输出机器可读列表。其他终端及 Linux 显示可观测的 PID/TTY，暂不支持自动切换窗口。
+Linux 和源码默认模式仍由终端持有会话。再次打开同一工作区时，会显示已有归属和关闭计划；
+确认后才会关闭并重新打开，拒绝则保留原会话。`sessions --focus PID` 可定位旧模式下的
+macOS Terminal 窗口。关闭只清理指定工作区，重新打开不会自动启动应用；身份变化或关闭结果
+不明确时会停止恢复。
 
 在工程目录执行 `stackharbor kill` 可关闭本工作区的已有会话，清理它启动的服务；其他工程不受影响。也可用 `stackharbor kill --root /path/to/workspace` 指定工作区。
 
@@ -176,21 +193,23 @@ YAML 中的端口只描述应用预期监听的端口，不会修改应用本身
 | PageUp / PageDown / End | 日志历史或总览翻页 / 最新 |
 | Tab | 窄终端切换侧栏与正文 |
 | ? / Esc | 帮助 / 关闭覆盖层 |
-| q / Ctrl-C | 停止本会话进程后退出 |
+| q / Ctrl-C | macOS 托管模式：断开连接；Linux/源码默认模式：关闭会话进程后退出 |
 
 停止或重启受影响的依赖需要确认。持久资源单独控制；退出不会自动停止 Docker 容器或删除数据。
 
 ## 能力边界
 
-StackHarbor 以当前用户权限运行本地前台进程，不提供安全沙箱。正常退出时只清理本会话进程，这些进程共享 30 秒的清理时限。释放有冲突的外部端口前，必须明确确认；发送信号前会重新核对进程身份。无法观测的脱离式 daemon 不受支持。
+StackHarbor 以当前用户权限运行本地前台进程，不提供安全沙箱。明确关闭工作区时只清理本会话进程，这些进程共享 30 秒的清理时限。释放有冲突的外部端口前，必须明确确认；发送信号前会重新核对进程身份。无法观测的脱离式 daemon 不受支持。
 
-就绪探针仅访问环回地址。每个服务的日志最多保留 2,000 行 / 2 MiB，全部日志最多 16 MiB，终端控制序列会被清除。RSS 可能重复计算共享页，进程 CPU 可超过 100%；外部服务以只读方式观测。`NO_COLOR` 禁用颜色，`STACKHARBOR_CACHE_DIR` 可指定会话锁与历史缓存目录。
+就绪探针仅访问环回地址。每个服务的日志最多保留 2,000 行 / 2 MiB，每个会话全部日志最多 16 MiB，另有 32 MiB 引擎日志上限，终端控制序列会被清除。RSS 可能重复计算共享页，进程 CPU 可超过 100%；外部服务以只读方式观测。`NO_COLOR` 禁用颜色，`STACKHARBOR_CACHE_DIR` 可指定会话锁与历史缓存目录。
 
 Docker 资源指标来自批量 `docker stats` 采样。注册的 Compose 资源会在总览、工程详情和 Docker 页面显示内存和 CPU。外部转发端口如果在已配置的 Compose 范围内唯一匹配到运行中的容器，工程行也会显示该容器的指标。采样失败时显示未知值和原因。指标口径见 [使用说明](docs/usage.zh-CN.md#docker-依赖)。
 
-当前早期版本不支持 Windows、后台托管和应用故障后自动重启。`pnpm dev` 等开发命令仍使用自带的文件监听与 HMR。StackHarbor 不为任意命令额外添加监听器，也不重建接管的容器。需要源码热更新时，请注册项目自带的前台开发监听命令，详见[热更新排查](skills/stackharbor/references/hot-reload.md)。配置校验成功不代表应用的实际启动和数据库迁移行为已经得到验证。
+不支持 Windows 或应用故障后自动重启。macOS 应用会话由共享后台引擎持有；Linux 和源码默认模式保留前台终端归属。`pnpm dev` 等开发命令仍使用自带的文件监听与 HMR。StackHarbor 不为任意命令额外添加监听器，也不重建接管的容器。需要源码热更新时，请注册项目自带的前台开发监听命令，详见[热更新排查](skills/stackharbor/references/hot-reload.md)。配置校验成功不代表应用的实际启动和数据库迁移行为已经得到验证。
 
 ## 开发与贡献
+
+源码默认保留旧会话生命周期；设置 `STACKHARBOR_ENGINE_MODE=managed` 可使用托管模式，正式 macOS 按需启动需要应用设置。
 
 从源码构建需要 Go 1.26+、Node 26.9.0/npm 和 Make：
 
@@ -206,7 +225,7 @@ make run ARGS="--root /path/to/workspace"
 | `make demo` | 编译并打开可独立运行的演示 |
 | `make install` | 编译并安装到 `~/.local/bin` |
 | `make check` | 格式、vet、测试、竞态检测 |
-| `make release VERSION=0.2.0` | 打包四个平台发行包与当前版本发布说明 |
+| `make release VERSION=0.2.0` | 打包 Linux arm64/amd64 与发布说明；macOS 用 `make desktop` 生成原生 DMG |
 
 没有 Make 时，先执行 `sh scripts/web-build.sh`，再执行 `go build -o dist/stackharbor ./cmd/stackharbor`，然后运行 `./dist/stackharbor --root /path/to/workspace`。
 

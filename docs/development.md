@@ -1,6 +1,6 @@
 # Development and repository layout
 
-StackHarbor is a Go foreground application with an embedded React/TypeScript/Vite browser console. Source builds need Node 26.9.0/npm (see `.node-version`) and Go 1.26+. Its module root is the repository
+StackHarbor has a Go engine and an embedded React/TypeScript/Vite console. macOS app installations use a shared background engine; Linux and default source builds retain foreground session ownership. Source development can select `STACKHARBOR_ENGINE_MODE=managed` with a directly started isolated engine. Source builds need Node 26.9.0/npm (see `.node-version`) and Go 1.26+. Its module root is the repository
 root, and its implementation uses `cmd/` and `internal/`, following the
 [official Go module layout guidance](https://go.dev/doc/modules/layout).
 There is no requirement for a `src/` wrapper or a public `pkg/` directory.
@@ -14,6 +14,7 @@ stackharbor/
 ├── internal/              # Application packages and their unit tests
 │   ├── buildinfo/          # Source version and build metadata
 │   ├── cli/                # Commands, flags, and output
+│   ├── engine/             # Shared managed hosts, private transport and recovery
 │   ├── config/             # YAML loading and validation
 │   ├── discovery/          # Workspace and project discovery
 │   ├── docker/             # Compose control and container metrics
@@ -76,6 +77,27 @@ STACKHARBOR_RELEASE_TEST=1 STACKHARBOR_RELEASE_VERSION=0.2.0 \
   go test ./tests -run '^TestRelease' -count=1
 (cd dist && shasum -a 256 -c SHA256SUMS)
 ```
+
+`make release` now packages Linux arm64/amd64 CLI archives. macOS public releases
+use native signed/notarized DMGs from `make desktop`, with matching CLI, skill and
+helper. The tag workflow calls `desktop.yml` in release mode; ordinary desktop CI
+stays internal and never receives signing credentials. Protect the `macos-release`
+GitHub environment with required reviewers and release-tag restrictions before
+using it. Supply environment secrets `APPLE_CERTIFICATE_P12` (base64 P12),
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
+`APPLE_PASSWORD` and `APPLE_TEAM_ID`. Identity/team and notarization authorization
+are verified before release bundling. No workflow dispatch or publication is
+implied by editing these files. The release assembler refuses dirty, mismatched,
+missing-architecture, checksum-invalid or internal macOS artifacts. Verify actual
+repository protection settings and complete native acceptance separately; workflow
+syntax alone does not establish either.
+
+Run `python3 scripts/test_engine_acceptance.py` and
+`python3 scripts/test_release_delivery.py` for hermetic acceptance-tool and release
+staging checks. Fresh release binaries can use
+`engine-lifecycle-smoke.py --binary PATH` and
+`engine-performance.py --binary PATH --duration 600`; see [desktop verification](desktop.md)
+for native PID scope, measurement limits and unverified gates.
 
 The local Docker Linux check is `sh scripts/test-linux.sh`. It uses a disposable
 container independently of the application's Compose stack. Cross-compilation

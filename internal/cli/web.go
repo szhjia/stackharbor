@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/szhjia/stackharbor/internal/engine"
 	"github.com/szhjia/stackharbor/internal/web"
 	"io"
 )
@@ -33,7 +34,21 @@ func runWeb(ctx context.Context, args []string, out, errOut io.Writer) int {
 			explicit = true
 		}
 	})
-	if err := web.Run(ctx, web.Options{Port: *port, PortExplicit: explicit, NoOpen: *noOpen, DevelopmentOrigin: *devOrigin, Out: out, ErrOut: errOut}); err != nil {
+	options := web.Options{Port: *port, PortExplicit: explicit, NoOpen: *noOpen, DevelopmentOrigin: *devOrigin, Out: out, ErrOut: errOut}
+	if engine.ManagedEnabled() {
+		namespace, err := web.ResolveNamespace("")
+		if err != nil {
+			return controlFailure(errOut, err)
+		}
+		client, err := engine.Ensure(ctx)
+		if err != nil {
+			return controlFailure(errOut, err)
+		}
+		defer client.Close()
+		options.Namespace = namespace
+		options.WorkspaceHandler = client.WorkspaceProxy(namespace)
+	}
+	if err := web.Run(ctx, options); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}

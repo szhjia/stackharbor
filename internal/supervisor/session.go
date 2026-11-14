@@ -72,6 +72,18 @@ type Session struct {
 }
 
 func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *observe.Sampler) (*Session, error) {
+	return NewWithOptions(w, r, p, sampler, SessionOptions{})
+}
+
+type SessionOptions struct {
+	ObservationCache    *docker.ObservationCache
+	Namespace           string
+	Managed             bool
+	ExternalObservation bool
+	Environment         []string
+}
+
+func NewWithOptions(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *observe.Sampler, options SessionOptions) (*Session, error) {
 	if w.Invalid() {
 		return nil, errors.New("Project configuration contains errors")
 	}
@@ -80,13 +92,16 @@ func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *obser
 		return nil, fmt.Errorf("Invalid dependency graph: %s", ds[0].Message)
 	}
 	w.Projects = g.Navigation(w)
-	lock, e := Acquire(w.Root)
+	lock, e := AcquireIn(w.Root, options.Namespace, options.Managed)
 	if e != nil {
 		return nil, e
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Session{workspace: w, entries: map[model.ServiceID]*entry{}, graph: g, runner: r, ports: p, sampler: sampler, store: logs.NewStore(), lock: lock, ctx: ctx, cancel: cancel, sem: make(chan struct{}, 4), shutdownDone: make(chan struct{})}
 	s.docker = docker.New(w.Root)
+	if options.Environment != nil {
+		s.docker.SetEnvironment(options.Environment)
+	}
 	s.resources = map[model.ServiceID]*docker.Manager{}
 	s.inputDigests = map[string]string{}
 	managers := map[string]*docker.Manager{}
@@ -105,6 +120,9 @@ func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *obser
 				key := "adopted\x00" + v.Resource.Project
 				if managers[key] == nil {
 					m := docker.NewAdopted(w.Root, v.Resource.Project, adopted[v.Resource.Project])
+					if options.Environment != nil {
+						m.SetEnvironment(options.Environment)
+					}
 					if err := m.Pin(ctx); err != nil {
 						cancel()
 						lock.Close()
@@ -152,8 +170,16 @@ func New(w model.Workspace, r runner.Runner, p observe.PortProbe, sampler *obser
 	if info, e := process.NewReader().Read(ctx, int32(os.Getpid())); e == nil {
 		s.toolID = info.Identity
 	}
-	s.workers.Add(1)
-	go s.observeLoop()
+	if options.ObservationCache != nil {
+		s.docker.SetObservationCache(options.ObservationCache)
+		for _, manager := range s.resources {
+			manager.SetObservationCache(options.ObservationCache)
+		}
+	}
+	if !options.ExternalObservation {
+		s.workers.Add(1)
+		go s.observeLoop()
+	}
 	return s, nil
 }
 func (s *Session) Logs() *logs.Store { return s.store }
@@ -410,8 +436,15 @@ func (s *Session) watch(ctx context.Context, id model.ServiceID, gen uint64, h r
 		timeout = spec.Ready.Timeout
 	}
 	deadline := time.Now().Add(timeout)
-	tick := time.NewTicker(250 * time.Millisecond)
-	defer tick.Stop()
+	// With no readiness or dependency contract there is nothing to recheck.
+	// Root exit and cancellation already wake this watcher directly.
+	var tick *time.Ticker
+	var ticks <-chan time.Time
+	if spec.Ready != nil || len(spec.DependsOn) > 0 {
+		tick = time.NewTicker(250 * time.Millisecond)
+		defer tick.Stop()
+		ticks = tick.C
+	}
 	everReady := false
 	probe := func() {
 		var err error
@@ -457,7 +490,9 @@ func (s *Session) watch(ctx context.Context, id model.ServiceID, gen uint64, h r
 				s.readyResult(e, nil)
 				s.event(id, "ready", "Service ready")
 			}
-			tick.Reset(2 * time.Second)
+			if tick != nil {
+				tick.Reset(2 * time.Second)
+			}
 		} else {
 			e.reason = err.Error()
 			if everReady || time.Now().After(deadline) {
@@ -496,7 +531,7 @@ func (s *Session) watch(ctx context.Context, id model.ServiceID, gen uint64, h r
 			}
 			s.mu.Unlock()
 			return
-		case <-tick.C:
+		case <-ticks:
 			probe()
 		}
 	}

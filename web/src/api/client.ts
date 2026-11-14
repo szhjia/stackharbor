@@ -1,4 +1,6 @@
-import type { Inventory, Plan, Operation, LogPage } from "./types";
+import type { Inventory, Plan, Operation, LogPage, WorkspaceCatalogue, WorkspaceEntry, WorkspaceSession } from "./types";
+import { transportRequest } from "./transport";
+import { isDesktop } from "../desktop/bridge";
 export class ApiFailure extends Error {
   constructor(
     public status: number,
@@ -16,7 +18,7 @@ export class ApiClient {
     let response: Response;
     let envelope: { data?: T; error?: { code: string; message: string } };
     try {
-      response = await this.fetcher("/api/v1/" + path, {
+      response = await transportRequest("/api/v1/" + path, {
         method: body === undefined ? "GET" : "POST",
         credentials: "same-origin",
         headers:
@@ -25,7 +27,7 @@ export class ApiClient {
             : { "Content-Type": "application/json", "X-CSRF-Token": this.csrf },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(11000),
-      });
+      }, this.fetcher);
       envelope = await response.json();
       if (
         !envelope ||
@@ -45,7 +47,7 @@ export class ApiClient {
     if (!response.ok || envelope.error) {
       // A rejected unauthenticated request has not been accepted for execution.
       // Renew local request protection once; never retry unknown outcomes.
-      if (response.status === 401 && path !== "auth/session" && recoverSession) {
+      if (!isDesktop() && response.status === 401 && path !== "auth/session" && recoverSession) {
         await this.session();
         return this.request<T>(path, body, false);
       }
@@ -59,6 +61,7 @@ export class ApiClient {
     return envelope.data as T;
   }
   session() {
+    if (isDesktop()) return Promise.resolve({ csrf: "", expires_at: "" });
     if (!this.connecting) {
       this.connecting = this.request<{ csrf: string; expires_at: string }>(
         "auth/session",
@@ -80,6 +83,15 @@ export class ApiClient {
   }
   inventory() {
     return this.request<Inventory>("inventory");
+  }
+  workspaces() {
+    return this.request<WorkspaceCatalogue>("workspaces");
+  }
+  addWorkspace(root: string, workspace?: string) {
+    return this.request<WorkspaceEntry>("workspaces", { root, ...(workspace ? { workspace } : {}) });
+  }
+  openWorkspace(root: string, workspace?: string) {
+    return this.request<WorkspaceSession>("workspaces/open", { root, ...(workspace ? { workspace } : {}) });
   }
   sessionPath(sid: string, path: string) {
     return `sessions/${encodeURIComponent(sid)}/${path}`;

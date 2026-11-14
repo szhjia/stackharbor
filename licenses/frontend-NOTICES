@@ -77,6 +77,7 @@ shadcn/tailwind.css are MIT, covered by the shadcn license below.
 - @tanstack/react-table 9.2.6 (MIT): licenses/npm__tanstack__react-table-9.2.6-LICENSE
 - @tanstack/store 0.11.2 (MIT): licenses/npm__tanstack__store-0.11.2-LICENSE
 - @tanstack/table-core 9.2.6 (MIT): licenses/npm__tanstack__table-core-9.2.6-LICENSE
+- @tauri-apps/api 2.12.4 (Apache-2.0 OR MIT): licenses/npm__tauri-apps__api-2.12.4-LICENSE-APACHE-2.0
 - @types/react 19.3.0 (MIT): licenses/npm__types__react-19.3.0-LICENSE
 - @types/react-dom 19.3.0 (MIT): licenses/npm__types__react-dom-19.3.0-LICENSE
 - aria-hidden 1.2.6 (MIT): licenses/npm__aria-hidden-1.2.6-LICENSE
@@ -97,6 +98,7 @@ shadcn/tailwind.css are MIT, covered by the shadcn license below.
 - react-style-singleton 2.2.3 (MIT): licenses/npm__react-style-singleton-2.2.3-LICENSE
 - scheduler 0.28.0 (MIT): licenses/npm__scheduler-0.28.0-LICENSE
 - shadcn 4.21.1 copied components and CSS (MIT): licenses/npm__shadcn-4.21.1-LICENSE.md
+- sonner 2.0.8 (MIT): licenses/npm__sonner-2.0.8-LICENSE.md
 - tailwind-merge 3.7.0 (MIT): licenses/npm__tailwind-merge-3.7.0-LICENSE.md
 - tailwindcss 4.3.3 (MIT): licenses/npm__tailwindcss-4.3.3-LICENSE
 - tslib 2.8.1 (0BSD): licenses/npm__tslib-2.8.1-LICENSE.txt

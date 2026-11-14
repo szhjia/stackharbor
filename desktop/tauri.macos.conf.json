@@ -1,7 +1,36 @@
 {
   "bundle": {
-    "targets": ["app", "dmg"],
-    "icon": ["generated/icon.icns", "generated/icon.png"],
-    "macOS": { "minimumSystemVersion": "14.0", "hardenedRuntime": true }
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "generated/icon.icns",
+      "generated/icon.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "hardenedRuntime": true,
+      "files": {
+        "Library/LaunchAgents/com.xahacktech.stackharbor.engine.plist": "launchagents/com.xahacktech.stackharbor.engine.plist"
+      }
+    },
+    "resources": {
+      "generated/skill/": "skill/"
+    }
+  },
+  "identifier": "com.xahacktech.stackharbor",
+  "build": {
+    "frontendDist": "../internal/web/dist",
+    "devUrl": "http://localhost:5173"
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "packed-main"
+      ],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost; font-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173; object-src 'none'; base-uri 'none'; frame-src 'none'"
+    }
   }
 }

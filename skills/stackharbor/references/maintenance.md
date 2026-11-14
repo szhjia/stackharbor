@@ -4,6 +4,8 @@ The authoritative implementation of this skill is `skills/stackharbor/` in the S
 
 ## User-level installation
 
+macOS app setup installs and verifies the matching CLI plus full canonical skill; detected compatibility entries link to it. Use app repair/upgrade/uninstall for app-owned integrations and preserve user edits. Optional login startup defaults off. The independent installation paths below remain for Linux/source use or standalone skill users.
+
 Install from the public GitHub repository: `npx skills add szhjia/stackharbor --skill stackharbor -g`. This downloads the complete skill directory. Later, use `npx skills update stackharbor -g` to update only this skill; check for local customizations before upgrading. skills.sh displays repository skills, but its page index may lag behind source updates. Installing a link to the source, as described below, is another entry point.
 
 Run this from the source root or a release extraction directory that you will **keep permanently**:
@@ -24,7 +26,7 @@ Choose the entry point your runtime actually uses and avoid maintaining multiple
 
 ## Upgrades
 
-After a source update, the link immediately reads the new skill and references without copying them again; an existing agent session may need to reload them. **The skill link does not automatically update the binary**: update the binary separately according to the release instructions and check `stackharbor --version` and `--help`. Use an explicit release tag and checksum manifest; verify capabilities against the actual commands and validate/plan results.
+After a source update, the link immediately reads the new skill and references without copying them again; an existing agent session may need to reload them. **The skill link does not automatically update the binary**: for Linux/source installs update the binary separately according to the release instructions; macOS app upgrades manage their matching CLI/skill together and check `stackharbor --version` and `--help`. Use an explicit release tag and checksum manifest; verify capabilities against the actual commands and validate/plan results.
 
 Release installation: the skill is included in each release package. If you extract releases into a fixed directory, you can link that directory and update its contents during upgrades. If you use separate extraction directories for each version, explicitly move the skill entry point to the new directory. Do not delete the link's source or link to a temporary extraction directory. Moving the source tree breaks the old link; verify who owns the old entry point, then reinstall from the new source. The installer will not replace it automatically.
 
@@ -32,5 +34,5 @@ Release installation: the skill is included in each release package. If you extr
 
 1. When changing YAML fields, CLI commands, node IDs, exit codes, or lifecycles, update `SKILL.md`, the relevant `references/`, examples, and regression checks together.
 2. Run baseline application scenarios before changing behavior, then have an independent agent use the skill to complete the same scenarios afterward. Pay particular attention to preserving existing workspaces, handling missing migration contracts, respecting read-only validation boundaries, and upgrade paths.
-3. `sh scripts/check.sh` checks the actual installer, validate/plan for embedded YAML, the Python 3.9+ fallback watcher's reload/error/cleanup behavior, and all repository tests; `sh scripts/build-release.sh VERSION` includes the same skill, watcher and installer in the releases for all four platforms. An incomplete bundle without the hot-reload reference or watcher must fail installation.
+3. `sh scripts/check.sh` checks the actual installer, validate/plan for embedded YAML, the Python 3.9+ fallback watcher's reload/error/cleanup behavior, and all repository tests; `sh scripts/build-release.sh VERSION` includes the same skill, watcher and installer in Linux CLI archives; native macOS app packaging bundles the same complete skill. An incomplete bundle without the hot-reload reference or watcher must fail installation.
 4. Review and commit the relevant files; push or publish only with user authorization. Do not copy another protocol reference into other projects.

@@ -22,7 +22,7 @@ func TestReleaseDownloaderVerifiesBeforeInstalling(t *testing.T) {
 			if err := os.MkdirAll(fake, 0755); err != nil {
 				t.Fatal(err)
 			}
-			archive := fmt.Sprintf("stackharbor_0.1.0_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+			archive := fmt.Sprintf("stackharbor_0.1.0_%s_%s.tar.gz", "linux", runtime.GOARCH)
 			f, err := os.Create(filepath.Join(root, archive))
 			if err != nil {
 				t.Fatal(err)
@@ -51,6 +51,9 @@ func TestReleaseDownloaderVerifiesBeforeInstalling(t *testing.T) {
 				manifest = strings.Repeat("0", 64) + "  other.tar.gz\n"
 			}
 			if err := os.WriteFile(filepath.Join(root, "SHA256SUMS"), []byte(manifest), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(fake, "uname"), []byte("#!/bin/sh\ncase \"$1\" in -s) printf Linux;; -m) printf "+runtime.GOARCH+";; esac\n"), 0755); err != nil {
 				t.Fatal(err)
 			}
 			curl := `#!/bin/sh
@@ -105,6 +108,49 @@ esac
 				} else if !os.IsNotExist(readErr) {
 					t.Fatal("failed download published a binary", readErr)
 				}
+			}
+		})
+	}
+}
+
+func TestMacReleaseInstallerDirectsToDMGWithoutWrites(t *testing.T) {
+	for _, version := range []string{"latest", "0.1.0", "v0.9.2"} {
+		t.Run(version, func(t *testing.T) {
+			root := t.TempDir()
+			fake := filepath.Join(root, "tools")
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(fake, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(bin, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(bin, "stackharbor"), []byte("user-owned"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(fake, "uname"), []byte("#!/bin/sh\nprintf Darwin\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			marker := filepath.Join(root, "unexpected-download")
+			if err := os.WriteFile(filepath.Join(fake, "curl"), []byte("#!/bin/sh\ntouch \"$SH_DOWNLOAD_MARKER\"\nexit 99\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command("sh", "../scripts/install-release.sh", version, bin)
+			cmd.Env = append(os.Environ(), "PATH="+fake+":"+os.Getenv("PATH"), "SH_DOWNLOAD_MARKER="+marker)
+			out, err := cmd.CombinedOutput()
+			expected := "https://github.com/szhjia/stackharbor/releases/latest"
+			if version != "latest" {
+				expected = "https://github.com/szhjia/stackharbor/releases/tag/v" + strings.TrimPrefix(version, "v")
+			}
+			if err != nil || !strings.Contains(string(out), expected) || !strings.Contains(string(out), "DMG") || !strings.Contains(string(out), "Login startup defaults off") {
+				t.Fatal(err, string(out))
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatal("macOS guidance downloaded an archive", err)
+			}
+			data, err := os.ReadFile(filepath.Join(bin, "stackharbor"))
+			if err != nil || string(data) != "user-owned" {
+				t.Fatal("macOS guidance changed existing command", err)
 			}
 		})
 	}

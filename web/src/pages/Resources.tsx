@@ -13,8 +13,20 @@ import { Status } from "../components/Status";
 import { Button } from "../components/ui/button";
 import { useListQuery } from "../lib/list-state";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from "../components/ui/select";
-const resourceInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo resource={row.original} kind="identity" />;
+const resourceInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceIdentity resource={row.original} />;
 const sampleInfoCell: ListColumn<Resource>["cell"] = ({row}) => <ResourceInfo resource={row.original} kind="sample" />;
+function ResourceIdentity({resource}: {resource: Resource}) {
+  const {t: tr} = usePreferences();
+  const names = resource.references.flatMap(reference => reference.nodes.map(node => node.id));
+  const kind = resource.kind === "process" ? tr("Process") : resource.kind === "container" ? tr("Container") : resource.kind;
+  return <div className="resource-identity">
+    <div className="resource-name-row">
+      <span className="resource-name" title={names.join(", ") || undefined}>{names[0] ?? tr("Unassigned resource")}</span>
+      {names.length > 1 ? <span className="resource-name-count"><span aria-hidden="true">+{names.length - 1}</span><span className="sr-only">{tr("{count} more associated nodes", {count: names.length - 1})}</span></span> : null}
+    </div>
+    <div className="resource-meta caption"><span>{kind}</span><span aria-hidden="true">·</span><ResourceInfo resource={resource} kind="identity" /></div>
+  </div>;
+}
 const OwnershipExpansion = createContext<{expanded: Set<string>; toggle: (key: string) => void}>({expanded: new Set(), toggle: () => {}});
 function OwnershipNodes({resourceID, reference, root, multiple}: {resourceID: string; reference: Resource["references"][number]; root: string; multiple: boolean}) {
   const {t: tr} = usePreferences();
@@ -66,11 +78,10 @@ export function Resources({
   });
   const columns = useMemo<ListColumn<Resource>[]>(
     () => [
-      {accessorKey: "kind", header: tr("Type"), cell: ({row}) => <span>{row.original.kind === "process" ? tr("Process") : row.original.kind === "container" ? tr("Container") : row.original.kind}</span>},
       {
         id: "identity",
-        accessorFn: (r) => `${r.id} ${r.pid ?? ""} ${r.container_id ?? ""}`,
-        header: tr("PID / ID"),
+        accessorFn: (r) => `${r.references.flatMap(ref => ref.node_ids).join(" ")} ${r.id} ${r.pid ?? ""} ${r.container_id ?? ""}`,
+        header: tr("Resource"),
         cell: resourceInfoCell,
       },
       {

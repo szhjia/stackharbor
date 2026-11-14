@@ -30,6 +30,11 @@ func ReadCompletion(cache, sessionID string) (control.Operation, error) {
 	if err := sessionapi.ValidatePrivateDirectory(dir); err != nil {
 		return control.Operation{}, err
 	}
+	lock, err := readJournalLock(dir)
+	if err != nil {
+		return control.Operation{}, err
+	}
+	defer lock.Close()
 	op, err := readCompletion(filepath.Join(dir, sessionID+".json"))
 	if err != nil {
 		return op, err
@@ -38,6 +43,45 @@ func ReadCompletion(cache, sessionID string) (control.Operation, error) {
 		return control.Operation{}, &control.APIError{Code: "result_unknown", Message: "Session completion is unknown or expired"}
 	}
 	return op, nil
+}
+
+// Readers share the writer's journal lock through its rename and directory
+// fsync. Merely visible terminal bytes are not yet durable completion evidence.
+// The read path never creates files and never waits for an active publisher.
+func readJournalLock(dir string) (*os.File, error) {
+	unknown := &control.APIError{Code: "result_unknown", Message: "Session completion publication is unavailable or still in progress"}
+	path := filepath.Join(dir, ".journal.lock")
+	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if os.IsNotExist(err) {
+		return nil, unknown
+	}
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	st, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	owner, ok := st.Sys().(*syscall.Stat_t)
+	if !ok || int(owner.Uid) != os.Getuid() || !st.Mode().IsRegular() || st.Mode().Perm() != 0600 {
+		file.Close()
+		return nil, fmt.Errorf("unsafe completion journal lock")
+	}
+	if err = syscall.Flock(fd, syscall.LOCK_SH|syscall.LOCK_NB); err != nil {
+		file.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return nil, unknown
+		}
+		return nil, err
+	}
+	named, err := os.Lstat(path)
+	if err != nil || !os.SameFile(st, named) {
+		file.Close()
+		return nil, fmt.Errorf("completion journal lock changed")
+	}
+	return file, nil
 }
 func terminal(state string) bool {
 	return state == "succeeded" || state == "failed" || state == "partial" || state == "canceled"
@@ -231,6 +275,11 @@ func ReadOperationCompletion(cache, canonicalRoot, operationID string) (control.
 	if e := sessionapi.ValidatePrivateDirectory(dir); e != nil {
 		return control.Operation{}, e
 	}
+	lock, e := readJournalLock(dir)
+	if e != nil {
+		return control.Operation{}, e
+	}
+	defer lock.Close()
 	entries, e := os.ReadDir(dir)
 	if e != nil {
 		return control.Operation{}, e

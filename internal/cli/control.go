@@ -14,6 +14,7 @@ import (
 
 	"github.com/szhjia/stackharbor/internal/config"
 	"github.com/szhjia/stackharbor/internal/control"
+	"github.com/szhjia/stackharbor/internal/engine"
 	"github.com/szhjia/stackharbor/internal/inventory"
 	"github.com/szhjia/stackharbor/internal/sessionapi"
 	"github.com/szhjia/stackharbor/internal/supervisor"
@@ -30,8 +31,9 @@ func controlCommand(command string) bool {
 // An interactive recovery can only close the owner that triggered its prompt.
 // Public control commands select their own owner and keep their usual prompt.
 type controlInteraction struct {
-	expected *supervisor.SessionInfo
-	confirm  func(io.Reader, io.Writer, string) bool
+	expected          *supervisor.SessionInfo
+	confirm           func(io.Reader, io.Writer, string) bool
+	noImplicitRelease bool
 }
 
 // extractCommand preserves flags before a command without treating their values
@@ -47,7 +49,7 @@ func extractCommand(args []string) (string, []string) {
 		if strings.HasPrefix(a, "-") {
 			if !equal {
 				switch name {
-				case "root", "workspace", "target", "focus", "project", "port", "timeout", "id", "after", "limit":
+				case "root", "workspace", "target", "focus", "project", "port", "timeout", "id", "after", "limit", "state-dir", "runtime-dir", "idle-timeout", "namespace":
 					value = true
 				}
 			}
@@ -241,6 +243,13 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		}
 		return controlFailure(errOut, e)
 	}
+	if !found && command == "start" && engine.ManagedEnabled() {
+		info, e = openManagedSession(ctx, canonical, *workspace)
+		if e != nil {
+			return controlFailure(errOut, e)
+		}
+		found = true
+	}
 	if found && interaction.expected != nil {
 		expected := interaction.expected
 		if info.Root != expected.Root || info.PID != expected.PID || info.ProcessCreatedMillis != expected.ProcessCreatedMillis || info.SessionID != expected.SessionID || info.SocketPath != expected.SocketPath || info.ProtocolVersion != expected.ProtocolVersion {
@@ -270,6 +279,11 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		confirm = interaction.confirm
 	}
 	if command == "kill" && info.ProtocolVersion == 0 && info.SocketPath == "" {
+		// A partially published managed host must never become a legacy signal
+		// target: multiple workspaces share this PID.
+		if info.OwnerKind == "engine" {
+			return controlFailure(errOut, &control.APIError{Code: "unsupported_protocol", Message: "Managed workspace endpoint is unavailable; engine PID will not be signalled"})
+		}
 		if *dry {
 			return encodeControl(out, control.Plan{SessionID: info.SessionID, Action: "close", Warnings: []string{"Legacy session: identity-checked signal shutdown; no operation journal"}, Affected: []string{}, Targets: []string{}})
 		}
@@ -308,7 +322,7 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 	action := command
 	if command == "kill" {
 		action = "close"
-	} else if command == "start" || command == "restart" {
+	} else if (command == "start" || command == "restart") && !interaction.noImplicitRelease {
 		// Match the terminal console: one retained plan covers any declared port
 		// conflicts and the launch, so the user need not issue release then retry.
 		action = "release-" + command
@@ -414,7 +428,7 @@ func controlFailure(out io.Writer, e error) int {
 	var api *control.APIError
 	if errors.As(e, &api) {
 		switch api.Code {
-		case "unsupported_protocol", "invalid_request", "forbidden", "identity_conflict", "idempotency_conflict", "plan_expired", "plan_conflict", "shared_consumers":
+		case "unsupported_protocol", "version_conflict", "recovery_conflict", "engine_conflict", "invalid_request", "forbidden", "identity_conflict", "idempotency_conflict", "plan_expired", "plan_conflict", "shared_consumers":
 			return 2
 		case "result_unknown", "operation_expired":
 			return 3

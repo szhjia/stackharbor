@@ -16,10 +16,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type Manager struct {
+	observer     atomic.Pointer[ObservationCache]
 	adopted      bool
 	endpoint     string
 	pinned       map[string]string
@@ -139,6 +141,11 @@ func (m *Manager) Action(ctx context.Context, action string, names []string) err
 	}
 	if err := m.validate(names); err != nil {
 		return err
+	}
+	// A failed Docker write can have partially changed containers. Invalidate
+	// after either outcome, while identity and mutation reads remain fresh.
+	if observer := m.observer.Load(); observer != nil {
+		defer observer.invalidate()
 	}
 	if m.adopted {
 		return m.actionAdopted(ctx, action, names)
@@ -292,11 +299,11 @@ func (m *Manager) Observe(ctx context.Context) ([]model.DockerSnapshot, string) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	raw, err := m.run(ctx, append(m.args(), "ps", "--all", "--format", "json", "--orphans=false", "--no-trunc")...)
+	raw, err := m.observationRun(ctx, append(m.args(), "ps", "--all", "--format", "json", "--orphans=false", "--no-trunc")...)
 	if err != nil {
 		return rows, err.Error()
 	}
-	identity, identityErr := m.Identity(ctx)
+	identity, identityErr := m.observationIdentity(ctx)
 	if identityErr == nil {
 		for i := range rows {
 			rows[i].EndpointIdentity = identity.Endpoint

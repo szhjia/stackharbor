@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 type Options struct {
 	Root, WorkspaceFile string
 	RootExplicit        bool
+	Environment         []string
 }
 
 func Discover(ctx context.Context, opts Options) model.Workspace {
@@ -73,7 +75,7 @@ func Discover(ctx context.Context, opts Options) model.Workspace {
 	}
 	w.Version = cfg.Version
 	if len(cfg.Resources) > 0 {
-		p, ds := config.ResourceProject(wf, root, cfg)
+		p, ds := config.ResourceProjectInContext(ctx, wf, root, cfg, opts.Environment)
 		w.Diagnostics = append(w.Diagnostics, ds...)
 		w.Projects = append(w.Projects, p)
 	}
@@ -105,7 +107,24 @@ func Discover(ctx context.Context, opts Options) model.Workspace {
 			continue
 		}
 		seen[real] = true
-		project, ds := config.LoadProject(real, root)
+		project, ds := config.LoadProjectWithEnvironment(real, root, opts.Environment)
+		if opts.Environment != nil {
+			for i := range project.Services {
+				n := &project.Services[i]
+				if !n.EnvFrozen {
+					base := map[string]string{}
+					for _, pair := range opts.Environment {
+						if k, v, ok := strings.Cut(pair, "="); ok {
+							base[k] = v
+						}
+					}
+					for k, v := range n.Env {
+						base[k] = v
+					}
+					n.Env, n.EnvFrozen = base, true
+				}
+			}
+		}
 		for _, n := range project.Services {
 			if n.Version == 2 {
 				w.Version = 2

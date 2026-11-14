@@ -1,5 +1,27 @@
-import { controllable, type Inventory, type Session, type Node } from "../api/types";
+import { controllable, type Inventory, type Session, type Node, type Resource } from "../api/types";
 import { isAbnormalNodeState } from "./node-state";
+
+export function presentWorkbenchResource(resource: Resource, sessions: Session[]) {
+  const sessionByID = new Map(sessions.map(session => [session.identity.session_id, session]));
+  const references = resource.references.map(reference => {
+    const session = sessionByID.get(reference.session_id);
+    const workspace = session?.root.split("/").filter(Boolean).at(-1) || reference.workspace_id;
+    const associations = reference.node_ids.map(id => ({workspace, name: session?.snapshot?.nodes.find(node => node.id === id)?.name || id}));
+    return {workspace, associations};
+  });
+  const associations = references.flatMap(reference => reference.associations);
+  const workspace = [...new Set(references.map(reference => reference.workspace).filter(Boolean))].join(", ");
+  const identity = resource.kind === "process" && resource.pid != null
+    ? `PID ${resource.pid}`
+    : resource.container_id?.slice(0, 12) || "";
+  return {
+    title: associations[0]?.name || identity,
+    additionalAssociations: Math.max(0, associations.length - 1),
+    workspace,
+    identity,
+    fullTitle: associations.length ? associations.map(association => `${association.workspace} / ${association.name}`).join(", ") : identity,
+  };
+}
 
 // All counts describe this inventory snapshot; resources are already physically deduplicated by the API.
 export function summarizeWorkbench(data: Inventory, now: number) {

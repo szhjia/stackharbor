@@ -47,6 +47,9 @@ type adoptedContainer struct {
 var fullContainerID = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 func (m *Manager) adoptedContainers(ctx context.Context, services []string) (map[string]adoptedContainer, error) {
+	return m.adoptedContainersWith(ctx, services, m.run)
+}
+func (m *Manager) adoptedContainersWith(ctx context.Context, services []string, run func(context.Context, ...string) ([]byte, error)) (map[string]adoptedContainer, error) {
 	wanted := map[string]bool{}
 	for _, service := range services {
 		if service == "" || strings.HasPrefix(service, "-") {
@@ -54,7 +57,7 @@ func (m *Manager) adoptedContainers(ctx context.Context, services []string) (map
 		}
 		wanted[service] = true
 	}
-	raw, err := m.run(ctx, "ps", "--all", "--no-trunc", "--filter", "label=com.docker.compose.project="+m.Project, "--format", `{{.ID}} {{.Label "com.docker.compose.service"}}`)
+	raw, err := run(ctx, "ps", "--all", "--no-trunc", "--filter", "label=com.docker.compose.project="+m.Project, "--format", `{{.ID}} {{.Label "com.docker.compose.service"}}`)
 	if err != nil {
 		return nil, errors.New("Docker container identity unavailable")
 	}
@@ -84,7 +87,7 @@ func (m *Manager) adoptedContainers(ctx context.Context, services []string) (map
 		}
 		args = append(args, id)
 	}
-	raw, err = m.run(ctx, args...)
+	raw, err = run(ctx, args...)
 	if err != nil {
 		return nil, errors.New("Docker container inspection failed")
 	}
@@ -155,7 +158,7 @@ func (m *Manager) observeAdopted(ctx context.Context) ([]model.DockerSnapshot, s
 	for _, spec := range m.specs {
 		services = append(services, spec.Service)
 	}
-	rows, err := m.verifyAdopted(ctx, services)
+	rows, err := m.verifyAdoptedObservation(ctx, services)
 	if err != nil {
 		return m.Specs(), err.Error()
 	}

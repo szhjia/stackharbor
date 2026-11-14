@@ -71,7 +71,6 @@ type controlRevision struct {
 	ID              model.ServiceID
 	Generation      uint64
 	Owned, Observed []model.ProcessIdentity
-	Container       string
 }
 
 func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest) (control.PlanState, error) {
@@ -214,7 +213,7 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		if e == nil {
 			continue
 		}
-		r := controlRevision{ID: id, Generation: e.gen, Observed: append([]model.ProcessIdentity{}, e.observed...), Container: e.resourceIdentity}
+		r := controlRevision{ID: id, Generation: e.gen, Observed: append([]model.ProcessIdentity{}, e.observed...)}
 		if e.handle != nil {
 			r.Owned = append([]model.ProcessIdentity{}, e.handle.Identities()...)
 		}
@@ -222,18 +221,6 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		sortIdentities(r.Observed)
 		revisions = append(revisions, r)
 	}
-	rows := []string{}
-	for _, row := range s.dockerRows {
-		for _, id := range relevant {
-			if row.Service == string(id) {
-				rows = append(rows, row.Service+"/"+row.ID)
-			}
-		}
-		if legacyDocker {
-			rows = append(rows, row.Service+"/"+row.ID)
-		}
-	}
-	sort.Strings(rows)
 	config, _ := json.Marshal(s.workspace)
 	inputs := map[string]string{}
 	for path, digest := range s.inputDigests {
@@ -317,11 +304,10 @@ func (b *ControlBackend) PlanState(ctx context.Context, req control.PlanRequest)
 		Request      control.PlanRequest
 		Relevant     []controlRevision
 		Affected     []model.ServiceID
-		Containers   []string
 		Resources    []string
 		ResourceKeys []string
 		Conflicts    []model.PortConflict
-	}{fmt.Sprintf("%x", sha256.Sum256(config)), inputs, req, revisions, affected, rows, resourceBindings, resourceKeys, conflicts})
+	}{fmt.Sprintf("%x", sha256.Sum256(config)), inputs, req, revisions, affected, resourceBindings, resourceKeys, conflicts})
 	out := control.PlanState{Fingerprint: fmt.Sprintf("%x", sha256.Sum256(binding)), Affected: []string{}, Warnings: warnings, Data: controlExecution{ResourceKeys: resourceKeys, IDs: append([]model.ServiceID{}, ids...), Conflicts: append([]model.PortConflict{}, conflicts...), Ports: append([]model.Port{}, releasePorts...)}}
 	for _, id := range affected {
 		out.Affected = append(out.Affected, string(id))

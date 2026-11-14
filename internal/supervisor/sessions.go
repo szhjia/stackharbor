@@ -23,6 +23,7 @@ import (
 
 // Metadata is advisory. An occupied OS lock and the process birth time establish liveness.
 type SessionInfo struct {
+	OwnerKind            string    `json:"owner_kind,omitempty"`
 	WorkspaceID          string    `json:"workspace_id,omitempty"`
 	NamespaceID          string    `json:"namespace_id,omitempty"`
 	SessionID            string    `json:"session_id,omitempty"`

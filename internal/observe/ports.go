@@ -8,6 +8,7 @@ import (
 	"github.com/szhjia/stackharbor/internal/process"
 	"net"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,9 +55,21 @@ func parsePorts(b []byte) (map[int][]model.Listener, error) {
 	return out, nil
 }
 func (portProbe) Observe(ctx context.Context, declared []model.Port, owned []model.ProcessIdentity) []model.PortObservation {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	if len(declared) == 0 && len(owned) == 0 {
+		return nil
+	}
+	// Full-system lsof scans on busy macOS hosts can exceed two seconds.
+	// Keep the scan bounded while still honoring an earlier caller deadline.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	b, e := exec.CommandContext(ctx, "lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn").Output()
+	args := []string{"-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn"}
+	if runtime.GOOS == "darwin" {
+		// Numeric TCP socket identity needs no filesystem path resolution. Avoid
+		// stat/readlink on every mounted filesystem (including remote mounts).
+		// -w suppresses the expected filesystem-only warnings from -b.
+		args = append(args, "-b", "-w")
+	}
+	b, e := exec.CommandContext(ctx, "lsof", args...).Output()
 	known := true
 	reason := ""
 	if e != nil {

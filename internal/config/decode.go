@@ -137,12 +137,18 @@ func checkNode(n *yaml.Node) error {
 	return nil
 }
 func LoadProject(path, root string) (model.Project, []model.Diagnostic) {
+	return LoadProjectWithEnvironment(path, root, nil)
+}
+
+// LoadProjectWithEnvironment injects the caller's environment without changing
+// the shared process. Nil retains standalone CLI behavior.
+func LoadProjectWithEnvironment(path, root string, environment []string) (model.Project, []model.Diagnostic) {
 	var f projectFile
 	if err := decode(path, &f); err != nil {
 		return model.Project{}, []model.Diagnostic{model.Error(path, "document", err.Error())}
 	}
 	if f.Version == 2 {
-		return validateV2(path, root, f)
+		return validateV2WithEnvironment(path, root, f, environment)
 	}
 	if len(f.Tasks) > 0 || f.Context.Cwd != "" || len(f.Context.EnvFiles) > 0 || len(f.Context.Env) > 0 {
 		return model.Project{}, []model.Diagnostic{model.Error(path, "version", "v2 fields require version 2")}

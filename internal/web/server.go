@@ -34,9 +34,13 @@ type Options struct {
 	Ready             func(string)
 	// EndpointReady is a checked desktop-sidecar handshake. Returning an error
 	// aborts this invocation without closing an independently owned gateway.
-	EndpointReady  func(Endpoint) error
-	Static, Events http.Handler
-	Collect        func(context.Context) (inventory.Inventory, error)
+	EndpointReady    func(Endpoint) error
+	Static, Events   http.Handler
+	Collect          func(context.Context) (inventory.Inventory, error)
+	Source           inventory.Source
+	WorkspaceHandler http.Handler
+	OnSubscribe      func() func()
+	LiveInterval     func() time.Duration
 }
 type retainedPlan struct {
 	Plan        control.Plan
@@ -62,7 +66,11 @@ func NewGateway(host string, options Options) *Gateway {
 		options.Static = Assets()
 	}
 	digest := sha256.Sum256([]byte(host + "|" + options.Namespace))
-	return &Gateway{host: host, options: options, auth: newAuth(cookiePrefix + fmt.Sprintf("%x", digest[:12])), collector: inventory.New(registrySource{options.Namespace}, inventory.Options{}), plans: map[string]retainedPlan{}, closes: map[string]retainedClose{}, hub: NewEventHub()}
+	source := options.Source
+	if source == nil {
+		source = registrySource{options.Namespace}
+	}
+	return &Gateway{host: host, options: options, auth: newAuth(cookiePrefix + fmt.Sprintf("%x", digest[:12])), collector: inventory.New(source, inventory.Options{}), plans: map[string]retainedPlan{}, closes: map[string]retainedClose{}, hub: NewEventHub()}
 }
 
 type registrySource struct{ cache string }
@@ -220,10 +228,35 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
+	g.serveAPI(w, r)
+}
+
+// ServeLocalHTTP is only attached to the authenticated private Unix transport.
+// Browser requests always enter ServeHTTP and its existing protection checks.
+func (g *Gateway) ServeLocalHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/api/v1/auth/session" && r.Method == "GET" {
+		writeJSON(w, 200, struct {
+			CSRF string `json:"csrf"`
+		}{""}, nil)
+		return
+	}
+	g.serveAPI(w, r)
+}
+
+func (g *Gateway) serveAPI(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/workspaces") && g.options.WorkspaceHandler != nil {
+		g.options.WorkspaceHandler.ServeHTTP(w, r)
+		return
+	}
 	// SSE owns its stream lifetime/write deadlines; ordinary requests get 10s.
 	if r.URL.Path == "/api/v1/events" {
 		if !method(w, r, "GET") {
 			return
+		}
+		if g.options.OnSubscribe != nil {
+			done := g.options.OnSubscribe()
+			defer done()
+			g.wakePresentation()
 		}
 		if g.options.Events != nil {
 			g.options.Events.ServeHTTP(w, r)

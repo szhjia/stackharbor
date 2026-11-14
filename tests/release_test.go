@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -32,10 +33,13 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 		version = buildinfo.Version
 	}
 	files, e := filepath.Glob("../dist/stackharbor_" + version + "_*.tar.gz")
-	if e != nil || len(files) != 4 {
+	if e != nil || len(files) != 2 {
 		t.Fatal("missing target archives", files, e)
 	}
 	for _, path := range files {
+		if !strings.Contains(filepath.Base(path), "_linux_") {
+			t.Fatal("public CLI archives must be Linux only; macOS uses signed DMGs", path)
+		}
 		f, e := os.Open(path)
 		if e != nil {
 			t.Fatal(e)
@@ -74,6 +78,20 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 				data, err := io.ReadAll(r)
 				if err != nil {
 					t.Fatal(err)
+				}
+				extracted := filepath.Join(t.TempDir(), "stackharbor")
+				if err := os.WriteFile(extracted, data, 0755); err != nil {
+					t.Fatal(err)
+				}
+				metadata, err := exec.Command("go", "version", "-m", extracted).CombinedOutput()
+				if err != nil || !strings.Contains(string(metadata), "GOOS=linux") || !strings.Contains(string(metadata), "buildinfo.Version="+version) {
+					t.Fatal("archive build version/platform mismatch", err, string(metadata))
+				}
+				if runtime.GOOS == "linux" && strings.Contains(filepath.Base(path), "_linux_"+runtime.GOARCH+".") {
+					out, err := exec.Command(extracted, "--version").CombinedOutput()
+					if err != nil || !strings.Contains(string(out), version) {
+						t.Fatal("archive runtime version mismatch", err, string(out))
+					}
 				}
 				for _, asset := range []string{"../internal/web/dist/index.html", "../internal/web/dist/asset-manifest.json"} {
 					expected, err := os.ReadFile(asset)
@@ -121,8 +139,5 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 			}
 		}
 	}
-	out, e := exec.Command("../dist/stackharbor", "--version").CombinedOutput()
-	if e != nil || !strings.Contains(string(out), version) {
-		t.Fatal("archive version mismatch", e, string(out))
-	}
+
 }

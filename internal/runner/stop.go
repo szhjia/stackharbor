@@ -29,13 +29,20 @@ func (h *handle) Stop(ctx context.Context, policy model.StopPolicy) StopResult {
 	errorsSeen := map[string]bool{}
 	signalled := map[model.ProcessIdentity]syscall.Signal{}
 	for {
-		captureErr := h.capture(ctx)
+		captureErr := h.captureFresh(ctx)
 		if err := captureErr; err != nil {
 			errorsSeen[err.Error()] = true
 		}
 		ids := h.Identities()
 		if len(ids) == 0 {
 			if captureErr == nil {
+				if err := h.verifyGroupEmpty(ctx); err != nil {
+					errorsSeen[err.Error()] = true
+					break
+				}
+				if err := h.finishJournal(); err != nil {
+					return StopResult{Errors: []string{err.Error()}}
+				}
 				return StopResult{Complete: true}
 			}
 			break
@@ -64,6 +71,9 @@ func (h *handle) Stop(ctx context.Context, policy model.StopPolicy) StopResult {
 			break
 		}
 		time.Sleep(25 * time.Millisecond)
+	}
+	if err := h.markRecovery(); err != nil {
+		errorsSeen[err.Error()] = true
 	}
 	errs := []string{}
 	for e := range errorsSeen {
