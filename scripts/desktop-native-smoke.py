@@ -75,11 +75,10 @@ def main():
             output.unlink(missing_ok=True)
             with (root / f'{phase}.log').open('w') as log:
                 application = subprocess.Popen([str(app_binary), '--native-smoke', '--namespace', str(root / 'namespace')], env=env, stdout=log, stderr=subprocess.STDOUT)
-            started = time.monotonic()
             forwarded = False
-            deadline = started + 60
+            deadline = time.monotonic() + 60
             while not output.exists():
-                if phase == 'install' and not forwarded and time.monotonic() - started >= 0.5:
+                if phase == 'install' and not forwarded and (root / 'forward-ready').is_file():
                     forwarding = ['/usr/bin/open', '-n', '-g', '-a', str(bundle)]
                     for name in ['HOME', 'STACKHARBOR_NATIVE_SMOKE_DIR', 'STACKHARBOR_ENGINE_RUNTIME_DIR', 'STACKHARBOR_ENGINE_STATE_DIR', 'STACKHARBOR_ENGINE_MODE']:
                         forwarding += ['--env', f'{name}={env[name]}']
@@ -100,6 +99,7 @@ def main():
             if phase == 'install':
                 assert engine.poll() is None, 'quitting native shell stopped the independent engine'
                 assert result['namespace'] == str(root / 'namespace'), 'explicit namespace changed'
+                assert forwarded, 'fixture did not request the second namespace'
                 assert str(root / 'namespace-two') in result['window_namespaces'].values(), 'existing native process did not forward the second namespace'
                 assert original_cli.is_symlink(), 'required CLI symlink absent'
                 skill = home / '.agents/skills/stackharbor'

@@ -39,13 +39,17 @@
       await invoke('desktop_unsubscribe', {id: subscription});
       window.__TAURI_INTERNALS__.unregisterCallback(first);
       checks.push('native-stream-unsubscribe');
-      await new Promise(resolve => setTimeout(resolve, 2000));
     } else {
       const removed = await invoke('desktop_uninstall');
       check(!removed.complete && removed.background.status === 'not_registered' && !removed.autostart.enabled, 'idle-uninstall-unregisters-fixture-services');
       check(removed.issues.some(issue => issue.includes('Modified entry preserved')), 'modified-skill-preserved');
     }
-    await invoke('desktop_smoke_complete', {token: __SMOKE_TOKEN__, result: {ok: true, phase: __SMOKE_PHASE__, checks, namespace: window.__STACKHARBOR_DESKTOP__.namespace}});
+    const result = {ok: true, phase: __SMOKE_PHASE__, checks, namespace: window.__STACKHARBOR_DESKTOP__.namespace};
+    const deadline = performance.now() + 20000;
+    while (!await invoke('desktop_smoke_complete', {token: __SMOKE_TOKEN__, result})) {
+      if (performance.now() >= deadline) throw Error('Second workspace window did not open before the deadline');
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
   } catch (error) {
     await invoke('desktop_smoke_complete', {token: __SMOKE_TOKEN__, result: {ok: false, phase: __SMOKE_PHASE__, checks, error: String(error)}});
   }

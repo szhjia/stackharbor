@@ -106,21 +106,46 @@ fn desktop_smoke_complete(
     app: tauri::AppHandle,
     token: String,
     mut result: serde_json::Value,
-) -> Result<(), String> {
-    use std::{io::Write, os::unix::fs::OpenOptionsExt};
+) -> Result<bool, String> {
+    use std::{
+        io::{ErrorKind, Write},
+        os::unix::fs::OpenOptionsExt,
+    };
     authorized(&window)?;
     let fixture = SMOKE
         .get()
         .filter(|s| s.token == token)
         .ok_or("Smoke completion is unavailable")?;
-    result["window_namespaces"] = serde_json::to_value(
-        app.state::<Native>()
-            .namespaces
-            .lock()
-            .map_err(|e| e.to_string())?
-            .clone(),
-    )
-    .map_err(|e| e.to_string())?;
+    let mut namespaces = app
+        .state::<Native>()
+        .namespaces
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let windows = app.webview_windows();
+    namespaces.retain(|label, _| windows.contains_key(label));
+    let second = fixture.root.join("namespace-two");
+    if fixture.phase == "install"
+        && result["ok"].as_bool() == Some(true)
+        && !namespaces
+            .values()
+            .any(|namespace| second == std::path::Path::new(namespace))
+    {
+        // The first WebView has reached native IPC. Let the fixture driver
+        // request the second window while this process stays alive.
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(fixture.root.join("forward-ready"))
+        {
+            Ok(_) => (),
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => (),
+            Err(error) => return Err(error.to_string()),
+        }
+        return Ok(false);
+    }
+    result["window_namespaces"] = serde_json::to_value(namespaces).map_err(|e| e.to_string())?;
     let bytes = serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?;
     if bytes.len() > 65536 {
         return Err("Oversized smoke result".into());
@@ -134,7 +159,7 @@ fn desktop_smoke_complete(
     file.write_all(&bytes).map_err(|e| e.to_string())?;
     file.sync_all().map_err(|e| e.to_string())?;
     quit(&app);
-    Ok(())
+    Ok(true)
 }
 struct Subscription {
     window: String,
