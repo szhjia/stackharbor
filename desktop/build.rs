@@ -35,6 +35,8 @@ fn main() {
         assert!(status.success(), "ServiceManagement bridge archive failed");
         println!("cargo:rustc-link-search=native={}", out.display());
         println!("cargo:rustc-link-search=native=/usr/lib/swift");
+        // Older SDKs link Swift libraries using @rpath install names.
+        println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
         println!("cargo:rustc-link-lib=static=stackharbor_service");
         println!("cargo:rustc-link-lib=framework=ServiceManagement");
         println!("cargo:rustc-link-lib=dylib=swiftCore");
