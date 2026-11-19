@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -84,4 +85,31 @@ func TestCompletionReadNeverCreatesMissingJournalLock(t *testing.T) {
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
 		t.Fatal("read path wrote journal state", entries, err)
 	}
+}
+
+func TestJournalUnlockWithRetainedDescriptor(t *testing.T) {
+	dir := t.TempDir()
+	writer, err := lockJournal(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = writer.Close() })
+	// A duplicate shares the original open file description and its flock,
+	// just like a descriptor temporarily inherited by a forked process.
+	duplicate, err := syscall.Dup(int(writer.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(duplicate)
+	if reader, err := readJournalLock(dir); err == nil {
+		reader.Close()
+		t.Fatal("reader acquired the lock while publication held it")
+	}
+
+	unlockJournal(writer)
+	reader, err := readJournalLock(dir)
+	if err != nil {
+		t.Fatal("reader could not acquire the lock after publication:", err)
+	}
+	defer reader.Close()
 }

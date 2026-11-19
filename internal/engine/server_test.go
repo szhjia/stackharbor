@@ -23,7 +23,8 @@ import (
 
 func privateTemp(t *testing.T) string {
 	t.Helper()
-	temp, err := os.MkdirTemp("/private/tmp", "sh-engine-test-")
+	// Use a short path so fixtures that listen on Unix sockets stay within the limit.
+	temp, err := os.MkdirTemp("/tmp", "sh-engine-test-")
 	if err != nil {
 		t.Fatal(err)
 	}

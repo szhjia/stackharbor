@@ -136,7 +136,7 @@ func writeBoundCompletion(ctx context.Context, cache, workspaceID string, op con
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer unlockJournal(lock)
 	// Reserve one slot before publishing. Cross-process flock keeps the cap
 	// meaningful when independent foreground hosts share this cache.
 	if err = pruneCompletions(dir, time.Now(), op.SessionID); err != nil {
@@ -253,6 +253,17 @@ func lockJournal(ctx context.Context, dir string) (*os.File, error) {
 		}
 	}
 	return f, nil
+}
+
+// Release the flock at the publication boundary even if a concurrent fork
+// still holds a copy of the descriptor while it is on its way to exec.
+func unlockJournal(file *os.File) {
+	defer file.Close()
+	for {
+		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN); !errors.Is(err, syscall.EINTR) {
+			return
+		}
+	}
 }
 
 // ReadOperationCompletion recovers a closed session result using the canonical
