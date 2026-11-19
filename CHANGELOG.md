@@ -6,10 +6,27 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-19
+
 ### Added
 
 - Start the current workspace in the background with `stackharbor -d` or
-  `--daemon`. The command uses the dashboard startup scope and the shared engine.
+  `--daemon`. Use `--yes` in scripts or `--dry-run --json` to preview the
+  declared startup scope and dependencies.
+- Manage macOS workspaces with a shared per-user background engine. Services
+  and accepted operations continue when terminal or desktop clients detach.
+
+### Changed
+
+- The macOS app installs the matching CLI and StackHarbor skill and registers
+  a user LaunchAgent for the background engine.
+- Public distribution includes signed and notarized DMGs for Apple Silicon and
+  Intel Macs, plus CLI archives for Linux arm64 and amd64.
+
+### Upgrade notes
+
+- Stop running workspaces through their StackHarbor controls before upgrading
+  the macOS app. After setup, reopen and start the workspaces you need.
 
 ## [0.9.2] - 2026-11-03
 
@@ -415,7 +432,8 @@ Initial public release.
 - Read-only discovery/validation JSON, safe init drafts, portable demos and reusable registration skill.
 - Four platform archives; native macOS and Linux runtime verification. Detached daemons and container ownership are outside this release.
 
-[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/szhjia/stackharbor/compare/v0.9.3...HEAD
+[0.9.3]: https://github.com/szhjia/stackharbor/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/szhjia/stackharbor/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/szhjia/stackharbor/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/szhjia/stackharbor/compare/v0.8.0...v0.9.0
