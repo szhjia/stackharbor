@@ -43,6 +43,10 @@ jobs:
           echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
       - name: Package
         run: make release VERSION="$RELEASE_VERSION"
+      - name: Install Linux archive verification dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
       - name: Verify distribution
         env:
           STACKHARBOR_RELEASE_TEST: '1'

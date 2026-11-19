@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
+	"debug/buildinfo"
 	"io"
 	"os"
 	"os/exec"
@@ -11,8 +13,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/szhjia/stackharbor/internal/buildinfo"
+	versioninfo "github.com/szhjia/stackharbor/internal/buildinfo"
 )
 
 func TestScriptsUseIndependentRoot(t *testing.T) {
@@ -28,18 +31,22 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 	if os.Getenv("STACKHARBOR_RELEASE_TEST") != "1" {
 		t.Skip("release artifacts checked after packaging")
 	}
+	if runtime.GOOS != "linux" {
+		t.Fatal("release archive verification requires Linux with qemu-user for the non-native architecture")
+	}
 	version := os.Getenv("STACKHARBOR_RELEASE_VERSION")
 	if version == "" {
-		version = buildinfo.Version
+		version = versioninfo.Version
 	}
 	files, e := filepath.Glob("../dist/stackharbor_" + version + "_*.tar.gz")
 	if e != nil || len(files) != 2 {
 		t.Fatal("missing target archives", files, e)
 	}
-	for _, path := range files {
-		if !strings.Contains(filepath.Base(path), "_linux_") {
-			t.Fatal("public CLI archives must be Linux only; macOS uses signed DMGs", path)
-		}
+	for _, target := range []struct{ arch, emulator string }{
+		{"amd64", "qemu-x86_64"},
+		{"arm64", "qemu-aarch64"},
+	} {
+		path := "../dist/stackharbor_" + version + "_linux_" + target.arch + ".tar.gz"
 		f, e := os.Open(path)
 		if e != nil {
 			t.Fatal(e)
@@ -83,15 +90,27 @@ func TestReleaseArchiveContentsAndVersion(t *testing.T) {
 				if err := os.WriteFile(extracted, data, 0755); err != nil {
 					t.Fatal(err)
 				}
-				metadata, err := exec.Command("go", "version", "-m", extracted).CombinedOutput()
-				if err != nil || !strings.Contains(string(metadata), "GOOS=linux") || !strings.Contains(string(metadata), "buildinfo.Version="+version) {
-					t.Fatal("archive build version/platform mismatch", err, string(metadata))
+				metadata, err := buildinfo.ReadFile(extracted)
+				if err != nil {
+					t.Fatal(path, "read Go build metadata:", err)
 				}
-				if runtime.GOOS == "linux" && strings.Contains(filepath.Base(path), "_linux_"+runtime.GOARCH+".") {
-					out, err := exec.Command(extracted, "--version").CombinedOutput()
-					if err != nil || !strings.Contains(string(out), version) {
-						t.Fatal("archive runtime version mismatch", err, string(out))
-					}
+				settings := make(map[string]string, len(metadata.Settings))
+				for _, setting := range metadata.Settings {
+					settings[setting.Key] = setting.Value
+				}
+				if settings["GOOS"] != "linux" || settings["GOARCH"] != target.arch {
+					t.Fatalf("%s: expected linux/%s binary, got %s/%s", path, target.arch, settings["GOOS"], settings["GOARCH"])
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+				command := exec.CommandContext(ctx, extracted, "--version")
+				if runtime.GOARCH != target.arch {
+					command = exec.CommandContext(ctx, target.emulator, extracted, "--version")
+				}
+				out, err := command.CombinedOutput()
+				cancel()
+				expected := "StackHarbor " + version
+				if err != nil || strings.TrimSpace(string(out)) != expected {
+					t.Fatalf("%s: expected runtime version %q, got %q (%v)", path, expected, strings.TrimSpace(string(out)), err)
 				}
 				for _, asset := range []string{"../internal/web/dist/index.html", "../internal/web/dist/asset-manifest.json"} {
 					expected, err := os.ReadFile(asset)

@@ -69,13 +69,14 @@ and race detector, then tests every example module. Integration tests create
 disposable processes and listeners. Some environment-dependent checks, including
 release archive and PostgreSQL checks, are opt-in; see each test's skip message.
 
-After packaging, verify the distribution as well:
+Verify the distribution on Linux with the `qemu-user` package installed.
+The archive check executes both binaries to verify their versions, using QEMU
+for the non-native architecture.
 
 ```sh
-make release VERSION=0.2.0
-STACKHARBOR_RELEASE_TEST=1 STACKHARBOR_RELEASE_VERSION=0.2.0 \
-  go test ./tests -run '^TestRelease' -count=1
-(cd dist && shasum -a 256 -c SHA256SUMS)
+make release
+STACKHARBOR_RELEASE_TEST=1 go test ./tests -run '^TestRelease' -count=1
+(cd dist && sha256sum -c SHA256SUMS)
 ```
 
 `make release` now packages Linux arm64/amd64 CLI archives. macOS public releases
