@@ -38,9 +38,11 @@ func ShellEnvironment(ctx context.Context, root string) ([]string, error) {
 		return nil, err
 	}
 	defer r.Close()
-	cmd := exec.CommandContext(budget, shell, "-lic", `exec "$1" __engine_export_environment`, "stackharbor", self)
+	// macOS Bash closes inherited extra descriptors during interactive startup.
+	// Carry the pipe on stdin and move it to FD3 after the shell has initialized.
+	cmd := exec.CommandContext(budget, shell, "-lic", `exec "$1" __engine_export_environment 3>&0 </dev/null`, "stackharbor", self)
 	cmd.Dir = root
-	cmd.ExtraFiles = []*os.File{w}
+	cmd.Stdin = w
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second

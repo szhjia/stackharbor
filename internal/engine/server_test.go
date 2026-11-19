@@ -325,7 +325,7 @@ func TestSlowWorkspaceOpenDoesNotBlockOtherControls(t *testing.T) {
 	}
 	entered, release := filepath.Join(privateTemp(t), "entered"), filepath.Join(privateTemp(t), "release")
 	script := filepath.Join(privateTemp(t), "shell")
-	text := fmt.Sprintf("#!/bin/sh\nprintf entered > %s\nwhile [ ! -f %s ]; do /bin/sleep 0.01; done\nprintf '[\"PATH=/usr/bin:/bin\"]' >&3\n", entered, release)
+	text := fmt.Sprintf("#!/bin/sh\nprintf entered > %s\nwhile [ ! -f %s ]; do /bin/sleep 0.01; done\nprintf '[\"PATH=/usr/bin:/bin\"]' >&0\n", entered, release)
 	if err = os.WriteFile(script, []byte(text), 0700); err != nil {
 		t.Fatal(err)
 	}
