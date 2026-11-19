@@ -26,6 +26,8 @@ import (
 
 const usage = `StackHarbor — terminal console for monorepos
 Usage: stackharbor [run|attach|discover|validate|init|plan|doctor|task|history|sessions|status|start|stop|restart|release|logs|operations|kill|web|desktop|engine] [options]
+       stackharbor -d|--daemon [--root PATH] [--yes|--dry-run] [--json]
+  -d, --daemon                         Start all eligible workspace services in the background engine
   desktop                              Open the installed desktop console
   run --no-desktop                     Terminal only; do not launch desktop
   attach                               Attach to a workspace terminal console
@@ -53,7 +55,7 @@ Usage: stackharbor [run|attach|discover|validate|init|plan|doctor|task|history|s
   init --dry-run       Preview candidate registration drafts
   init --write         Write unambiguous drafts without overwriting files
   --project PATH       Limit init to the selected candidate directory
-Services do not start automatically. Interactive mode: s start, x stop, ? help, q quit.
+Opening a console starts no services. Interactive mode: s start, x stop, ? help, q quit.
 Managed terminal exit only detaches; use stop or kill --root PATH for explicit shutdown.
 Existing workspace: review its owner and close plan, then confirm to reopen here.
 Start/restart plans include declared external port conflicts; confirmation releases and launches.
@@ -185,13 +187,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 		}
 		return attachSession(ctx, info, *workspace, in, out, errOut)
 	}
-	loadWorkspace := func() model.Workspace {
-		w := discovery.Discover(ctx, discovery.Options{Root: *root, WorkspaceFile: *workspace, RootExplicit: *root != ""})
-		_, ds := graph.Build(w.Services())
-		w.Diagnostics = append(w.Diagnostics, ds...)
-		return w
-	}
-	w := loadWorkspace()
+	w, g := loadWorkspaceGraph(ctx, *root, *workspace)
 	if command == "history" {
 		events, e := supervisor.ReadHistory(w.Root)
 		if e != nil {
@@ -243,7 +239,6 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 			_ = WriteDiscovery(out, w, *jsonMode)
 			return 2
 		}
-		g, _ := graph.Build(w.Services())
 		ids := []model.ServiceID{}
 		if *target != "" {
 			ids = append(ids, model.ServiceID(*target))
@@ -254,17 +249,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 				}
 			}
 		}
-		p, e := g.Plan(w, planAction, ids)
-		if e != nil {
-			fmt.Fprintln(errOut, e)
-			return 2
-		}
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if e = enc.Encode(p); e != nil {
-			return 1
-		}
-		return 0
+		return writeDependencyPlan(out, errOut, w, g, planAction, ids)
 	}
 	if command == "doctor" {
 		if w.Invalid() {
@@ -344,7 +329,7 @@ func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer
 			}
 			// Confirmation and cleanup can take time; never freeze new file
 			// contents together with a model parsed before the prompt.
-			fresh := loadWorkspace()
+			fresh, _ := loadWorkspaceGraph(ctx, *root, *workspace)
 			if fresh.Invalid() {
 				_ = WriteDiscovery(out, fresh, false)
 				return 2
@@ -396,3 +381,25 @@ func (r *readOnly) Restart(context.Context, []model.ServiceID) error {
 }
 func (r *readOnly) Affected([]model.ServiceID) []model.ServiceID { return nil }
 func (r *readOnly) Shutdown(context.Context) error               { return nil }
+
+func loadWorkspaceGraph(ctx context.Context, root, workspace string) (model.Workspace, *graph.Graph) {
+	w := discovery.Discover(ctx, discovery.Options{Root: root, WorkspaceFile: workspace, RootExplicit: root != ""})
+	g, ds := graph.Build(w.Services())
+	w.Diagnostics = append(w.Diagnostics, ds...)
+	return w, g
+}
+
+func writeDependencyPlan(out, errOut io.Writer, w model.Workspace, g *graph.Graph, action string, ids []model.ServiceID) int {
+	p, err := g.Plan(w, action, ids)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	if err = enc.Encode(p); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	return 0
+}

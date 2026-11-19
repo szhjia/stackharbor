@@ -9,6 +9,26 @@ interactive browser terminal, configuration editor or data deletion is provided.
 All platforms run with the current user's permissions. See [desktop setup and
 recovery](desktop.md).
 
+## Start a workspace in the background
+
+```sh
+stackharbor -d --root /path/to/workspace
+stackharbor --daemon --root /path/to/workspace --yes
+stackharbor -d --root /path/to/workspace --dry-run --json
+```
+
+Daemon mode uses the shared engine and the same startup scope as the dashboard.
+Eligible services and opted-in existing containers are direct targets. StackHarbor
+starts their declared prerequisites in dependency order. An existing-container
+resource requires a matching container. Services keep running after the CLI exits.
+
+The terminal shows the live plan before asking for confirmation. In scripts,
+`--yes` approves that plan, including any declared port conflict releases.
+`-d --dry-run` previews declared targets and prerequisites without opening an
+engine session. Container identity, readiness and port conflicts are checked by
+the live plan. A workspace already owned by a foreground terminal must be closed
+explicitly before daemon mode can take ownership.
+
 ## Start a session, then control it
 
 ```sh

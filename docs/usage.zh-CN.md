@@ -142,7 +142,7 @@ go vet ./...
 ./scripts/release.sh
 ```
 
-测试用临时监听和进程，不接管本机工程。发行脚本生成 macOS/Linux × arm64/amd64 的压缩包及 SHA256 校验表，含示例、skill、说明和第三方许可证。当前不包含 Windows、后台 daemon 或应用故障后自动重启。前台开发命令自带的 HMR 和源码监听照常工作；StackHarbor 不会自动为一次性编译命令或既有镜像添加热更新，接入与验证见[热更新排查](../skills/stackharbor/references/hot-reload.md)。
+测试用临时监听和进程，不接管本机工程。发行脚本生成 macOS/Linux × arm64/amd64 的压缩包及 SHA256 校验表，含示例、skill、说明和第三方许可证。macOS 桌面版使用共享后台引擎。Windows 和应用故障后自动重启暂未支持。前台开发命令自带的 HMR 和源码监听照常工作；StackHarbor 不会自动为一次性编译命令或既有镜像添加热更新，接入与验证见[热更新排查](../skills/stackharbor/references/hot-reload.md)。
 
 相关开源项目：[Process Compose](https://github.com/F1bonacc1/process-compose) 提供 YAML 进程编排、依赖和 TUI；[Overmind](https://github.com/DarthSim/overmind) 使用 Procfile 与 tmux。StackHarbor 将子工程自动发现、自注册和工程级 Dashboard 组合为当前工作流。
 
@@ -170,6 +170,8 @@ services:
 ## 浏览器及会话控制
 
 保持工作区 TUI 前台打开，在另一终端使用 `stackharbor web`；默认端口 16800，仅绑定 127.0.0.1。`--port 0 --no-open` 分配随机端口、打印一次性链接（60 秒有效）。关闭网关不关闭应用。认证过期或网关重启后，重新运行该命令、打开新链接。
+
+用 `stackharbor -d --root ROOT` 或 `stackharbor --daemon --root ROOT` 在共享引擎中启动整个工作区。范围与总览的「全部启动」一致，包括已纳入全局操作的既有容器和声明的依赖。终端展示实际计划供确认，脚本可用 `--yes` 确认。加 `--dry-run --json` 可在不开启会话的情况下查看声明的启动范围和依赖。
 
 `status --all --json` 聚合当前命名空间；`start/stop/restart --target NODE --root ROOT --dry-run` 获取真实计划，`--yes` 明确执行。`release --target NODE --port PORT` 只释放已声明冲突端口。`logs --target NODE --follow` 读取日志；`operations --id ID` 恢复断线、超时后的操作结果，避免重复执行。`kill --root ROOT --yes` 关闭会话，保留持久 Compose 资源和数据。
 

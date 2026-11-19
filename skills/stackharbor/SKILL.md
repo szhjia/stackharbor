@@ -48,6 +48,7 @@ When the user has requested starting the local app and its established runtime i
 | Active sessions | `stackharbor sessions --json`; add `--root ROOT` to filter by workspace |
 | Focus an existing window | `stackharbor sessions --focus PID` (macOS Terminal) |
 | Close workspace sessions | `stackharbor kill --root ROOT --yes` (explicit noninteractive close; preserves persistent resources) |
+| Start workspace in the background | `stackharbor -d --root ROOT` (scripts: `--yes`, declaration preview: `--dry-run --json`) |
 | Interactive entry point | `stackharbor run --root ROOT`; managed macOS can also use `attach --root ROOT` |
 | Unclean workspace inspection | `stackharbor engine recover --root ROOT --dry-run --json` (stop and reviewed acknowledgement are separate authorized actions) |
 | Managed engine state | `stackharbor engine status --json`; `engine ensure --json` demand-starts the registered macOS service |
@@ -102,7 +103,7 @@ Install from the public repository with `npx skills add szhjia/stackharbor --ski
 
 ## Browser and session CLI control
 
-For managed macOS and existing legacy sessions, follow [control and recovery](references/web-control.md). Verify the actual binary help before using new commands. CLI control uses the private engine socket in managed mode and the session socket in legacy mode. Browser gateway startup is `stackharbor web` (loopback16800; `--port 0 --no-open` for a free port and launch URL), and stopping it preserves applications. Noninteractive mutation requires `--yes` within user-authorized scope; `--dry-run` previews a live60-second plan. Use `operations --id` after timeout or disconnect and never retry an unknown outcome blindly. Keep cache namespace, canonical root, persistence/observe boundaries, plan expiry and shared consumers explicit.
+For managed macOS and existing legacy sessions, follow [control and recovery](references/web-control.md). Verify the actual binary help before using new commands. CLI control uses the private engine socket in managed mode and the session socket in legacy mode. Browser gateway startup is `stackharbor web` (loopback16800; `--port 0 --no-open` for a free port and launch URL), and stopping it preserves applications. Noninteractive mutation requires `--yes` within user-authorized scope; `--dry-run` previews a live60-second plan. Daemon mode (`-d` or `--daemon`) starts the dashboard startup scope in the shared engine; its `--dry-run` is a declaration preview without opening a session. Use `operations --id` after timeout or disconnect and never retry an unknown outcome blindly. Keep cache namespace, canonical root, persistence/observe boundaries, plan expiry and shared consumers explicit.
 
 ### Compose multi-file registration
 

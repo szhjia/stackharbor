@@ -6,6 +6,11 @@ Notable user-facing changes are recorded here, newest first. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Start the current workspace in the background with `stackharbor -d` or
+  `--daemon`. The command uses the dashboard startup scope and the shared engine.
+
 ## [0.9.2] - 2026-11-03
 
 ### Changed

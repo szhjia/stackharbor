@@ -135,6 +135,32 @@ func TestManagedCLIWorkspaceLifecycleAndDetachment(t *testing.T) {
 	if code, out, errs := managedCLIRun(t, "kill", "--root", root3, "--yes"); code != 0 {
 		t.Fatal(code, out, errs)
 	}
+	// Run the new startup entry point as a separate client so its exit proves
+	// that the service is owned by the engine rather than the invoking CLI.
+	previewCode, preview, previewErr := managedCLIRun(t, "--daemon", "--root", root2, "--dry-run", "--json")
+	if previewCode != 0 || !strings.Contains(preview, "app/service/api") {
+		t.Fatal("daemon preview did not report the registered service", previewCode, preview, previewErr)
+	}
+	if _, found, e := supervisor.SessionForRoot(root2); e != nil || found {
+		t.Fatal("daemon preview opened a session", found, e)
+	}
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelStart()
+	out, startErr := exec.CommandContext(startCtx, bin, "-d", "--root", root2, "--yes", "--json").CombinedOutput()
+	if startErr != nil || !strings.Contains(string(out), `"action":"release-all-start"`) || !strings.Contains(string(out), `"state":"succeeded"`) {
+		_, logs, _ := managedCLIRun(t, "logs", "--root", root2, "--target", "app/service/api")
+		t.Fatalf("daemon startup failed: %v\n%s\n%s", startErr, out, logs)
+	}
+	daemonPID := managedCLIPID(t, pidfile2)
+	if code, out, errs := managedCLIRun(t, "--daemon", "--root", root2, "--yes", "--json"); code != 0 || !strings.Contains(out, `"state":"succeeded"`) {
+		t.Fatal("daemon startup did not reuse its session", code, out, errs)
+	}
+	if current := managedCLIPID(t, pidfile2); current != daemonPID || syscall.Kill(current, 0) != nil {
+		t.Fatalf("repeating daemon startup replaced or stopped the service: %d -> %d", daemonPID, current)
+	}
+	if _, err = os.Stat(filepath.Join(root2, "task-done")); !os.IsNotExist(err) {
+		t.Fatal("daemon startup ran an unrelated task", err)
+	}
 	taskRoot, taskPIDFile := managedCLIWorkspace(t, base, "task-only")
 	if code, out, errs := managedCLIRun(t, "task", "run", "app/task/inspect", "--root", taskRoot, "--json"); code != 0 || !strings.Contains(out, `"state":"succeeded"`) {
 		t.Fatal("managed task did not use engine operation", code, out, errs)
@@ -159,10 +185,8 @@ func TestManagedCLIWorkspaceLifecycleAndDetachment(t *testing.T) {
 	if err != nil || !found || info1.OwnerKind != "engine" || info1.ProtocolVersion == 0 {
 		t.Fatal("start did not register a managed session", info1, found, err)
 	}
-	for _, root := range []string{root1, root2} {
-		if code, out, errs := managedCLIRun(t, "start", "--root", root, "--target", "app/service/api", "--yes", "--json"); code != 0 {
-			t.Fatal(code, out, errs)
-		}
+	if code, out, errs := managedCLIRun(t, "start", "--root", root1, "--target", "app/service/api", "--yes", "--json"); code != 0 {
+		t.Fatal(code, out, errs)
 	}
 	pid1, pid2 := managedCLIPID(t, pidfile1), managedCLIPID(t, pidfile2)
 	info2, found, err := supervisor.SessionForRoot(root2)

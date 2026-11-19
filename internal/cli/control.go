@@ -16,13 +16,14 @@ import (
 	"github.com/szhjia/stackharbor/internal/control"
 	"github.com/szhjia/stackharbor/internal/engine"
 	"github.com/szhjia/stackharbor/internal/inventory"
+	"github.com/szhjia/stackharbor/internal/model"
 	"github.com/szhjia/stackharbor/internal/sessionapi"
 	"github.com/szhjia/stackharbor/internal/supervisor"
 )
 
 func controlCommand(command string) bool {
 	switch command {
-	case "status", "start", "stop", "restart", "release", "kill", "logs", "operations":
+	case "status", "start", "stop", "restart", "release", "kill", "logs", "operations", "daemon":
 		return true
 	}
 	return false
@@ -44,6 +45,9 @@ func extractCommand(args []string) (string, []string) {
 		if value {
 			value = false
 			continue
+		}
+		if a == "-d" || a == "--daemon" {
+			return "daemon", append(append([]string{}, args[:i]...), args[i+1:]...)
 		}
 		name, _, equal := strings.Cut(strings.TrimLeft(a, "-"), "=")
 		if strings.HasPrefix(a, "-") {
@@ -162,13 +166,14 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		fmt.Fprintln(errOut, "Unexpected extra arguments")
 		return 2
 	}
-	mutation := command == "start" || command == "stop" || command == "restart" || command == "release" || command == "kill"
+	daemon := command == "daemon"
+	mutation := daemon || command == "start" || command == "stop" || command == "restart" || command == "release" || command == "kill"
 	allowed := map[string]bool{"root": true, "json": true, "help": true, "h": true}
 	if mutation {
 		for _, name := range []string{"workspace", "dry-run", "yes", "timeout"} {
 			allowed[name] = true
 		}
-		if command != "kill" {
+		if command != "kill" && !daemon {
 			allowed["target"] = true
 		}
 	}
@@ -208,7 +213,10 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		fmt.Fprintln(errOut, "status --all does not accept --root")
 		return 2
 	}
-	if mutation && command != "kill" && strings.TrimSpace(*target) == "" {
+	if daemon && *dry {
+		return previewDaemonStart(ctx, *root, *workspace, *jsonMode, out, errOut)
+	}
+	if mutation && command != "kill" && !daemon && strings.TrimSpace(*target) == "" {
 		fmt.Fprintln(errOut, "--target is required")
 		return 2
 	}
@@ -243,7 +251,11 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 		}
 		return controlFailure(errOut, e)
 	}
-	if !found && command == "start" && engine.ManagedEnabled() {
+	if daemon && found && info.OwnerKind != "engine" {
+		fmt.Fprintln(errOut, "Workspace has a terminal-owned session; close it explicitly before starting in daemon mode")
+		return 2
+	}
+	if !found && (daemon || command == "start" && engine.ManagedEnabled()) {
 		info, e = openManagedSession(ctx, canonical, *workspace)
 		if e != nil {
 			return controlFailure(errOut, e)
@@ -322,6 +334,8 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 	action := command
 	if command == "kill" {
 		action = "close"
+	} else if daemon {
+		action = "release-all-start"
 	} else if (command == "start" || command == "restart") && !interaction.noImplicitRelease {
 		// Match the terminal console: one retained plan covers any declared port
 		// conflicts and the launch, so the user need not issue release then retry.
@@ -334,6 +348,10 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 	plan, e := client.Plan(ctx, control.PlanRequest{Action: action, Targets: targets, Port: *port})
 	if e != nil {
 		return controlFailure(errOut, e)
+	}
+	if daemon && len(plan.Affected) == 0 {
+		fmt.Fprintln(errOut, "No managed services or resources are configured for workspace startup")
+		return 2
 	}
 	impact, e := collectControlImpact(ctx, info, plan)
 	if e != nil {
@@ -389,6 +407,27 @@ func runControlWithInteraction(ctx context.Context, command string, args []strin
 	}
 	return writeOperation(out, errOut, waited, *jsonMode)
 }
+
+// Preview the declared scope without opening a session or starting the engine.
+func previewDaemonStart(ctx context.Context, root, workspace string, jsonMode bool, out, errOut io.Writer) int {
+	w, g := loadWorkspaceGraph(ctx, root, workspace)
+	if w.Invalid() {
+		_ = WriteDiscovery(out, w, jsonMode)
+		return 2
+	}
+	ids := []model.ServiceID{}
+	for _, service := range w.Services() {
+		if service.InAllActions() {
+			ids = append(ids, service.ID)
+		}
+	}
+	if len(ids) == 0 {
+		fmt.Fprintln(errOut, "No managed services or resources are configured for workspace startup")
+		return 2
+	}
+	return writeDependencyPlan(out, errOut, w, g, "start", ids)
+}
+
 func confirmControl(in io.Reader, out io.Writer, prompt string) bool {
 	fmt.Fprintln(out, prompt)
 	line, e := bufio.NewReader(in).ReadString('\n')
