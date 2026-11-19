@@ -68,10 +68,10 @@ jobs:
         env:
           STACKHARBOR_DESKTOP_DISTRIBUTION: internal
           APPLE_SIGNING_IDENTITY: '-'
-          APPLE_ID: ''
-          APPLE_PASSWORD: ''
-          APPLE_TEAM_ID: ''
-        run: npm run tauri -- build --debug --ci --bundles app
+        run: |
+          # Tauri treats empty credential variables as configured.
+          unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH
+          npm run tauri -- build --debug --ci --bundles app
       - name: Isolated native acceptance (macOS)
         if: runner.os == 'macOS'
         run: python3 scripts/desktop-native-smoke.py --app desktop/target/debug/bundle/macos/StackHarbor.app --output "$RUNNER_TEMP/desktop-native.json"
@@ -178,10 +178,10 @@ jobs:
         env:
           STACKHARBOR_DESKTOP_DISTRIBUTION: internal
           APPLE_SIGNING_IDENTITY: '-'
-          APPLE_ID: ''
-          APPLE_PASSWORD: ''
-          APPLE_TEAM_ID: ''
-        run: npm run tauri -- build --debug --ci --bundles app
+        run: |
+          # Tauri treats empty credential variables as configured.
+          unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH
+          npm run tauri -- build --debug --ci --bundles app
       - name: Isolated native release acceptance
         run: python3 scripts/desktop-native-smoke.py --app desktop/target/debug/bundle/macos/StackHarbor.app --output "$RUNNER_TEMP/desktop-native.json"
       - name: Release engine fixture acceptance
